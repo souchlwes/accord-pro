@@ -8,7 +8,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -18,6 +18,97 @@ const formatTime = (timeStr) => {
   const suffix = h >= 12 ? 'PM' : 'AM';
   const displayH = h % 12 || 12;
   return `${displayH}:${String(m).padStart(2, '0')} ${suffix}`;
+};
+
+// --- GLOBAL REAL-TIME CHAT PANEL ---
+const ChatPanel = ({ profile, onClose }) => {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(100);
+      if (data) setMessages(data);
+    };
+    fetchMessages();
+
+    const channel = supabase.channel('global_chat')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        setMessages(prev => [...prev, payload.new]);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    const msg = text;
+    setText(""); 
+    await supabase.from('messages').insert([{
+      sender_id: profile.id,
+      sender_name: profile.full_name,
+      sender_role: profile.role,
+      text: msg
+    }]);
+  };
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col animate-in slide-in-from-right-full duration-500 border-l-[8px] border-indigo-500">
+      <div className="bg-slate-900 p-6 flex justify-between items-center text-white shadow-md z-10">
+        <div>
+          <h3 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+            <MessageSquare className="text-indigo-400" size={24} /> Campus <span className="text-indigo-400 italic">Chat</span>
+          </h3>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Live Global Broadcast</p>
+        </div>
+        <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all active:scale-95"><X size={20}/></button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar bg-slate-50">
+        {messages.length === 0 && <div className="text-center py-20 text-slate-400 font-black uppercase text-xs tracking-widest">No Messages Yet</div>}
+        {messages.map(m => {
+          const isMe = m.sender_id === profile.id;
+          return (
+            <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+              {!isMe && (
+                <div className="flex items-center gap-2 mb-1 pl-1">
+                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">{m.sender_name}</span>
+                  <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase">{m.sender_role}</span>
+                </div>
+              )}
+              <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 border-slate-100 text-slate-800 rounded-tl-sm'}`}>
+                <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
+              </div>
+              <span className="text-[8px] font-black text-slate-400 uppercase mt-1 px-1">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="p-4 bg-white border-t-2 border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 focus-within:border-indigo-500 transition-colors">
+          <input 
+            type="text" 
+            value={text} 
+            onChange={(e) => setText(e.target.value)} 
+            placeholder="Broadcast to campus..." 
+            className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800 placeholder:text-slate-400"
+          />
+          <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 transition-all active:scale-95">
+            <Send size={16} />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 };
 
 // --- SMART HELP CENTER (ROLE-AWARE FAQ) ---
@@ -408,7 +499,7 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat }) => {
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
@@ -529,6 +620,9 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           <div className="flex gap-2">
             {!isViewMode && (
               <>
+                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
+                  <MessageSquare size={18} />
+                </button>
                 <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative">
                   <HelpCircle size={18} />
                 </button>
@@ -708,6 +802,7 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const safeRole = profile?.role?.trim().toUpperCase() || '';
   const isHeadAdmin = safeRole === 'HEAD_ADMIN';
@@ -1183,10 +1278,12 @@ function App() {
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
           onShowHelp={() => setShowHelp(true)}
+          onShowChat={() => setShowChat(true)}
           onFlagIssue={handleFlagIssue}
         />
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
       </>
     );
   }
@@ -1197,6 +1294,7 @@ function App() {
       {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
@@ -1216,6 +1314,14 @@ function App() {
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'users' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <Users size={24} className="md:w-7 md:h-7" />
+        </button>
+
+        {/* GLOBAL CHAT ICON */}
+        <button 
+          onClick={() => setShowChat(true)}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+        >
+          <MessageSquare size={24} className="md:w-7 md:h-7" />
         </button>
 
         {/* ADMIN NOTIFICATION BELL */}
@@ -1244,7 +1350,7 @@ function App() {
 
       <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
         
-        {/* TRUTH REVEALER BADGE (Moved to natural document flow on mobile) */}
+        {/* TRUTH REVEALER BADGE */}
         <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0">
            <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{session?.user?.email}</p>
            <p className="text-xs font-bold text-slate-900">{profile?.full_name || 'Missing Profile Data'}</p>
@@ -1322,7 +1428,6 @@ function App() {
                     </button>
                   </div>
                   
-                  {/* MOBILE SCROLL HINT */}
                   {globalSchedule.length > 0 && (
                     <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 px-2 animate-pulse">
                       <ArrowRight size={12} /> Swipe calendar to view more
