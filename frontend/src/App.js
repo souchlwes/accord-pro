@@ -8,7 +8,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -20,93 +20,193 @@ const formatTime = (timeStr) => {
   return `${displayH}:${String(m).padStart(2, '0')} ${suffix}`;
 };
 
-// --- GLOBAL REAL-TIME CHAT PANEL ---
+// --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
 const ChatPanel = ({ profile, onClose }) => {
   const [messages, setMessages] = useState([]);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [text, setText] = useState("");
+  const [chatMode, setChatMode] = useState("global"); 
+  const [dmTarget, setDmTarget] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [showOptions, setShowOptions] = useState(null);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(100);
-      if (data) setMessages(data);
+    const fetchChatData = async () => {
+      const { data: msgData } = await supabase.from('messages')
+        .select('*')
+        .or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`)
+        .order('created_at', { ascending: true })
+        .limit(500);
+      if (msgData) setMessages(msgData);
+
+      const { data: userData } = await supabase.from('profiles')
+        .select('id, full_name, role, assigned_dept')
+        .neq('id', profile.id)
+        .order('full_name', { ascending: true });
+      if (userData) setSystemUsers(userData);
     };
-    fetchMessages();
+    fetchChatData();
 
     const channel = supabase.channel('global_chat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        setMessages(prev => [...prev, payload.new]);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const isGlobal = !payload.new.receiver_id;
+          const isForMe = payload.new.receiver_id === profile.id;
+          const isFromMe = payload.new.sender_id === profile.id;
+          if (isGlobal || isForMe || isFromMe) setMessages(prev => [...prev, payload.new]);
+        } else if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+        } else if (payload.eventType === 'DELETE') {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+        }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [profile.id]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, chatMode]);
 
   const handleSend = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
-    const msg = text;
+
+    if (editingId) {
+      await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
+      setEditingId(null);
+    } else {
+      await supabase.from('messages').insert([{
+        sender_id: profile.id,
+        sender_name: profile.full_name,
+        sender_role: profile.role,
+        text,
+        receiver_id: chatMode === 'dm' ? dmTarget.id : null
+      }]);
+    }
     setText(""); 
-    await supabase.from('messages').insert([{
-      sender_id: profile.id,
-      sender_name: profile.full_name,
-      sender_role: profile.role,
-      text: msg
-    }]);
   };
+
+  const handleReply = (msg) => {
+    setText(`@${msg.sender_name.split(' ')[0]}: `);
+    inputRef.current?.focus();
+  };
+
+  const handleEdit = (msg) => {
+    setEditingId(msg.id);
+    setText(msg.text);
+    setShowOptions(null);
+    inputRef.current?.focus();
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Delete this message?")) {
+      await supabase.from('messages').delete().eq('id', id);
+      setShowOptions(null);
+    }
+  };
+
+  const displayedMessages = messages.filter(m => {
+    if (chatMode === 'global') return !m.receiver_id;
+    if (chatMode === 'dm' && dmTarget) {
+      return (m.sender_id === profile.id && m.receiver_id === dmTarget.id) || 
+             (m.sender_id === dmTarget.id && m.receiver_id === profile.id);
+    }
+    return false;
+  });
 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col animate-in slide-in-from-right-full duration-500 border-l-[8px] border-indigo-500">
       <div className="bg-slate-900 p-6 flex justify-between items-center text-white shadow-md z-10">
         <div>
           <h3 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
-            <MessageSquare className="text-indigo-400" size={24} /> Campus <span className="text-indigo-400 italic">Chat</span>
+            <MessageSquare className="text-indigo-400" size={24} /> Accord <span className="text-indigo-400 italic">Chat</span>
           </h3>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Live Global Broadcast</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Live Campus Hub</p>
         </div>
         <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all active:scale-95"><X size={20}/></button>
       </div>
-      
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar bg-slate-50">
-        {messages.length === 0 && <div className="text-center py-20 text-slate-400 font-black uppercase text-xs tracking-widest">No Messages Yet</div>}
-        {messages.map(m => {
-          const isMe = m.sender_id === profile.id;
-          return (
-            <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-              {!isMe && (
-                <div className="flex items-center gap-2 mb-1 pl-1">
-                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">{m.sender_name}</span>
-                  <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase">{m.sender_role}</span>
-                </div>
-              )}
-              <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 border-slate-100 text-slate-800 rounded-tl-sm'}`}>
-                <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
-              </div>
-              <span className="text-[8px] font-black text-slate-400 uppercase mt-1 px-1">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
 
-      <div className="p-4 bg-white border-t-2 border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 focus-within:border-indigo-500 transition-colors">
-          <input 
-            type="text" 
-            value={text} 
-            onChange={(e) => setText(e.target.value)} 
-            placeholder="Broadcast to campus..." 
-            className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800 placeholder:text-slate-400"
-          />
-          <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 transition-all active:scale-95">
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
+      {chatMode !== 'dm' && (
+        <div className="flex bg-white border-b-2 border-slate-100">
+          <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-4 ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}>Campus</button>
+          <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-4 ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}>Direct</button>
+        </div>
+      )}
+
+      {chatMode === 'dm' && dmTarget && (
+        <div className="bg-white p-4 border-b-2 border-slate-100 flex items-center gap-3 shadow-sm z-10">
+          <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 hover:bg-indigo-500 hover:text-white rounded-xl transition-all"><ArrowLeft size={16}/></button>
+          <div>
+            <h4 className="text-sm font-black text-slate-900 uppercase leading-none">{dmTarget.full_name}</h4>
+            <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">{dmTarget.role}</span>
+          </div>
+        </div>
+      )}
+      
+      {(chatMode === 'global' || chatMode === 'dm') && (
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
+          {displayedMessages.map(m => {
+            const isMe = m.sender_id === profile.id;
+            return (
+              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
+                {!isMe && <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">{m.sender_name} <span className="text-[8px] text-slate-400 ml-1 font-bold">({m.sender_role})</span></span>}
+                
+                <div className="flex items-center gap-2 max-w-[90%]">
+                  {isMe && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button onClick={() => handleEdit(m)} className="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-lg border border-slate-100 shadow-sm"><Edit2 size={12}/></button>
+                      <button onClick={() => handleDelete(m.id)} className="p-1.5 text-slate-400 hover:text-rose-500 bg-white rounded-lg border border-slate-100 shadow-sm"><Trash2 size={12}/></button>
+                    </div>
+                  )}
+                  
+                  <div className={`p-4 rounded-3xl shadow-sm relative ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 border-slate-100 text-slate-800 rounded-tl-sm'}`}>
+                    <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
+                    {m.is_edited && <span className="text-[7px] italic opacity-50 absolute -bottom-4 right-2 text-slate-500">Edited</span>}
+                  </div>
+
+                  {!isMe && (
+                    <button onClick={() => handleReply(m)} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-400 hover:text-indigo-600 bg-white rounded-full border border-slate-100 shadow-sm" title="Reply">
+                      <Reply size={14}/>
+                    </button>
+                  )}
+                </div>
+                <span className="text-[8px] font-black text-slate-400 uppercase mt-1 px-1">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+      )}
+
+      {chatMode === 'directory' && (
+        <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-white">
+            <input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-indigo-500"/>
+          </div>
+          {systemUsers.filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+            <button key={u.id} onClick={() => { setDmTarget(u); setChatMode('dm'); }} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b border-slate-100 flex justify-between items-center group transition-all">
+              <div>
+                <h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600">{u.full_name}</h4>
+                <span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span>
+              </div>
+              <MessageSquare size={16} className="text-slate-300 group-hover:text-indigo-500" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {chatMode !== 'directory' && (
+        <div className="p-4 bg-white border-t-2 border-slate-100 shadow-lg">
+          {editingId && <div className="flex justify-between items-center mb-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200"><span className="text-[9px] font-black text-amber-600 uppercase italic">Editing Message...</span><button onClick={() => { setEditingId(null); setText(""); }}><X size={12} className="text-amber-600"/></button></div>}
+          <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 focus-within:border-indigo-500 transition-colors">
+            <input ref={inputRef} type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800"/>
+            <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 active:scale-95 transition-all"><Send size={16} /></button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
@@ -1291,7 +1391,7 @@ function App() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
       
-      {/* GLOBAL OVERLAYS */}
+     {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
       {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
