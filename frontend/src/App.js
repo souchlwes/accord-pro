@@ -8,7 +8,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -124,7 +124,7 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
     <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="bg-slate-900 p-6 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b-8 border-blue-600 gap-4 md:gap-0">
         <div>
-          <h3 className="text-white text-2xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+          <h3 className="text-white text-xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-2 md:gap-3">
             <Shield className="text-blue-500" size={24} /> System <span className="text-blue-500 italic">Registry</span>
           </h3>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
@@ -133,7 +133,7 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
         </div>
         <button 
           onClick={onCreate}
-          className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
         >
           <UserPlus size={18} /> {isHead ? 'Create Dept Head' : 'Create Proctor'}
         </button>
@@ -146,9 +146,15 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
             placeholder="Search users by name or email..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 p-3 md:p-5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
           />
         </div>
+
+        {/* MOBILE SCROLL HINT */}
+        <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 animate-pulse">
+          <ArrowRight size={12} /> Swipe table to view actions
+        </div>
+
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-separate border-spacing-y-3 min-w-[800px]">
             <thead>
@@ -631,14 +637,22 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
              />
           </div>
         </div>
-        <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden">
-          <div className="p-4 md:p-8 pb-0">
+
+        <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden relative">
+          <div className="p-3 md:p-8 pb-0 flex justify-between items-end">
              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
+             {/* MOBILE SCROLL HINT */}
+             <div className="md:hidden flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 mb-4 animate-pulse">
+                <ArrowRight size={10} /> Swipe
+             </div>
           </div>
-          <div className="overflow-x-auto pb-4">
-            <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+          <div className="overflow-x-auto pb-4 custom-scrollbar">
+             <div className="min-w-[800px] px-2 md:px-0">
+               <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+             </div>
           </div>
         </div>
+
       </main>
 
       {/* PROCTOR FLAG MODAL */}
@@ -1228,7 +1242,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="flex-1 p-4 md:p-16 pb-28 md:pb-16 max-w-[90rem] mx-auto w-full relative">
+      <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
         
         {/* TRUTH REVEALER BADGE (Moved to natural document flow on mobile) */}
         <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0">
@@ -1262,14 +1276,14 @@ function App() {
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-16 md:px-6 gap-4 md:gap-0">
                   <div>
-                    <h2 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Control <span className="text-blue-600">Center</span></h2>
+                    <h2 className="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Control <span className="text-blue-600">Center</span></h2>
                     <div className={`mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 px-4 md:px-6 py-2 rounded-full border-2 text-[9px] md:text-[10px] font-black uppercase ${conflictCount > 0 ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500'}`}>
                       <Activity size={12} className={`md:w-3.5 md:h-3.5 ${conflictCount > 0 ? 'animate-pulse' : ''}`} />
                       {conflictCount > 0 ? `${conflictCount} Conflicts Detected` : 'Global System Optimized'}
                     </div>
                   </div>
                   {isHeadAdmin && (
-                    <button onClick={addDepartment} className="w-full md:w-auto bg-slate-900 text-white px-8 md:px-10 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
+                    <button onClick={addDepartment} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
                       + Add Department
                     </button>
                   )}
@@ -1300,16 +1314,24 @@ function App() {
                   ))}
                 </div>
 
-                <div className="mt-24 md:mt-40 pt-16 md:pt-24 border-t-8 border-slate-900/5">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-12 md:px-10 gap-6 md:gap-0">
-                    <h2 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
-                    <button onClick={() => window.print()} className="w-full md:w-auto bg-slate-900 text-white px-8 md:px-12 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 md:gap-4 shadow-2xl active:scale-95 transition-all">
-                      <Printer size={20} className="md:w-6 md:h-6" /> Export Global PDF
+                <div className="mt-12 md:mt-40 pt-8 md:pt-24 border-t-8 border-slate-900/5">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-12 px-2 md:px-10 gap-4 md:gap-0">
+                    <h2 className="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
+                    <button onClick={() => window.print()} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-12 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-4 shadow-2xl active:scale-95 transition-all">
+                      <Printer size={16} className="md:w-6 md:h-6" /> Export Global PDF
                     </button>
                   </div>
-                  <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[4rem] shadow-2xl border-2 md:border-4 border-slate-100 overflow-x-auto">
+                  
+                  {/* MOBILE SCROLL HINT */}
+                  {globalSchedule.length > 0 && (
+                    <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 px-2 animate-pulse">
+                      <ArrowRight size={12} /> Swipe calendar to view more
+                    </div>
+                  )}
+
+                  <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-2xl border border-slate-100 overflow-x-auto relative custom-scrollbar">
                     {globalSchedule.length > 0 ? (
-                      <div className="min-w-[800px]">
+                      <div className="min-w-[800px] pr-4">
                         <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
                       </div>
                     ) : (
