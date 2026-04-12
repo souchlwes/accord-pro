@@ -1,0 +1,1275 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { supabase } from './supabaseClient';
+import DepartmentCard from './components/DepartmentCard';
+import ScheduleCalendar from './components/ScheduleCalendar';
+import ConflictTable from './components/ConflictTable';
+import GlobalResourceMonitor from './components/GlobalResourceMonitor';
+import {
+  LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle
+} from 'lucide-react';
+
+// --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
+const formatTime = (timeStr) => {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const displayH = h % 12 || 12;
+  return `${displayH}:${String(m).padStart(2, '0')} ${suffix}`;
+};
+
+// --- NOTIFICATION PANEL (ACCORD STYLED) ---
+const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
+  const unread = notifications.filter(n => !n.is_read).length;
+  
+  return (
+    <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col animate-in slide-in-from-right-full duration-500 border-l-[8px] border-blue-600">
+      <div className="bg-slate-900 p-6 md:p-10 flex justify-between items-center text-white">
+        <div>
+          <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+            <Bell className="text-blue-500" size={24} /> Action <span className="text-blue-500 italic">Logs</span>
+          </h3>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">{unread} Unread Alerts</p>
+        </div>
+        <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all active:scale-95"><X size={20}/></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
+        {notifications.length === 0 && <div className="text-center py-20 text-slate-400 font-black uppercase text-xs tracking-widest">System Quiet</div>}
+        {notifications.map(n => (
+          <div key={n.id} onClick={() => onMarkRead(n.id)} className={`p-5 md:p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${n.is_read ? 'bg-white border-slate-100 opacity-60' : n.type === 'urgent' ? 'bg-rose-50 border-rose-200 shadow-md hover:border-rose-400 hover:shadow-lg' : 'bg-white border-blue-200 shadow-lg hover:border-blue-400'}`}>
+            <div className="flex justify-between items-start mb-3">
+               <h4 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${n.type === 'urgent' ? 'text-rose-600' : 'text-blue-600'}`}>
+                 {n.type === 'urgent' && <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"/>}
+                 {!n.is_read && n.type !== 'urgent' && <div className="w-2 h-2 rounded-full bg-blue-500"/>}
+                 {n.title}
+               </h4>
+               <span className="text-[8px] font-black text-slate-400 uppercase">{new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+            </div>
+            <p className="text-xs font-bold text-slate-700 leading-relaxed">{n.message}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- 1. USER REGISTRY COMPONENT ---
+const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, currentRole, onView }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const isHead = currentRole === 'HEAD_ADMIN';
+
+  const filteredProfiles = profiles.filter(p => 
+    (p.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (p.email || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <div className="bg-slate-900 p-6 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b-8 border-blue-600 gap-4 md:gap-0">
+        <div>
+          <h3 className="text-white text-2xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+            <Shield className="text-blue-500" size={24} /> System <span className="text-blue-500 italic">Registry</span>
+          </h3>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+            {isHead ? 'Global Account Control' : 'Departmental Proctor Management'}
+          </p>
+        </div>
+        <button 
+          onClick={onCreate}
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <UserPlus size={18} /> {isHead ? 'Create Dept Head' : 'Create Proctor'}
+        </button>
+      </div>
+
+      <div className="p-4 md:p-8">
+        <div className="mb-6">
+          <input 
+            type="text" 
+            placeholder="Search users by name or email..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-separate border-spacing-y-3 min-w-[800px]">
+            <thead>
+              <tr className="text-[10px] font-black uppercase text-slate-400">
+                <th className="px-6 py-4">User Identity</th>
+                <th className="px-6 py-4">Access Level</th>
+                <th className="px-6 py-4">Assignment</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Administrative Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProfiles.map(p => (
+                <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' ? 'opacity-40 grayscale' : ''}`}>
+                  <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
+                    <p className="font-black text-slate-900 uppercase text-sm">{p.full_name}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
+                  </td>
+                  <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
+                    <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border-2 ${p.role?.trim().toUpperCase() === 'HEAD_ADMIN' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-900 border-slate-200'}`}>
+                      {p.role}
+                    </span>
+                  </td>
+                  <td className="bg-slate-50 p-6 border-y-2 border-slate-100 font-black text-[10px] text-blue-600 uppercase italic">
+                    {p.assigned_dept || "Global Access"}
+                  </td>
+                  <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${p.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className="text-[10px] font-black uppercase">{p.status}</span>
+                    </div>
+                  </td>
+                  <td className="bg-slate-50 p-6 rounded-r-[2rem] border-y-2 border-r-2 border-slate-100 text-right">
+                    <div className="flex justify-end gap-2">
+                      {p.role?.trim().toUpperCase() === 'PROCTOR' && (
+                        <button onClick={() => onView(p)} className="p-3 bg-white hover:bg-blue-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="View Dashboard">
+                          <LayoutDashboard size={16} />
+                        </button>
+                      )}
+                      <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400">
+                        <Lock size={16} />
+                      </button>
+                      <button onClick={() => onDelete(p.id)} className="p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 2. AVAILABILITY LOG BOOK COMPONENT ---
+const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, onDelete, readOnly = false, showToast }) => {
+  const [date, setDate] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const fileInputRef = useRef(null);
+
+  const myAvails = globalAvailability.filter(a => a.proctor_id === profile.id);
+
+  const handleSubmit = () => {
+    if (!date || !start || !end) return showToast ? showToast("Please fill in all fields.", "error") : alert("Please fill in all fields.");
+    const formattedStart = start.length === 5 ? `${start}:00` : start;
+    const formattedEnd = end.length === 5 ? `${end}:00` : end;
+
+    onAdd({ 
+      proctor_id: profile.id,         
+      proctor_name: profile.full_name,
+      dept_code: profile.assigned_dept,
+      exam_date: date,                
+      start_time: formattedStart,     
+      end_time: formattedEnd,         
+      is_emergency_flag: false,       
+      note: "Standard Log"            
+    });
+    
+    setDate(""); setStart(""); setEnd("");
+    if (showToast) showToast("Availability logged successfully!");
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent = "Date (YYYY-MM-DD),Start Time (HH:MM AM/PM),End Time (HH:MM AM/PM)\n2026-05-01,08:00 AM,12:00 PM\n2026-05-02,01:00 PM,05:00 PM";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Accord_Availability_Template.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+       const text = event.target.result;
+       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+       
+       if (lines.length <= 1) return showToast ? showToast("File is empty or only contains headers.", "error") : alert("File is empty or only contains headers.");
+       
+       const bulkData = [];
+       let errors = 0;
+
+       // --- BULLETPROOF EXCEL DATA PARSERS ---
+       // Intercepts mangled times from Excel and forces them into HH:MM:SS 24h format for Supabase
+       const parseTimeTo24H = (timeStr) => {
+          let t = String(timeStr).replace(/['"]/g, '').trim();
+          
+          // 1. Check for AM/PM (e.g., "8:00 AM", "01:00 PM")
+          const ampmMatch = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i);
+          if (ampmMatch) {
+             let hour = parseInt(ampmMatch[1], 10);
+             const min = ampmMatch[2];
+             const modifier = ampmMatch[3].toUpperCase();
+             if (modifier === 'PM' && hour < 12) hour += 12;
+             if (modifier === 'AM' && hour === 12) hour = 0;
+             return `${String(hour).padStart(2, '0')}:${min}:00`;
+          }
+          
+          // 2. Check for Standard format (e.g., "8:00", "14:30")
+          const standardMatch = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (standardMatch) {
+             const hour = String(standardMatch[1]).padStart(2, '0');
+             const min = standardMatch[2];
+             const sec = standardMatch[3] || '00';
+             return `${hour}:${min}:${sec}`;
+          }
+          
+          return t; 
+       };
+
+       // Intercepts mangled dates from Excel (e.g., 5/1/2026) and forces them into YYYY-MM-DD
+       const parseDateToYYYYMMDD = (dateStr) => {
+            let d = String(dateStr).replace(/['"]/g, '').trim();
+            const slashMatch = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+            if (slashMatch) {
+                const month = String(slashMatch[1]).padStart(2, '0');
+                const day = String(slashMatch[2]).padStart(2, '0');
+                let year = slashMatch[3];
+                if (year.length === 2) year = `20${year}`; 
+                return `${year}-${month}-${day}`;
+            }
+            return d; 
+       };
+
+       for(let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c ? c.trim() : '');
+          if (cols.length >= 3) {
+             const examDate = parseDateToYYYYMMDD(cols[0]);
+             const startTime = parseTimeTo24H(cols[1]);
+             const endTime = parseTimeTo24H(cols[2]);
+             
+             // Ensure formats are valid before pushing
+             if (examDate && startTime && endTime && startTime.includes(':') && endTime.includes(':')) {
+               bulkData.push({
+                  proctor_id: profile.id,         
+                  proctor_name: profile.full_name,
+                  dept_code: profile.assigned_dept,
+                  exam_date: examDate,                
+                  start_time: startTime,     
+                  end_time: endTime,         
+                  is_emergency_flag: false,       
+                  note: "Bulk Excel Import" 
+               });
+             } else {
+               errors++;
+             }
+          }
+       }
+
+       if (bulkData.length > 0) {
+          if (onBulkAdd) onBulkAdd(bulkData);
+          if (showToast) showToast(`Successfully parsed ${bulkData.length} availability slots! ${errors > 0 ? `(${errors} rows skipped)` : ''}`);
+          else alert(`Successfully parsed ${bulkData.length} availability slots! ${errors > 0 ? `(${errors} rows had errors and were skipped)` : ''}`);
+       } else {
+          if (showToast) showToast("No valid data found. Please follow the template exactly.", "error");
+          else alert("No valid data found. Please make sure you followed the template exactly.");
+       }
+    };
+    reader.readAsText(file);
+    e.target.value = null; 
+  };
+
+  return (
+    <div className="bg-white rounded-3xl md:rounded-[3rem] p-6 md:p-8 border-2 border-slate-100 shadow-xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+          <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
+        </h2>
+        
+        {!readOnly && (
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-4 py-2.5 rounded-xl hover:bg-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-emerald-200">
+              <Download size={14}/> Excel Template
+            </button>
+            <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+            <button onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-4 py-2.5 rounded-xl hover:bg-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-blue-200 shadow-sm">
+              <Upload size={14}/> Bulk Upload
+            </button>
+          </div>
+        )}
+      </div>
+      
+      {!readOnly && (
+        <div className="bg-slate-50 rounded-3xl p-4 md:p-6 border-2 border-slate-100 mb-8 flex flex-col md:flex-row gap-4 items-end">
+          <div className="w-full md:flex-1">
+            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Date</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+          </div>
+          <div className="w-full md:flex-1">
+            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Start Time</label>
+            <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+          </div>
+          <div className="w-full md:flex-1">
+            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">End Time</label>
+            <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+          </div>
+          <button onClick={handleSubmit} className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg hover:bg-blue-500 transition-all active:scale-95 w-full md:w-auto flex justify-center">
+            <Plus size={20} />
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+        {myAvails.length === 0 ? (
+           <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-3xl">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Availability Logged</p>
+           </div>
+        ) : myAvails.map(avail => (
+          <div key={avail.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm group">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-50 text-blue-600 p-3 rounded-xl"><Calendar size={18} /></div>
+              <div>
+                <p className="font-black text-sm text-slate-900">{avail.exam_date}</p>
+                <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={10}/> {formatTime(avail.start_time)} - {formatTime(avail.end_time)}</p>
+              </div>
+            </div>
+            {!readOnly && (
+              <button onClick={() => { onDelete(avail.id); if (showToast) showToast("Availability record removed."); }} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- 3. PROCTOR DASHBOARD ---
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue }) => {
+  const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
+  
+  const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleExportPDF = () => {
+    try {
+      if (!mySchedule || mySchedule.length === 0) {
+        showToast("You have no assignments to export!", "error");
+        return;
+      }
+      
+      const doc = new jsPDF({ orientation: 'landscape' });
+      doc.setFontSize(16);
+      doc.text(`Official Proctor Itinerary: ${profile?.full_name || 'Staff'}`, 14, 20);
+
+      const tableColumn = ["Date", "Time", "Dept", "Subject", "Section", "Room"];
+      const tableRows = [];
+
+      const sorted = [...mySchedule].sort((a, b) => {
+        const dateA = new Date(a.exam_date || 0);
+        const dateB = new Date(b.exam_date || 0);
+        return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
+      });
+
+      sorted.forEach(item => {
+        const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
+        const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
+        tableRows.push([
+          item.exam_date || "N/A",
+          `${safeStart} - ${safeEnd}`,
+          item.dept_code || "N/A",
+          `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
+          item.section || "N/A",
+          item.room || "N/A"
+        ]);
+      });
+
+      autoTable(doc, { 
+        head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', 
+        styles: { fontSize: 10, cellPadding: 5 }, 
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } 
+      });
+      
+      doc.save(`Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.pdf`);
+      showToast("PDF Itinerary Downloaded!");
+    } catch (err) {
+      console.error("PDF Error Detail:", err);
+      showToast("SYSTEM ERROR during PDF generation: " + err.message, "error");
+    }
+  };
+
+  const handleExportExcel = () => {
+    try {
+      if (!mySchedule || mySchedule.length === 0) return showToast("No assignments to export!", "error");
+      const headers = ["Date,Time,Department,Subject Code,Subject Name,Section,Room"];
+      
+      const sorted = [...mySchedule].sort((a, b) => {
+        const dateA = new Date(a.exam_date || 0);
+        const dateB = new Date(b.exam_date || 0);
+        return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
+      });
+
+      const rows = sorted.map(item => {
+        const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
+        const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
+        return `${item.exam_date || "N/A"},${safeStart} - ${safeEnd},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`;
+      });
+      
+      const csvContent = headers.concat(rows).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Excel Itinerary Downloaded!");
+    } catch (err) {
+      console.error(err);
+      showToast("Excel Export Failed: " + err.message, "error");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 relative">
+      
+      {/* LOCAL TOAST NOTIFICATION */}
+      {toast && (
+        <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[200] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+          {toast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+        </div>
+      )}
+
+      <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+        <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
+          <Globe size={24} className="text-blue-500" />
+          ACCORD <span className="text-blue-500 italic">PROCTOR</span>
+        </div>
+        <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
+          <div className="text-left md:text-right mr-auto md:mr-4">
+            <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">
+              {isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}
+            </p>
+            <p className="text-xs font-bold text-blue-400">{profile?.full_name}</p>
+            <span className="bg-slate-800 text-rose-400 px-2 py-1 rounded-md text-[8px] md:text-[9px] font-mono mt-1 inline-block md:block text-center">
+              DB: "{profile?.role}"
+            </span>
+          </div>
+          
+          <div className="flex gap-2">
+            {!isViewMode && (
+              <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
+                <Bell size={18} />
+                {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+              </button>
+            )}
+
+            {isViewMode ? (
+              <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">
+                Close View
+              </button>
+            ) : (
+              <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all">
+                <LogOut size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <main className="container mx-auto px-4 md:px-6 max-w-7xl">
+        
+        {isViewMode && (
+          <div className="bg-blue-600 text-white rounded-3xl md:rounded-[2rem] p-6 md:p-8 mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-center md:items-start text-center md:text-left shadow-2xl animate-in slide-in-from-top-4 gap-4 md:gap-0">
+            <div>
+              <h4 className="font-black uppercase tracking-widest text-xs md:text-sm flex items-center justify-center md:justify-start gap-3">
+                <Shield size={20} className="text-blue-300" /> Read-Only Access
+              </h4>
+              <p className="text-blue-100 text-[10px] md:text-xs font-bold mt-2 leading-relaxed">
+                You are currently viewing <strong>{profile?.full_name}'s</strong> itinerary and availability logs. <br className="hidden md:block"/>
+                To assign or remove them from an exam, return to the Department Workspace.
+              </p>
+            </div>
+            <button onClick={onCloseView} className="w-full md:w-auto mt-2 md:mt-0 bg-white text-blue-600 hover:bg-blue-50 px-6 md:px-10 py-3 md:py-4 rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95">
+              Manage in Workspace
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-12">
+          <div className="lg:col-span-1 bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col h-[500px] md:h-auto">
+            <div className="mb-6">
+              <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                <Calendar size={16}/> {isViewMode ? "Their Assignments" : "My Assignments"}
+              </h2>
+            </div>
+            
+            <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
+              {mySchedule.length === 0 ? (
+                <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">No assignments found.</p>
+              ) : mySchedule.map((s, i) => (
+                <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
+                  <div className="flex justify-between items-start mb-3">
+                     <div>
+                       <p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p>
+                       <p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p>
+                     </div>
+                     {!isViewMode && !s.flagged && (
+                       <button onClick={() => {
+                         setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' });
+                       }} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency">
+                         <AlertTriangle size={14}/>
+                       </button>
+                     )}
+                     {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
+                  </div>
+
+                  {s.flagged && s.flagNote && (
+                    <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl">
+                      <p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
+                    <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
+                    <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
+                    <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6 border-t border-white/10">
+              <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2" title="Export Excel">
+                <Download size={16} /> <span className="sm:hidden">Export Excel</span>
+              </button>
+              <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2">
+                <Printer size={16} /> PDF Itinerary
+              </button>
+            </div>
+          </div>
+          
+          <div className="lg:col-span-2">
+             <AvailabilityLogBook 
+                profile={profile} 
+                globalAvailability={globalAvailability} 
+                onAdd={onAddAvailability} 
+                onBulkAdd={onBulkAddAvailability}
+                onDelete={onDeleteAvailability} 
+                readOnly={isViewMode} 
+                showToast={showToast}
+             />
+          </div>
+        </div>
+        <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden">
+          <div className="p-4 md:p-8 pb-0">
+             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
+          </div>
+          <div className="overflow-x-auto pb-4">
+            <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+          </div>
+        </div>
+      </main>
+
+      {/* PROCTOR FLAG MODAL */}
+      {flagModal.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6">
+              <AlertTriangle size={28} className="md:w-8 md:h-8" />
+              <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Flag Emergency</h3>
+            </div>
+            <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">State your reason. This instantly alerts your Dept Head.</p>
+            <textarea 
+              value={flagModal.note} onChange={(e) => setFlagModal({...flagModal, note: e.target.value})}
+              placeholder="e.g. Medical emergency, clash with another exam..."
+              className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6"
+            />
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+              <button onClick={() => setFlagModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                onFlagIssue(flagModal.scheduleId, flagModal.note, flagModal.deptCode, flagModal.subjectCode);
+                setFlagModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
+                showToast("Emergency flag submitted successfully!", "success");
+              }} disabled={!flagModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors">Submit Flag</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// --- 4. MAIN APP COMPONENT ---
+function App() {
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null); 
+  
+  const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState(null); 
+  const [activeTab, setActiveTab] = useState("dashboard"); 
+  const [allProfiles, setAllProfiles] = useState([]);
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState(''); 
+  
+  const [departments, setDepartments] = useState([]);
+  const [globalSchedule, setGlobalSchedule] = useState([]);
+  const [globalAvailability, setGlobalAvailability] = useState([]);
+  const [allExamDates, setAllExamDates] = useState([]);
+  const [viewingProctor, setViewingProctor] = useState(null);
+  
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const safeRole = profile?.role?.trim().toUpperCase() || '';
+  const isHeadAdmin = safeRole === 'HEAD_ADMIN';
+  const isDeptAdmin = safeRole === 'DEPT_ADMIN';
+  const isProctor = safeRole === 'PROCTOR';
+
+  const sendNotification = async (targetDept, targetRole, targetUserId, title, message, type = 'info') => {
+    try {
+      const payload = [];
+      
+      if (targetDept || targetRole || targetUserId) {
+         payload.push({ target_dept: targetDept, target_role: targetRole, target_user_id: targetUserId, title, message, type });
+      }
+      
+      if (targetDept && targetRole !== 'HEAD_ADMIN') {
+         payload.push({ 
+           target_dept: null, 
+           target_role: 'HEAD_ADMIN', 
+           target_user_id: null, 
+           title: `[${targetDept}] ${title}`, 
+           message, 
+           type 
+         });
+      }
+
+      if (payload.length > 0) {
+        await supabase.from('notifications').insert(payload);
+      }
+    } catch (e) { console.error("Notification Failed", e); }
+  };
+
+  const markNotificationRead = async (id) => {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  };
+
+  const fetchNotifications = async () => {
+    if (!profile) return;
+    let query = supabase.from('notifications').select('*').order('created_at', { ascending: false });
+    
+    if (isHeadAdmin) query = query.eq('target_role', 'HEAD_ADMIN');
+    else if (isDeptAdmin) query = query.eq('target_dept', profile.assigned_dept);
+    else query = query.eq('target_user_id', profile.id);
+
+    const { data } = await query;
+    if (data) setNotifications(data);
+  };
+
+  useEffect(() => { 
+    if (profile) fetchNotifications(); 
+  }, [profile]);
+
+  const fetchAllData = async (showSpinner = true) => {
+    if (showSpinner) { setLoading(true); setSyncError(null); }
+    try {
+      const fetchPromise = Promise.all([
+        supabase.from('departments').select('*').order('name', { ascending: true }),
+        supabase.from('schedules').select('*'),
+        supabase.from('proctor_availability').select('*'),
+        supabase.from('profiles').select('*')
+      ]);
+      
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database took too long to respond.")), 10000));
+      const [deptsRes, schedsRes, availRes, profilesRes] = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (deptsRes.error) throw new Error(`Departments: ${deptsRes.error.message}`);
+      if (schedsRes.error) throw new Error(`Schedules: ${schedsRes.error.message}`);
+      if (availRes.error) throw new Error(`Availability: ${availRes.error.message}`);
+
+      setDepartments(deptsRes.data || []);
+      setGlobalAvailability(availRes.data || []);
+      setAllProfiles(profilesRes.data || []);
+      if (schedsRes.data) {
+        const sortedData = schedsRes.data.sort((a, b) => a.id - b.id);
+        const dates = [...new Set(sortedData.map(s => s.exam_date))].sort();
+        setGlobalSchedule(runConflictDetection(sortedData));
+        setAllExamDates(dates);
+      }
+      
+      await fetchNotifications();
+
+    } catch (err) {
+      console.error("Silent Background Sync Error:", err.message);
+      if (showSpinner) setSyncError(err.message);
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const getSessionAndProfile = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (isMounted) setSession(session);
+        if (session && isMounted) {
+          await fetchProfile(session.user.id);
+          await fetchAllData();
+        }
+      } catch (err) {
+        if (isMounted) setSyncError("Failed to authenticate session.");
+      } finally {
+        if (isMounted) setLoading(false); 
+      }
+    };
+
+    getSessionAndProfile();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      if (session) {
+        if (event === 'SIGNED_IN') setLoading(true); 
+        await fetchProfile(session.user.id);
+        await fetchAllData();
+        setLoading(false);
+      } else {
+        setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
+      }
+    });
+
+    return () => { isMounted = false; subscription.unsubscribe(); };
+  }, []);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (data) setProfile(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchProfiles = async () => {
+    let query = supabase.from('profiles').select('*');
+    if (isDeptAdmin) { query = query.eq('assigned_dept', profile.assigned_dept).ilike('role', 'PROCTOR'); }
+    const { data } = await query;
+    setAllProfiles(data || []);
+  };
+
+  useEffect(() => { if (profile && activeTab === "users") fetchProfiles(); }, [profile, activeTab, isDeptAdmin]);
+
+  useEffect(() => {
+    if (!session) return;
+    const dbChannel = supabase.channel('system-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => fetchAllData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => fetchAllData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, () => fetchAllData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchProfiles())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchNotifications())
+      .subscribe();
+    return () => { supabase.removeChannel(dbChannel); };
+  }, [session, profile]);
+
+  const conflictCount = useMemo(() => globalSchedule.filter(s => s.hasConflict).length, [globalSchedule]);
+  const visibleDepartments = useMemo(() => {
+    if (isHeadAdmin) return departments;
+    return departments.filter(d => d.code === profile?.assigned_dept);
+  }, [departments, profile, isHeadAdmin]);
+
+  const handleAddAvailability = async (newAvail) => {
+    const { data, error } = await supabase.from('proctor_availability').insert([newAvail]);
+    if (error) {
+      alert(`DATABASE REJECTION: \nMessage: ${error.message} \nDetails: ${error.details || 'Check console'}`);
+    } else {
+      await sendNotification(
+        profile.assigned_dept, 
+        null, 
+        null, 
+        'Availability Logged', 
+        `${profile.full_name} has updated their availability calendar.`, 
+        'info'
+      );
+      await fetchAllData(false);
+    }
+  };
+
+  const handleBulkAddAvailability = async (bulkAvails) => {
+    const { error } = await supabase.from('proctor_availability').insert(bulkAvails);
+    if (error) return alert("Bulk Import Database Error: " + error.message);
+    
+    await sendNotification(
+      profile.assigned_dept, 
+      null, null, 
+      'Bulk Availability Logged', 
+      `${profile.full_name} uploaded ${bulkAvails.length} availability slots via Excel.`, 
+      'info'
+    );
+    await fetchAllData(false);
+  };
+
+  const handleDeleteAvailability = async (id) => {
+    await supabase.from('proctor_availability').delete().eq('id', id);
+    await fetchAllData(false);
+  };
+
+  const handleFlagIssue = async (scheduleId, reason, deptCode, subjectCode) => {
+    await supabase.from('schedules').update({ flagged: true, flagNote: reason }).eq('id', scheduleId);
+    
+    await sendNotification(
+      deptCode, 
+      null, 
+      null, 
+      'Urgent Proctor Flag', 
+      `${profile.full_name} flagged ${subjectCode}. Reason: ${reason}`, 
+      'urgent'
+    );
+    fetchAllData(false);
+  };
+
+  const handleHardReset = async () => {
+    await supabase.auth.signOut();
+    localStorage.clear(); sessionStorage.clear(); window.location.reload();
+  };
+
+  const handleCreateAccount = async () => {
+    if (!profile) return alert("System is still verifying your profile. Please wait a moment.");
+    
+    const name = window.prompt("Full Name:");
+    const email = window.prompt("Email:");
+    const pass = window.prompt("Initial Password:");
+    let dept = isHeadAdmin ? window.prompt("Assign to which Dept Code? (MUST EXIST FIRST):") : profile?.assigned_dept;
+
+    if (!name || !email || !pass) return;
+
+    const safeDeptCode = dept ? dept.trim().toUpperCase() : '';
+
+    if (isHeadAdmin && safeDeptCode) {
+      const exists = departments.some(d => d.code === safeDeptCode);
+      if (!exists) return alert(`ERROR: Department "${safeDeptCode}" does not exist. Create the Department Card first!`);
+    }
+
+    alert("SYSTEM ALERT: Creating this account will briefly sign you out of your current session. Please sign back in afterward.");
+    const { data, error: authError } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+    if (authError) return alert("Auth Error: " + authError.message);
+    
+    if (data?.user) {
+      const { error: profileError } = await supabase.from('profiles').upsert([{
+        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR',
+        assigned_dept: safeDeptCode || null, status: 'ACTIVE'
+      }]);
+      
+      if (profileError) {
+         alert("Auth created, but Profile failed: " + profileError.message);
+      } else {
+        if (isDeptAdmin || (isHeadAdmin && safeDeptCode)) {
+           const targetDept = departments.find(d => d.code === safeDeptCode);
+           if (targetDept) {
+              const today = new Date().toISOString().split('T')[0];
+              const newProctorEntry = {
+                id: Date.now(), name: name.trim().toUpperCase(), dayStart: today, dayEnd: "2030-12-31", timeStart: "00:00", timeEnd: "23:59"
+              };
+              const updatedProctors = [...(targetDept.proctors || []), newProctorEntry];
+              await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
+           }
+        }
+        
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `New ${isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR'} account generated for ${name}.`, 'info');
+        
+        alert(`Account successfully created and linked for ${name}! Please log back in.`);
+        window.location.reload();
+      }
+    }
+  };
+
+  const handleBlockUser = async (id, currentStatus) => {
+    await supabase.from('profiles').update({ status: currentStatus === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE' }).eq('id', id);
+    fetchProfiles();
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (window.confirm("Delete account permanently?")) {
+      await supabase.from('profiles').delete().eq('id', id);
+      await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
+      fetchProfiles();
+    }
+  };
+
+  async function handleDepartmentUpdate(actionType, payload) {
+    if (['manual_override', 'lock_and_save', 'schedule_sync'].includes(actionType)) {
+      if (!Array.isArray(payload) || payload.length === 0) return false;
+      const dataToSync = payload.map(item => {
+        const { hasConflict, conflictType, ...validData } = item;
+        if (validData.id && String(validData.id).includes('temp')) delete validData.id;
+        if (validData.tempId) delete validData.tempId;
+        return {
+          ...validData, year_level: String(validData.year_level), flagged: Boolean(validData.flagged ?? false),
+          isManualProctor: Boolean(validData.isManualProctor ?? false), original_proctor: validData.original_proctor || validData.proctor
+        };
+      });
+      await supabase.from('schedules').upsert(dataToSync, { onConflict: 'id' });
+      
+      const dCode = payload[0]?.dept_code || profile?.assigned_dept || 'Unknown';
+      await sendNotification(null, 'HEAD_ADMIN', null, `Master Schedule: ${actionType.replace(/_/g, ' ')}`, `Department ${dCode} applied manual overrides/locks to the timeline.`, 'warning');
+      
+      await fetchAllData(false);
+      return true;
+    }
+    if (['proctors', 'rooms', 'subjects'].includes(actionType)) {
+      if (!payload?.id) return false;
+      await supabase.from('departments').update({ [actionType]: payload[actionType] }).eq('id', payload.id);
+      
+      await sendNotification(null, 'HEAD_ADMIN', null, `Registry Updated: ${actionType}`, `Department ${payload.code} updated their ${actionType} list.`, 'info');
+      await fetchAllData(false);
+      
+      return true;
+    }
+    return true;
+  }
+  
+  const handleScheduleGenerated = async (newAssignments, _newDates, deptCode) => {
+    if (!newAssignments?.length) return;
+    const targetYear = String(newAssignments[0].year_level);
+    try {
+      await supabase.from('schedules').delete().eq('dept_code', deptCode).eq('year_level', targetYear);
+      const formattedData = newAssignments.map(item => ({
+        dept_code: deptCode, year_level: String(item.year_level), section: item.section || 'A', subject_code: item.subject_code || 'N/A',
+        subject_name: item.subject_name || 'N/A', proctor: item.proctor, room: item.room, exam_date: item.exam_date,
+        start_time: item.start_time, end_time: item.end_time, flagged: false, flagNote: "", isManualProctor: false
+      }));
+      await supabase.from('schedules').insert(formattedData);
+      
+      await sendNotification(null, 'HEAD_ADMIN', null, 'Schedule Generated', `Department ${deptCode} generated a draft for Year ${targetYear}.`, 'info');
+      
+      await fetchAllData(false);
+    } catch (err) { alert("Failed to save schedule."); }
+  };
+
+  const runConflictDetection = (scheduleList) => {
+    return scheduleList.map(item => {
+      const conflict = scheduleList.find(target =>
+        target.id !== item.id && target.exam_date === item.exam_date && target.section !== item.section && 
+        (target.room === item.room || target.proctor === item.proctor) && (item.start_time < target.end_time && item.end_time > target.start_time)
+      );
+      return { ...item, hasConflict: !!conflict, conflictType: conflict ? (conflict.room === item.room ? 'ROOM' : 'PROCTOR') : null };
+    });
+  };
+
+  const addDepartment = async () => {
+    const name = window.prompt("Enter Department Name:");
+    const code = window.prompt("Enter UNIQUE Dept Code:");
+    if (!name || !code) return;
+    const { error } = await supabase.from('departments').insert([{ name, code: code.toUpperCase() }]);
+    
+    if (error) alert(error.message); 
+    else {
+      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()}.`, 'info');
+      await fetchAllData(false);
+    }
+  };
+
+  const deleteDepartment = async (deptId, deptCode) => {
+    if (window.confirm(`Delete ${deptCode} permanently?`)) {
+      await supabase.from('departments').delete().eq('id', deptId);
+      await sendNotification(null, 'HEAD_ADMIN', null, 'Department Deleted', `Removed department ${deptCode}.`, 'urgent');
+      await fetchAllData(false);
+    }
+  };
+
+  const handleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) alert(error.message);
+  };
+
+  const handleSignUp = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+      if (error) throw error;
+      if (data?.user) {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
+        if (count === 0) {
+          await supabase.from('profiles').update({ role: 'HEAD_ADMIN', full_name: fullName }).eq('id', data.user.id);
+          alert("Promoted to Head Admin!");
+          window.location.reload(); 
+        } else {
+          alert("Check email for confirmation!");
+        }
+      }
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
+  };
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6">
+        <div className="bg-white w-full max-w-[90%] md:max-w-md rounded-3xl md:rounded-[3.5rem] p-8 md:p-12 shadow-2xl">
+          <div className="text-center mb-8 md:mb-10">
+            <div className="inline-flex bg-blue-600 p-4 md:p-5 rounded-2xl md:rounded-[2rem] mb-6 text-white shadow-xl">
+              <Lock size={28} className="md:w-8 md:h-8" />
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter text-slate-900">Accord <span className="text-blue-600">Pro</span></h1>
+            <input type="text" placeholder="Full Name (For Signup)" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full mt-4 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
+            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full mt-2 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
+            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full mt-2 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
+            <button onClick={handleSignIn} className="w-full mt-4 bg-slate-900 text-white p-4 md:p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">Sign In</button>
+            <button onClick={handleSignUp} className="w-full mt-2 text-slate-400 p-2 font-black uppercase text-[9px] hover:text-blue-600 transition-all">Register</button>
+          </div>
+        </div>
+        <button onClick={handleHardReset} className="mt-8 flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase text-rose-500 bg-rose-500/10 px-5 md:px-6 py-3 rounded-full hover:bg-rose-500/20 transition-all active:scale-95">
+          <AlertOctagon size={14} /> Clear Cache & Reset Login
+        </button>
+      </div>
+    );
+  }
+
+  // --- EMERGENCY REPAIR SCREEN ---
+  if (!profile && !loading) {
+    const forceRepairProfile = async (role, deptCode) => {
+       const { error } = await supabase.from('profiles').upsert([{
+          id: session.user.id,
+          full_name: session.user.email.split('@')[0].toUpperCase(),
+          role: role,
+          assigned_dept: role === 'HEAD_ADMIN' ? null : deptCode?.toUpperCase(),
+          status: 'ACTIVE'
+       }]);
+       
+       if (error) {
+          alert("CRITICAL ERROR: Supabase is blocking this write. Go to Supabase -> Table Editor -> profiles -> Disable RLS.");
+       } else {
+          window.location.reload();
+       }
+    };
+
+    return (
+       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 md:p-6 flex-col">
+          <div className="bg-white p-8 md:p-12 rounded-3xl md:rounded-[3rem] max-w-[90%] md:max-w-md w-full shadow-2xl text-center animate-in fade-in zoom-in duration-500">
+             <AlertOctagon className="mx-auto text-rose-500 mb-6" size={48} />
+             <h2 className="text-xl md:text-2xl font-black uppercase text-slate-900 mb-2">Profile Disconnected</h2>
+             <p className="text-[10px] md:text-xs text-slate-500 mb-8 font-bold leading-relaxed">Your database lost the link to your role. Use this emergency override to force your account back into the system.</p>
+             
+             <select id="repairRole" className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl mb-4 text-xs font-black uppercase border-2 border-slate-100 outline-none focus:border-blue-500">
+               <option value="HEAD_ADMIN">Head Admin</option>
+               <option value="DEPT_ADMIN">Department Head</option>
+               <option value="PROCTOR">Proctor</option>
+             </select>
+             
+             <input id="repairDept" placeholder="Dept Code (Leave blank if Head Admin)" className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl mb-6 md:mb-8 text-xs font-black uppercase border-2 border-slate-100 outline-none focus:border-blue-500" />
+             
+             <button onClick={() => {
+                const r = document.getElementById('repairRole').value;
+                const d = document.getElementById('repairDept').value;
+                forceRepairProfile(r, d);
+             }} className="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 md:p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
+               Force Connection
+             </button>
+             <button onClick={handleHardReset} className="w-full mt-4 md:mt-6 text-slate-400 p-2 font-black uppercase text-[9px] hover:text-rose-500 transition-all">Log Out</button>
+          </div>
+       </div>
+    );
+  }
+
+  if (viewingProctor) {
+    return (
+      <ProctorDashboard 
+        profile={viewingProctor} 
+        globalSchedule={globalSchedule} 
+        allExamDates={allExamDates} 
+        globalAvailability={globalAvailability} 
+        isViewMode={true}
+        onCloseView={() => setViewingProctor(null)}
+      />
+    );
+  }
+
+  if (isProctor) {
+    return (
+      <>
+        <ProctorDashboard 
+          profile={profile} 
+          globalSchedule={globalSchedule} 
+          allExamDates={allExamDates} 
+          globalAvailability={globalAvailability} 
+          onAddAvailability={handleAddAvailability} 
+          onBulkAddAvailability={handleBulkAddAvailability}
+          onDeleteAvailability={handleDeleteAvailability} 
+          notifications={notifications}
+          onShowNotify={() => setShowNotifications(true)}
+          onFlagIssue={handleFlagIssue}
+        />
+        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
+      
+      {/* GLOBAL OVERLAYS */}
+      {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+
+      {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
+      <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
+        <div className="hidden md:flex bg-blue-600 p-4 rounded-2xl mb-12 shadow-lg shadow-blue-500/40">
+          <Globe size={32} className="text-white" />
+        </div>
+        
+        <button 
+          onClick={() => setActiveTab("dashboard")}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+        >
+          <LayoutDashboard size={24} className="md:w-7 md:h-7" />
+        </button>
+
+        <button 
+          onClick={() => setActiveTab("users")}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'users' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+        >
+          <Users size={24} className="md:w-7 md:h-7" />
+        </button>
+
+        {/* ADMIN NOTIFICATION BELL */}
+        <button 
+          onClick={() => setShowNotifications(true)}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showNotifications ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+        >
+          <Bell size={24} className="md:w-7 md:h-7" />
+          {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute top-2 right-2 md:top-4 md:right-4 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+        </button>
+        
+        <div className="md:mt-auto">
+          <button onClick={handleHardReset} className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all">
+            <LogOut size={24} className="md:w-7 md:h-7" />
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 p-4 md:p-16 pb-28 md:pb-16 max-w-[90rem] mx-auto w-full relative">
+        
+        {/* TRUTH REVEALER BADGE (Moved to natural document flow on mobile) */}
+        <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0">
+           <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{session?.user?.email}</p>
+           <p className="text-xs font-bold text-slate-900">{profile?.full_name || 'Missing Profile Data'}</p>
+           <span className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-mono mt-1 md:mt-2 shadow-sm md:shadow-lg border uppercase tracking-widest ${isHeadAdmin ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-blue-400 border-slate-700'}`}>
+             DB ROLE: [{profile?.role || 'NULL'}]
+           </span>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-40 md:py-60">
+            <RefreshCw size={48} className="md:w-16 md:h-16 text-blue-600 animate-spin mb-6" />
+            <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Syncing Cloud Database...</p>
+          </div>
+        ) : syncError ? (
+          <div className="flex flex-col items-center justify-center py-40 md:py-60 text-center animate-in fade-in duration-500 px-4">
+            <Zap size={48} className="md:w-16 md:h-16 text-rose-500 mb-6" />
+            <h3 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter">Database Sync Failed</h3>
+            <div className="bg-rose-50 border-2 border-rose-100 p-4 md:p-6 rounded-2xl mt-4 md:mt-6 w-full max-w-2xl overflow-x-auto">
+              <p className="text-rose-600 font-bold font-mono text-[10px] md:text-sm">{syncError}</p>
+            </div>
+            <p className="text-slate-400 text-[10px] md:text-xs mt-6 font-bold uppercase tracking-widest">Read the error above and fix it in Supabase</p>
+            <button onClick={() => window.location.reload()} className="mt-6 bg-slate-900 text-white px-8 md:px-10 py-4 md:py-5 rounded-3xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
+              Reload Application
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTab === "dashboard" ? (
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-16 md:px-6 gap-4 md:gap-0">
+                  <div>
+                    <h2 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Control <span className="text-blue-600">Center</span></h2>
+                    <div className={`mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 px-4 md:px-6 py-2 rounded-full border-2 text-[9px] md:text-[10px] font-black uppercase ${conflictCount > 0 ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500'}`}>
+                      <Activity size={12} className={`md:w-3.5 md:h-3.5 ${conflictCount > 0 ? 'animate-pulse' : ''}`} />
+                      {conflictCount > 0 ? `${conflictCount} Conflicts Detected` : 'Global System Optimized'}
+                    </div>
+                  </div>
+                  {isHeadAdmin && (
+                    <button onClick={addDepartment} className="w-full md:w-auto bg-slate-900 text-white px-8 md:px-10 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
+                      + Add Department
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 md:gap-12 mb-16 md:mb-20">
+                  <ConflictTable schedule={globalSchedule} />
+                  <GlobalResourceMonitor allDepartments={departments} globalSchedule={globalSchedule} />
+                </div>
+
+                <div className="space-y-16 md:space-y-24">
+                  {visibleDepartments.map((dept) => (
+                    <DepartmentCard
+                      key={dept.id} dept={dept} role={safeRole} 
+                      allProfiles={allProfiles}
+                      allDepartments={departments} onUpdate={handleDepartmentUpdate}
+                      onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
+                      onClearSchedule={async (dCode, yLevel) => {
+                        if (window.confirm(`Clear schedules?`)) {
+                          await supabase.from('schedules').delete().eq('dept_code', dCode).eq('year_level', String(yLevel));
+                          await fetchAllData(false);
+                        }
+                      }}
+                      globalSchedule={globalSchedule}
+                      onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
+                      onNotify={sendNotification} 
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-24 md:mt-40 pt-16 md:pt-24 border-t-8 border-slate-900/5">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-12 md:px-10 gap-6 md:gap-0">
+                    <h2 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
+                    <button onClick={() => window.print()} className="w-full md:w-auto bg-slate-900 text-white px-8 md:px-12 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 md:gap-4 shadow-2xl active:scale-95 transition-all">
+                      <Printer size={20} className="md:w-6 md:h-6" /> Export Global PDF
+                    </button>
+                  </div>
+                  <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[4rem] shadow-2xl border-2 md:border-4 border-slate-100 overflow-x-auto">
+                    {globalSchedule.length > 0 ? (
+                      <div className="min-w-[800px]">
+                        <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
+                      </div>
+                    ) : (
+                      <div className="py-20 md:py-40 text-center text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">
+                        <Zap size={48} className="md:w-16 md:h-16 mx-auto mb-4 md:mb-6 opacity-10" /> Timeline Offline
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 md:mt-10">
+                <UserRegistry 
+                  profiles={allProfiles} 
+                  onCreate={handleCreateAccount}
+                  onBlock={handleBlockUser}
+                  onDelete={handleDeleteUser}
+                  currentRole={safeRole}
+                  onView={(proctorData) => setViewingProctor(proctorData)}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
