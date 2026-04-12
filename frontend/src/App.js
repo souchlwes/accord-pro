@@ -8,7 +8,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -18,6 +18,61 @@ const formatTime = (timeStr) => {
   const suffix = h >= 12 ? 'PM' : 'AM';
   const displayH = h % 12 || 12;
   return `${displayH}:${String(m).padStart(2, '0')} ${suffix}`;
+};
+
+// --- SMART HELP CENTER (ROLE-AWARE FAQ) ---
+const HelpCenter = ({ role, onClose }) => {
+  const getFaqContent = () => {
+    if (role === 'HEAD_ADMIN') {
+      return [
+        { q: "How do I add a new Department?", a: "Click the '+ Add Department' button on the Control Center. You must provide a unique code (e.g., 'CS' or 'MATH')." },
+        { q: "How do I manage user accounts?", a: "Navigate to the Users tab (the two people icon on the sidebar). Here you can create, block, or delete Dept Heads and Proctors." },
+        { q: "What does 'Global System Optimized' mean?", a: "It means the master engine has detected zero overlaps. There are no double-booked rooms or proctors across any department in the entire system." },
+        { q: "How do I force-approve a schedule?", a: "If a Dept Head is stuck, you can use the 'Approve & Lock' button in their Preview tab. You will be asked to provide a formal override reason for the audit log." }
+      ];
+    } else if (role === 'DEPT_ADMIN') {
+      return [
+        { q: "How do I generate a schedule?", a: "Inside your Department Card, go to the 'Generate' tab, set your parameters (Exam Days, Target Year, Sections), and click 'Start Calculation'." },
+        { q: "Why can't I lock my schedule?", a: "If you assigned an internal proctor who hasn't logged their availability for that specific date/time, the system blocks the lock to prevent ghosting. Ask them to log their hours, or contact the Head Admin for an override." },
+        { q: "How do I swap a proctor manually?", a: "In the 'Preview' tab, click the Proctor's name on any subject block. You can swap them for just that subject, or the entire block session." },
+        { q: "What is a 'Global' room source?", a: "If your department runs out of internal rooms, switching to 'Global' lets you borrow unoccupied rooms from other departments across the campus." }
+      ];
+    } else {
+      return [
+        { q: "How do I log my availability?", a: "Use the 'Availability Log Book' on your dashboard. You can add time slots manually, or use the 'Bulk Upload' feature with our provided Excel template." },
+        { q: "What if I have an emergency on exam day?", a: "Click the red warning triangle next to your assigned subject. State your reason. This instantly flags the block red and alerts your Department Head." },
+        { q: "How do I export my final schedule?", a: "Use the 'Export Excel' or 'PDF Itinerary' buttons at the bottom of your assignment list. It will auto-format to your personal timeline." }
+      ];
+    }
+  };
+
+  const faqs = getFaqContent();
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col animate-in slide-in-from-right-full duration-500 border-l-[8px] border-emerald-500">
+      <div className="bg-slate-900 p-6 md:p-10 flex justify-between items-center text-white">
+        <div>
+          <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+            <HelpCircle className="text-emerald-500" size={24} /> Smart <span className="text-emerald-500 italic">Help</span>
+          </h3>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Support: {role || 'USER'}</p>
+        </div>
+        <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all active:scale-95"><X size={20}/></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
+        <div className="bg-emerald-50 text-emerald-800 p-6 rounded-3xl md:rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
+          <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your current database access level.</p>
+        </div>
+        {faqs.map((faq, i) => (
+          <div key={i} className="bg-white p-6 rounded-3xl md:rounded-[2rem] border-2 border-slate-100 shadow-sm hover:border-emerald-200 transition-all group cursor-default">
+            <h4 className="text-xs font-black text-slate-900 mb-3 leading-snug group-hover:text-emerald-600 transition-colors">{faq.q}</h4>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed">{faq.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 // --- NOTIFICATION PANEL (ACCORD STYLED) ---
@@ -206,11 +261,9 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
        let errors = 0;
 
        // --- BULLETPROOF EXCEL DATA PARSERS ---
-       // Intercepts mangled times from Excel and forces them into HH:MM:SS 24h format for Supabase
        const parseTimeTo24H = (timeStr) => {
           let t = String(timeStr).replace(/['"]/g, '').trim();
           
-          // 1. Check for AM/PM (e.g., "8:00 AM", "01:00 PM")
           const ampmMatch = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i);
           if (ampmMatch) {
              let hour = parseInt(ampmMatch[1], 10);
@@ -221,7 +274,6 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
              return `${String(hour).padStart(2, '0')}:${min}:00`;
           }
           
-          // 2. Check for Standard format (e.g., "8:00", "14:30")
           const standardMatch = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
           if (standardMatch) {
              const hour = String(standardMatch[1]).padStart(2, '0');
@@ -233,7 +285,6 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
           return t; 
        };
 
-       // Intercepts mangled dates from Excel (e.g., 5/1/2026) and forces them into YYYY-MM-DD
        const parseDateToYYYYMMDD = (dateStr) => {
             let d = String(dateStr).replace(/['"]/g, '').trim();
             const slashMatch = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
@@ -254,7 +305,6 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
              const startTime = parseTimeTo24H(cols[1]);
              const endTime = parseTimeTo24H(cols[2]);
              
-             // Ensure formats are valid before pushing
              if (examDate && startTime && endTime && startTime.includes(':') && endTime.includes(':')) {
                bulkData.push({
                   proctor_id: profile.id,         
@@ -352,7 +402,7 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp }) => {
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
@@ -472,10 +522,15 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           
           <div className="flex gap-2">
             {!isViewMode && (
-              <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
-                <Bell size={18} />
-                {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
-              </button>
+              <>
+                <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative">
+                  <HelpCircle size={18} />
+                </button>
+                <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
+                  <Bell size={18} />
+                  {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                </button>
+              </>
             )}
 
             {isViewMode ? (
@@ -638,6 +693,7 @@ function App() {
   
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const safeRole = profile?.role?.trim().toUpperCase() || '';
   const isHeadAdmin = safeRole === 'HEAD_ADMIN';
@@ -1112,9 +1168,11 @@ function App() {
           onDeleteAvailability={handleDeleteAvailability} 
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
+          onShowHelp={() => setShowHelp(true)}
           onFlagIssue={handleFlagIssue}
         />
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
       </>
     );
   }
@@ -1124,6 +1182,7 @@ function App() {
       
       {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+      {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
@@ -1152,6 +1211,14 @@ function App() {
         >
           <Bell size={24} className="md:w-7 md:h-7" />
           {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute top-2 right-2 md:top-4 md:right-4 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+        </button>
+
+        {/* SMART HELP CENTER ICON */}
+        <button 
+          onClick={() => setShowHelp(true)}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showHelp ? 'bg-emerald-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+        >
+          <HelpCircle size={24} className="md:w-7 md:h-7" />
         </button>
         
         <div className="md:mt-auto">
