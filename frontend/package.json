@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.6.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
