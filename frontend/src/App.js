@@ -21,7 +21,7 @@ const formatTime = (timeStr) => {
 };
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
-const ChatPanel = ({ profile, onClose, onViewProctor }) => {
+const ChatPanel = ({ profile, isOpen, onClose, onViewProctor }) => {
   const [messages, setMessages] = useState([]);
   const [systemUsers, setSystemUsers] = useState([]);
   const [text, setText] = useState("");
@@ -38,7 +38,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       const { data: msgData } = await supabase.from('messages')
         .select('*')
         .or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`)
-        .order('created_at', { ascending: false }); // Newest at top!
+        .order('created_at', { ascending: false }); // Newest at top
       if (msgData) setMessages(msgData);
 
       const { data: userData } = await supabase.from('profiles')
@@ -54,10 +54,9 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         if (payload.eventType === 'INSERT') {
           const m = payload.new;
           if (!m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id) {
-            setMessages(prev => [m, ...prev]); // Add new to top
-            // Notify if it's not from me
+            setMessages(prev => [m, ...prev]); 
             if (m.sender_id !== profile.id) {
-              setLocalToast(`New message from ${m.sender_name}`);
+              setLocalToast(`New Message from ${m.sender_name}`);
               setTimeout(() => setLocalToast(null), 4000);
             }
           }
@@ -98,121 +97,118 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   });
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-2xl z-[200] flex flex-col border-l-[8px] border-indigo-500 animate-in slide-in-from-right-full duration-500">
-      
+    <>
       {localToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl z-50 animate-bounce">
-          {localToast}
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl z-[300] animate-bounce flex items-center gap-3 border-2 border-indigo-400">
+          <BellRing size={16} />{localToast}
+          <button onClick={() => setLocalToast(null)} className="ml-2 hover:text-indigo-200"><X size={14}/></button>
         </div>
       )}
 
-      <div className="bg-slate-900 p-6 flex justify-between items-center text-white shadow-md z-10">
-        <div>
-          <h3 className="text-2xl font-black uppercase flex items-center gap-3"><MessageSquare className="text-indigo-400" size={24} /> Accord Chat</h3>
-          <p className="text-[9px] font-black uppercase text-slate-400">Communication Hub</p>
+      <div className={`fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col border-l-[8px] border-indigo-500 transition-transform duration-500 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="bg-slate-900 p-6 flex justify-between items-center text-white shadow-md z-10">
+          <div><h3 className="text-2xl font-black uppercase flex items-center gap-3"><MessageSquare className="text-indigo-400" size={24} /> Accord Chat</h3><p className="text-[9px] font-black uppercase text-slate-400">Communication Hub</p></div>
+          <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all"><X size={20}/></button>
         </div>
-        <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all"><X size={20}/></button>
-      </div>
 
-      {!activeThread && chatMode !== 'dm' && (
-        <div className="flex bg-white border-b-2">
-          <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Campus</button>
-          <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Direct</button>
-        </div>
-      )}
+        {!activeThread && chatMode !== 'dm' && (
+          <div className="flex bg-white border-b-2">
+            <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 transition-all ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}>Campus</button>
+            <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 transition-all ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}>Direct</button>
+          </div>
+        )}
 
-      {activeThread && (
-        <div className="bg-indigo-50 p-4 border-b-2 border-indigo-100 flex items-center gap-3 shadow-sm z-10 cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => setActiveThread(null)}>
-          <button className="p-2 bg-white text-indigo-500 rounded-xl"><ArrowLeft size={16}/></button>
-          <div><h4 className="text-sm font-black text-indigo-900 uppercase">Thread View</h4><span className="text-[9px] font-black uppercase text-indigo-500">Back to main feed</span></div>
-        </div>
-      )}
+        {activeThread && (
+          <div className="bg-indigo-50 p-4 border-b-2 border-indigo-100 flex items-center gap-3 shadow-sm z-10 cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => setActiveThread(null)}>
+            <button className="p-2 bg-white text-indigo-500 rounded-xl"><ArrowLeft size={16}/></button>
+            <div><h4 className="text-sm font-black text-indigo-900 uppercase">Thread View</h4><span className="text-[9px] font-black uppercase text-indigo-500">Back to main feed</span></div>
+          </div>
+        )}
 
-      {!activeThread && chatMode === 'dm' && dmTarget && (
-        <div className="bg-white p-4 border-b-2 flex items-center gap-3 shadow-sm z-10">
-          <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl"><ArrowLeft size={16}/></button>
-          <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
-        </div>
-      )}
-      
-      {(chatMode === 'global' || chatMode === 'dm') && (
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
-          
-          {/* Show the original parent message pinned at the top if in thread view */}
-          {activeThread && (
-            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6">
-               <span className="text-[10px] font-black text-indigo-700 uppercase mb-1 block">{activeThread.sender_name}</span>
-               <p className="text-sm font-bold text-slate-800">{activeThread.text}</p>
-               <span className="text-[8px] font-black text-slate-400 uppercase mt-2 block border-t pt-2">Original Post</span>
-            </div>
-          )}
+        {!activeThread && chatMode === 'dm' && dmTarget && (
+          <div className="bg-white p-4 border-b-2 flex items-center gap-3 shadow-sm z-10">
+            <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl"><ArrowLeft size={16}/></button>
+            <div><h4 className="text-sm font-black text-slate-900 uppercase leading-none">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
+          </div>
+        )}
+        
+        {(chatMode === 'global' || chatMode === 'dm') && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50 flex flex-col-reverse">
+            
+            {/* Show parent message pinned when in thread view */}
+            {activeThread && (
+              <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6">
+                 <span className="text-[10px] font-black text-indigo-700 uppercase mb-1 block">{activeThread.sender_name}</span>
+                 <p className="text-sm font-bold text-slate-800">{activeThread.text}</p>
+                 <span className="text-[8px] font-black text-slate-400 uppercase mt-2 block border-t pt-2">Original Post</span>
+              </div>
+            )}
 
-          {displayedMessages.length === 0 && <div className="text-center py-20 text-slate-400 uppercase text-xs font-black tracking-widest">No Messages</div>}
-          
-          {displayedMessages.map(m => {
-            const isMe = m.sender_id === profile.id;
-            const replyCount = messages.filter(r => r.parent_id === m.id).length;
-
-            return (
-              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
-                {!isMe && <span className="text-[10px] font-black text-slate-700 uppercase mb-1 ml-1">{m.sender_name} <span className="text-[8px] text-slate-400 ml-1 font-bold">({m.sender_role})</span></span>}
-                <div className="flex items-center gap-2 max-w-[90%]">
-                  {isMe && (
-                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                      <button onClick={() => { setEditingId(m.id); setText(m.text); inputRef.current?.focus(); }} className="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-lg border shadow-sm"><Edit2 size={12}/></button>
-                      <button onClick={async () => { if(window.confirm("Delete?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-500 bg-white rounded-lg border shadow-sm"><Trash2 size={12}/></button>
+            {displayedMessages.length === 0 && <div className="text-center py-20 text-slate-400 uppercase text-xs font-black tracking-widest">No Messages</div>}
+            
+            {displayedMessages.map(m => {
+              const isMe = m.sender_id === profile.id;
+              const replyCount = messages.filter(r => r.parent_id === m.id).length;
+              return (
+                <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative mb-4`}>
+                  {!isMe && <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">{m.sender_name} <span className="text-[8px] text-slate-400 ml-1 font-bold">({m.sender_role})</span></span>}
+                  <div className="flex items-center gap-2 max-w-[90%]">
+                    {isMe && (
+                      <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                        <button onClick={() => { setEditingId(m.id); setText(m.text); inputRef.current?.focus(); }} className="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-lg border shadow-sm"><Edit2 size={12}/></button>
+                        <button onClick={async () => { if(window.confirm("Delete?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-500 bg-white rounded-lg border shadow-sm"><Trash2 size={12}/></button>
+                      </div>
+                    )}
+                    <div className={`p-4 rounded-3xl shadow-sm relative ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 text-slate-800 rounded-tl-sm'}`}>
+                      <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
+                      {m.is_edited && <span className="text-[7px] italic opacity-50 block text-right mt-1">Edited</span>}
                     </div>
-                  )}
-                  <div className={`p-4 rounded-3xl shadow-sm relative ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 text-slate-800 rounded-tl-sm'}`}>
-                    <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
-                    {m.is_edited && <span className="text-[7px] italic opacity-50 block text-right mt-1">Edited</span>}
+                    {!isMe && !activeThread && (
+                      <button onClick={() => setActiveThread(m)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-indigo-600 bg-white rounded-full border shadow-sm transition-opacity" title="Reply in Thread"><Reply size={14}/></button>
+                    )}
                   </div>
-                  {!isMe && !activeThread && (
-                    <button onClick={() => setActiveThread(m)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-indigo-600 bg-white rounded-full border shadow-sm transition-opacity" title="Reply in Thread"><Reply size={14}/></button>
-                  )}
+                  <div className="flex items-center gap-2 mt-1 px-1">
+                     <span className="text-[8px] font-black text-slate-400 uppercase">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+                     {!activeThread && replyCount > 0 && (
+                       <button onClick={() => setActiveThread(m)} className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 uppercase cursor-pointer">
+                          {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
+                       </button>
+                     )}
+                  </div>
                 </div>
-                <div className="flex gap-2 items-center mt-1 px-1">
-                   <span className="text-[8px] font-black text-slate-400 uppercase">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
-                   {!activeThread && replyCount > 0 && (
-                     <button onClick={() => setActiveThread(m)} className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 uppercase cursor-pointer">
-                        {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
-                     </button>
-                   )}
+              );
+            })}
+          </div>
+        )}
+
+        {chatMode === 'directory' && !activeThread && (
+          <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar flex flex-col">
+            <div className="p-4 border-b bg-white sticky top-0 z-10"><input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 outline-none focus:border-indigo-500 transition-all"/></div>
+            {systemUsers.filter(u => (u.full_name || u.name || "").toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+              <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b border-slate-50 flex justify-between items-center group transition-all">
+                <div><h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name || u.name}</h4><span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span></div>
+                <div className="flex gap-2">
+                   <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
+                   <button onClick={() => { setDmTarget(u); setChatMode('dm'); }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message"><MessageSquare size={16}/></button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {chatMode === 'directory' && !activeThread && (
-        <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar flex flex-col">
-          <div className="p-4 border-b bg-white sticky top-0"><input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 outline-none focus:border-indigo-500 transition-all"/></div>
-          {systemUsers.filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
-            <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b flex justify-between items-center group transition-all">
-              <div><h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4><span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span></div>
-              <div className="flex gap-2">
-                 <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
-                 <button onClick={() => { setDmTarget(u); setChatMode('dm'); }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message"><MessageSquare size={16}/></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {chatMode !== 'directory' && (
-        <div className="p-4 bg-white border-t-2">
-          {editingId && <div className="flex justify-between items-center mb-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200"><span className="text-[9px] font-black text-amber-600 uppercase italic">Editing Message...</span><button onClick={() => { setEditingId(null); setText(""); }}><X size={12} className="text-amber-600"/></button></div>}
-          <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 focus-within:border-indigo-500 transition-colors">
-            <input ref={inputRef} type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder={activeThread ? "Reply to thread..." : "Type a message..."} className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800"/>
-            <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 transition-all active:scale-95"><Send size={16} /></button>
-          </form>
-        </div>
-      )}
-    </div>
+        {chatMode !== 'directory' && (
+          <div className="p-4 bg-white border-t-2 border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            {editingId && <div className="flex justify-between items-center mb-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200"><span className="text-[9px] font-black text-amber-600 uppercase italic">Editing Message...</span><button onClick={() => { setEditingId(null); setText(""); }}><X size={12} className="text-amber-600"/></button></div>}
+            <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 focus-within:border-indigo-500 transition-colors">
+              <input ref={inputRef} type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder={activeThread ? "Reply to thread..." : "Type a message..."} className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800"/>
+              <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 transition-all active:scale-95"><Send size={16} /></button>
+            </form>
+          </div>
+        )}
+      </div>
+    </>
   );
 };
-
 
 // --- SMART HELP CENTER (ROLE-AWARE FAQ) ---
 const HelpCenter = ({ role, onClose }) => {
@@ -602,11 +598,20 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat }) => {
-  const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
+// --- 3. PROCTOR DASHBOARD ---
+const ProctorDashboard = ({ profile, allProfiles, onSwitchProctor, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat }) => {
+  const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name || s.proctor === profile.name);
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
   const [toast, setToast] = useState(null);
+  
+  const [searchProctor, setSearchProctor] = useState("");
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+  const filteredProctors = (allProfiles || []).filter(p => 
+    p.id !== profile.id && 
+    (p.full_name || p.name || "").toLowerCase().includes(searchProctor.toLowerCase())
+  );
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -619,7 +624,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         showToast("You have no assignments to export!", "error");
         return;
       }
-      
       const doc = new jsPDF({ orientation: 'landscape' });
       doc.setFontSize(16);
       doc.text(`Official Proctor Itinerary: ${profile?.full_name || 'Staff'}`, 14, 20);
@@ -636,47 +640,25 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       sorted.forEach(item => {
         const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
         const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
-        tableRows.push([
-          item.exam_date || "N/A",
-          `${safeStart} - ${safeEnd}`,
-          item.dept_code || "N/A",
-          `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
-          item.section || "N/A",
-          item.room || "N/A"
-        ]);
+        tableRows.push([item.exam_date || "N/A", `${safeStart} - ${safeEnd}`, item.dept_code || "N/A", `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`, item.section || "N/A", item.room || "N/A"]);
       });
 
-      autoTable(doc, { 
-        head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', 
-        styles: { fontSize: 10, cellPadding: 5 }, 
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } 
-      });
-      
+      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', styles: { fontSize: 10, cellPadding: 5 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
       doc.save(`Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.pdf`);
       showToast("PDF Itinerary Downloaded!");
-    } catch (err) {
-      console.error("PDF Error Detail:", err);
-      showToast("SYSTEM ERROR during PDF generation: " + err.message, "error");
-    }
+    } catch (err) { showToast("SYSTEM ERROR during PDF generation: " + err.message, "error"); }
   };
 
   const handleExportExcel = () => {
     try {
       if (!mySchedule || mySchedule.length === 0) return showToast("No assignments to export!", "error");
       const headers = ["Date,Time,Department,Subject Code,Subject Name,Section,Room"];
-      
       const sorted = [...mySchedule].sort((a, b) => {
         const dateA = new Date(a.exam_date || 0);
         const dateB = new Date(b.exam_date || 0);
         return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
       });
-
-      const rows = sorted.map(item => {
-        const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
-        const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
-        return `${item.exam_date || "N/A"},${safeStart} - ${safeEnd},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`;
-      });
-      
+      const rows = sorted.map(item => `${item.exam_date || "N/A"},${formatTime(item.start_time)} - ${formatTime(item.end_time)},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`);
       const csvContent = headers.concat(rows).join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
@@ -686,16 +668,11 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       link.click();
       document.body.removeChild(link);
       showToast("Excel Itinerary Downloaded!");
-    } catch (err) {
-      console.error(err);
-      showToast("Excel Export Failed: " + err.message, "error");
-    }
+    } catch (err) { showToast("Excel Export Failed: " + err.message, "error"); }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 relative">
-      
-      {/* LOCAL TOAST NOTIFICATION */}
       {toast && (
         <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[200] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
           {toast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
@@ -709,6 +686,33 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           <Globe size={24} className="text-blue-500" />
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
         </div>
+
+        {/* UNIVERSAL SEARCH BAR */}
+        <div className="relative w-full md:w-64 z-50">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input 
+              type="text" placeholder="Search staff to view..." value={searchProctor}
+              onFocus={() => setShowSearchDropdown(true)} 
+              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
+              onChange={e => setSearchProctor(e.target.value)}
+              className="w-full bg-slate-800 text-white text-[10px] uppercase font-black px-4 py-3 pl-9 rounded-xl outline-none focus:border-blue-500 border border-slate-700 transition-all placeholder:text-slate-500"
+            />
+          </div>
+          {showSearchDropdown && searchProctor && (
+            <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden max-h-60 overflow-y-auto">
+              {filteredProctors.length === 0 ? (
+                <div className="p-4 text-center text-[10px] font-black text-slate-400 uppercase">No users found</div>
+              ) : filteredProctors.map(p => (
+                <button key={p.id} onMouseDown={() => { setSearchProctor(""); onSwitchProctor(p); }} className="w-full text-left p-4 hover:bg-blue-50 transition-colors border-b border-slate-50 flex flex-col">
+                  <span className="text-xs font-black text-slate-900 uppercase">{p.full_name || p.name}</span>
+                  <span className="text-[9px] font-black text-blue-500 uppercase mt-1">{p.role} {p.assigned_dept ? `(${p.assigned_dept})` : ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
           <div className="text-left md:text-right mr-auto md:mr-4">
             <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">
@@ -733,16 +737,15 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
                   <Bell size={18} />
                   {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
                 </button>
+                <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all">
+                  <LogOut size={18} />
+                </button>
               </>
             )}
 
-            {isViewMode ? (
+            {isViewMode && (
               <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">
                 Close View
-              </button>
-            ) : (
-              <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all">
-                <LogOut size={18} />
               </button>
             )}
           </div>
@@ -750,7 +753,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       </nav>
 
       <main className="container mx-auto px-4 md:px-6 max-w-7xl">
-        
         {isViewMode && (
           <div className="bg-blue-600 text-white rounded-3xl md:rounded-[2rem] p-6 md:p-8 mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-center md:items-start text-center md:text-left shadow-2xl animate-in slide-in-from-top-4 gap-4 md:gap-0">
             <div>
@@ -759,11 +761,11 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
               </h4>
               <p className="text-blue-100 text-[10px] md:text-xs font-bold mt-2 leading-relaxed">
                 You are currently viewing <strong>{profile?.full_name}'s</strong> itinerary and availability logs. <br className="hidden md:block"/>
-                To assign or remove them from an exam, return to the Department Workspace.
+                To edit assignments, return to the Department Workspace.
               </p>
             </div>
             <button onClick={onCloseView} className="w-full md:w-auto mt-2 md:mt-0 bg-white text-blue-600 hover:bg-blue-50 px-6 md:px-10 py-3 md:py-4 rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95">
-              Manage in Workspace
+              Close View
             </button>
           </div>
         )}
@@ -838,7 +840,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden relative">
           <div className="p-3 md:p-8 pb-0 flex justify-between items-end">
              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
-             {/* MOBILE SCROLL HINT */}
              <div className="md:hidden flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 mb-4 animate-pulse">
                 <ArrowRight size={10} /> Swipe
              </div>
@@ -880,7 +881,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
     </div>
   );
 };
-
 
 // --- 4. MAIN APP COMPONENT ---
 function App() {
@@ -1037,13 +1037,11 @@ function App() {
   };
 
   const fetchProfiles = async () => {
-    let query = supabase.from('profiles').select('*');
-    if (isDeptAdmin) { query = query.eq('assigned_dept', profile.assigned_dept).ilike('role', 'PROCTOR'); }
-    const { data } = await query;
+    const { data } = await supabase.from('profiles').select('*');
     setAllProfiles(data || []);
   };
 
-  useEffect(() => { if (profile && activeTab === "users") fetchProfiles(); }, [profile, activeTab, isDeptAdmin]);
+  useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
 
   useEffect(() => {
     if (!session) return;
@@ -1356,14 +1354,21 @@ function App() {
 
   if (viewingProctor) {
     return (
-      <ProctorDashboard 
-        profile={viewingProctor} 
-        globalSchedule={globalSchedule} 
-        allExamDates={allExamDates} 
-        globalAvailability={globalAvailability} 
-        isViewMode={true}
-        onCloseView={() => setViewingProctor(null)}
-      />
+      <>
+        <ProctorDashboard 
+          profile={viewingProctor} 
+          allProfiles={allProfiles} 
+          onSwitchProctor={setViewingProctor} 
+          globalSchedule={globalSchedule} 
+          allExamDates={allExamDates} 
+          globalAvailability={globalAvailability} 
+          isViewMode={true}
+          onCloseView={() => setViewingProctor(null)}
+        />
+        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+      </>
     );
   }
 
@@ -1372,6 +1377,8 @@ function App() {
       <>
         <ProctorDashboard 
           profile={profile} 
+          allProfiles={allProfiles} 
+          onSwitchProctor={setViewingProctor} 
           globalSchedule={globalSchedule} 
           allExamDates={allExamDates} 
           globalAvailability={globalAvailability} 
@@ -1394,10 +1401,10 @@ function App() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
       
-     {/* GLOBAL OVERLAYS */}
+      {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
+      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
