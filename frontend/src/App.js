@@ -78,16 +78,51 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
       setEditingId(null);
     } else {
-      await supabase.from('messages').insert([{
+      const { error } = await supabase.from('messages').insert([{
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
         text, 
         receiver_id: chatMode === 'dm' ? dmTarget.id : null,
         parent_id: activeThread ? activeThread.id : null
       }]);
+
+      // --- NEW NOTIFICATION LOGIC START ---
+      if (!error) {
+        const payloads = [];
+        const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
+
+        // Helper to bypass the strict notification fetching rules in your App
+        const createPayload = (u, titleMsg) => {
+          if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: text, type: 'info' };
+          if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: text, type: 'info' };
+          return { target_user_id: u.id, title: titleMsg, message: text, type: 'info' };
+        };
+
+        if (chatMode === 'dm' && dmTarget) {
+          // 1. Notify specific user on Private Message
+          payloads.push(createPayload(dmTarget, `New DM from ${profile.full_name}`));
+        } else if (chatMode === 'global' && isAdmin && !activeThread) {
+          // 2. Notify everybody when Head Admin/Dept Admin posts in Campus Chat
+          const uniqueTargets = new Set();
+          systemUsers.forEach(u => {
+            const p = createPayload(u, `Campus Announcement: ${profile.full_name}`);
+            // Prevent duplicate notifications firing for the same department/role group
+            const key = p.target_role || p.target_dept || p.target_user_id; 
+            if (!uniqueTargets.has(key)) {
+              uniqueTargets.add(key);
+              payloads.push(p);
+            }
+          });
+        }
+
+        if (payloads.length > 0) {
+          await supabase.from('notifications').insert(payloads);
+        }
+      }
+      // --- NEW NOTIFICATION LOGIC END ---
     }
     setText(""); 
   };
-
+    
   const displayedMessages = messages.filter(m => {
     if (activeThread) return m.parent_id === activeThread.id;
     if (chatMode === 'global') return !m.receiver_id && !m.parent_id;
@@ -602,11 +637,12 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat, allProfiles, onViewProctor }) => {
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
   const [toast, setToast] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -692,10 +728,12 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
     }
   };
 
+  const proctorDirectory = (allProfiles || []).filter(p => p.role?.trim().toUpperCase() === 'PROCTOR' && p.id !== profile?.id);
+  const filteredDirectory = searchQuery.trim() ? proctorDirectory.filter(p => p.full_name?.toLowerCase().includes(searchQuery.toLowerCase())) : [];
+
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 relative">
       
-      {/* LOCAL TOAST NOTIFICATION */}
       {toast && (
         <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[200] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
           {toast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
@@ -750,6 +788,45 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       </nav>
 
       <main className="container mx-auto px-4 md:px-6 max-w-7xl">
+        
+        {!isViewMode && (
+          <div className="bg-white rounded-3xl md:rounded-[2rem] p-4 md:p-5 mb-6 md:mb-8 border-2 border-slate-100 shadow-xl flex flex-col md:flex-row items-center gap-4 relative z-40 animate-in slide-in-from-top-4">
+            <div className="flex items-center w-full md:w-auto text-blue-600 gap-2 font-black uppercase text-[10px] tracking-widest px-2">
+              <Search size={18} /> Directory Search
+            </div>
+            <div className="relative w-full flex-1">
+              <input
+                type="text"
+                placeholder="Search other proctors to view their dashboard..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
+              />
+              
+              {searchQuery && filteredDirectory.length > 0 && (
+                <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar z-50">
+                  {filteredDirectory.map(p => (
+                    <div key={p.id} onClick={() => { onViewProctor(p); setSearchQuery(""); }} className="p-4 border-b border-slate-50 hover:bg-blue-50 cursor-pointer flex justify-between items-center group transition-all">
+                       <div>
+                         <p className="text-xs font-black text-slate-900 uppercase group-hover:text-blue-600 transition-colors">{p.full_name}</p>
+                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.assigned_dept || 'Global System'}</p>
+                       </div>
+                       <button className="bg-blue-100 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                          <LayoutDashboard size={14} />
+                       </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {searchQuery && filteredDirectory.length === 0 && (
+                 <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl p-6 text-center z-50">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No proctors found matching "{searchQuery}"</p>
+                 </div>
+              )}
+            </div>
+          </div>
+        )}
         
         {isViewMode && (
           <div className="bg-blue-600 text-white rounded-3xl md:rounded-[2rem] p-6 md:p-8 mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-center md:items-start text-center md:text-left shadow-2xl animate-in slide-in-from-top-4 gap-4 md:gap-0">
@@ -838,7 +915,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden relative">
           <div className="p-3 md:p-8 pb-0 flex justify-between items-end">
              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
-             {/* MOBILE SCROLL HINT */}
              <div className="md:hidden flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 mb-4 animate-pulse">
                 <ArrowRight size={10} /> Swipe
              </div>
@@ -852,7 +928,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
 
       </main>
 
-      {/* PROCTOR FLAG MODAL */}
       {flagModal.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
           <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl animate-in zoom-in-95">
@@ -1383,6 +1458,11 @@ function App() {
           onShowHelp={() => setShowHelp(true)}
           onShowChat={() => setShowChat(true)}
           onFlagIssue={handleFlagIssue}
+          
+          // --- NEW PROPS PASSED HERE ---
+          allProfiles={allProfiles}
+          onViewProctor={(p) => setViewingProctor(p)}
+          // -----------------------------
         />
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
@@ -1390,6 +1470,7 @@ function App() {
       </>
     );
   }
+  
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
