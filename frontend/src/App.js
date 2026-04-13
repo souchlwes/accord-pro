@@ -1111,9 +1111,18 @@ function App() {
     if (!profile) return;
     let query = supabase.from('notifications').select('*').order('created_at', { ascending: false });
     
-    if (isHeadAdmin) query = query.eq('target_role', 'HEAD_ADMIN');
-    else if (isDeptAdmin) query = query.eq('target_dept', profile.assigned_dept);
-    else query = query.eq('target_user_id', profile.id);
+    if (isHeadAdmin) {
+      // Fetch Head Admin blasts OR personal direct messages
+      query = query.or(`target_role.eq.HEAD_ADMIN,target_user_id.eq.${profile.id}`);
+    } 
+    else if (isDeptAdmin) {
+      // Fetch Department blasts OR personal direct messages
+      query = query.or(`target_dept.eq.${profile.assigned_dept},target_user_id.eq.${profile.id}`);
+    } 
+    else {
+      // Proctors only get personal notifications
+      query = query.eq('target_user_id', profile.id);
+    }
 
     const { data } = await query;
     if (data) setNotifications(data);
