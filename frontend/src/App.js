@@ -90,22 +90,39 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         const payloads = [];
         const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
 
-        // Helper to bypass the strict notification fetching rules in your App
-        const createPayload = (u, titleMsg) => {
-          if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: text, type: 'info' };
-          if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: text, type: 'info' };
-          return { target_user_id: u.id, title: titleMsg, message: text, type: 'info' };
+        // Helper for broad announcements
+        const createPayload = (u, titleMsg, customMessage = text) => {
+          if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: customMessage, type: 'info' };
+          if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: customMessage, type: 'info' };
+          return { target_user_id: u.id, title: titleMsg, message: customMessage, type: 'info' };
         };
 
         if (chatMode === 'dm' && dmTarget) {
-          // 1. Notify specific user on Private Message
-          payloads.push(createPayload(dmTarget, `New DM from ${profile.full_name}`));
-        } else if (chatMode === 'global' && isAdmin && !activeThread) {
-          // 2. Notify everybody when Head Admin/Dept Admin posts in Campus Chat
+          // 1. PRIVATE MESSAGE: Explicitly hide the 'text' content for privacy
+          payloads.push({ 
+            target_user_id: dmTarget.id, 
+            title: `New DM from ${profile.full_name}`, 
+            message: "You have a new private message.", // Content hidden!
+            type: 'info' 
+          });
+        } 
+        else if (activeThread) {
+          // 2. THREAD REPLIES: Notify the person who started the thread
+          // We check !== profile.id so you don't get a notification when replying to yourself
+          if (activeThread.sender_id !== profile.id) {
+            payloads.push({
+              target_user_id: activeThread.sender_id,
+              title: `New Reply from ${profile.full_name}`,
+              message: text, 
+              type: 'info'
+            });
+          }
+        }
+        else if (chatMode === 'global' && isAdmin && !activeThread) {
+          // 3. CAMPUS ANNOUNCEMENT: Notify everybody
           const uniqueTargets = new Set();
           systemUsers.forEach(u => {
             const p = createPayload(u, `Campus Announcement: ${profile.full_name}`);
-            // Prevent duplicate notifications firing for the same department/role group
             const key = p.target_role || p.target_dept || p.target_user_id; 
             if (!uniqueTargets.has(key)) {
               uniqueTargets.add(key);
