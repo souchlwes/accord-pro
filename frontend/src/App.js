@@ -20,6 +20,21 @@ const formatTime = (timeStr) => {
   return `${displayH}:${String(m).padStart(2, '0')} ${suffix}`;
 };
 
+// --- RELATIVE TIME FORMATTER (Respects AM/PM Rule) ---
+const formatRelativeTime = (dateString) => {
+  if (!dateString) return "";
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  
+  // Fallback for older messages
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true });
+};
+
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
 const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   const [messages, setMessages] = useState([]);
@@ -31,14 +46,19 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   const [editingId, setEditingId] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [localToast, setLocalToast] = useState(null);
+  
+  // Session-based Unread Tracker for DMs
+  const [unreadDMs, setUnreadDMs] = useState({}); 
+  
   const inputRef = useRef(null);
+  const messagesEndRef = useRef(null); 
 
   useEffect(() => {
     const fetchChatData = async () => {
       const { data: msgData } = await supabase.from('messages')
         .select('*')
         .or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`)
-        .order('created_at', { ascending: false }); // Newest at top!
+        .order('created_at', { ascending: true }); // Newest at bottom
       if (msgData) setMessages(msgData);
 
       const { data: userData } = await supabase.from('profiles')
@@ -54,11 +74,22 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         if (payload.eventType === 'INSERT') {
           const m = payload.new;
           if (!m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id) {
-            setMessages(prev => [m, ...prev]); // Add new to top
+            setMessages(prev => [...prev, m]); // Append to bottom
+            
             // Notify if it's not from me
             if (m.sender_id !== profile.id) {
               setLocalToast(`New message from ${m.sender_name}`);
               setTimeout(() => setLocalToast(null), 4000);
+
+              // Track unread DMs if we aren't currently chatting with them
+              if (m.receiver_id === profile.id) {
+                 setUnreadDMs(prev => {
+                    if (chatMode !== 'dm' || dmTarget?.id !== m.sender_id) {
+                       return { ...prev, [m.sender_id]: (prev[m.sender_id] || 0) + 1 };
+                    }
+                    return prev;
+                 });
+              }
             }
           }
         } else if (payload.eventType === 'UPDATE') {
@@ -69,7 +100,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile.id]);
+  }, [profile.id, chatMode, dmTarget]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -85,12 +116,10 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         parent_id: activeThread ? activeThread.id : null
       }]);
 
-      // --- NEW NOTIFICATION LOGIC START ---
       if (!error) {
         const payloads = [];
         const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
 
-        // Helper for broad announcements
         const createPayload = (u, titleMsg, customMessage = text) => {
           if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: customMessage, type: 'info' };
           if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: customMessage, type: 'info' };
@@ -98,28 +127,12 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         };
 
         if (chatMode === 'dm' && dmTarget) {
-          // 1. PRIVATE MESSAGE: Explicitly hide the 'text' content for privacy
-          payloads.push({ 
-            target_user_id: dmTarget.id, 
-            title: `New DM from ${profile.full_name}`, 
-            message: "You have a new private message.", // Content hidden!
-            type: 'info' 
-          });
-        } 
-        else if (activeThread) {
-          // 2. THREAD REPLIES: Notify the person who started the thread
-          // We check !== profile.id so you don't get a notification when replying to yourself
+          payloads.push({ target_user_id: dmTarget.id, title: `New DM from ${profile.full_name}`, message: "You have a new private message.", type: 'info' });
+        } else if (activeThread) {
           if (activeThread.sender_id !== profile.id) {
-            payloads.push({
-              target_user_id: activeThread.sender_id,
-              title: `New Reply from ${profile.full_name}`,
-              message: text, 
-              type: 'info'
-            });
+            payloads.push({ target_user_id: activeThread.sender_id, title: `New Reply from ${profile.full_name}`, message: text, type: 'info' });
           }
-        }
-        else if (chatMode === 'global' && isAdmin && !activeThread) {
-          // 3. CAMPUS ANNOUNCEMENT: Notify everybody
+        } else if (chatMode === 'global' && isAdmin && !activeThread) {
           const uniqueTargets = new Set();
           systemUsers.forEach(u => {
             const p = createPayload(u, `Campus Announcement: ${profile.full_name}`);
@@ -135,7 +148,6 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
           await supabase.from('notifications').insert(payloads);
         }
       }
-      // --- NEW NOTIFICATION LOGIC END ---
     }
     setText(""); 
   };
@@ -148,6 +160,11 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
     }
     return false;
   });
+
+  // Auto-scroll to bottom whenever messages update
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [displayedMessages]);
 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-2xl z-[200] flex flex-col border-l-[8px] border-indigo-500 animate-in slide-in-from-right-full duration-500">
@@ -169,7 +186,10 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       {!activeThread && chatMode !== 'dm' && (
         <div className="flex bg-white border-b-2">
           <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Campus</button>
-          <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Direct</button>
+          <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 relative ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>
+             Direct
+             {Object.values(unreadDMs).some(count => count > 0) && <span className="absolute top-3 right-8 w-2 h-2 bg-rose-500 rounded-full animate-pulse"/>}
+          </button>
         </div>
       )}
 
@@ -190,7 +210,6 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       {(chatMode === 'global' || chatMode === 'dm') && (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
           
-          {/* Show the original parent message pinned at the top if in thread view */}
           {activeThread && (
             <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6">
                <span className="text-[10px] font-black text-indigo-700 uppercase mb-1 block">{activeThread.sender_name}</span>
@@ -224,7 +243,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
                   )}
                 </div>
                 <div className="flex gap-2 items-center mt-1 px-1">
-                   <span className="text-[8px] font-black text-slate-400 uppercase">{new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase">{formatRelativeTime(m.created_at)}</span>
                    {!activeThread && replyCount > 0 && (
                      <button onClick={() => setActiveThread(m)} className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 uppercase cursor-pointer">
                         {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
@@ -234,6 +253,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
               </div>
             );
           })}
+          <div ref={messagesEndRef} />
         </div>
       )}
 
@@ -243,9 +263,20 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
           {systemUsers.filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
             <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b flex justify-between items-center group transition-all">
               <div><h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4><span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span></div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                 {unreadDMs[u.id] > 0 && (
+                   <span className="bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-full mr-2 shadow-sm animate-pulse">
+                     {unreadDMs[u.id]} NEW
+                   </span>
+                 )}
                  <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
-                 <button onClick={() => { setDmTarget(u); setChatMode('dm'); }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message"><MessageSquare size={16}/></button>
+                 <button onClick={() => { 
+                    setDmTarget(u); 
+                    setChatMode('dm'); 
+                    setUnreadDMs(prev => ({...prev, [u.id]: 0})); 
+                 }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message">
+                    <MessageSquare size={16}/>
+                 </button>
               </div>
             </div>
           ))}
@@ -265,34 +296,46 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   );
 };
 
-
 // --- SMART HELP CENTER (ROLE-AWARE FAQ) ---
 const HelpCenter = ({ role, onClose }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+
   const getFaqContent = () => {
     if (role === 'HEAD_ADMIN') {
       return [
-        { q: "How do I add a new Department?", a: "Click the '+ Add Department' button on the Control Center. You must provide a unique code (e.g., 'CS' or 'MATH')." },
-        { q: "How do I manage user accounts?", a: "Navigate to the Users tab (the two people icon on the sidebar). Here you can create, block, or delete Dept Heads and Proctors." },
-        { q: "What does 'Global System Optimized' mean?", a: "It means the master engine has detected zero overlaps. There are no double-booked rooms or proctors across any department in the entire system." },
-        { q: "How do I force-approve a schedule?", a: "If a Dept Head is stuck, you can use the 'Approve & Lock' button in their Preview tab. You will be asked to provide a formal override reason for the audit log." }
+        { q: "How do I set up a new Department?", a: "Click the '+ Add Department' button. You must then manually create the Department Head account and permanently assign them to that specific department card." },
+        { q: "Can I manually remove a scheduled block?", a: "Yes. As a Head Admin, you have full global override powers to remove any scheduled block. However, you must provide a mandatory audit note, and the system will trigger a global re-validation." },
+        { q: "How are subjects distributed across exam days?", a: "The system automatically splits subjects evenly across the chosen days. Each day's subjects for a year level form one continuous, back-to-back block (e.g., 3 subjects = 3 consecutive hours)." },
+        { q: "What are the rules for sections of the same year level?", a: "Hard constraint: All sections of the same year level within a department must take the exact same subjects, in the exact same order, on the exact same day and time block to prevent answer leakage." },
+        { q: "What is the Global Resource Monitor?", a: "It is a live, master calendar showing all scheduled exam sessions across the entire university. Proctors can view it read-only, but you have full system-wide access to manage it." }
       ];
     } else if (role === 'DEPT_ADMIN') {
       return [
-        { q: "How do I generate a schedule?", a: "Inside your Department Card, go to the 'Generate' tab, set your parameters (Exam Days, Target Year, Sections), and click 'Start Calculation'." },
-        { q: "Why can't I lock my schedule?", a: "If you assigned an internal proctor who hasn't logged their availability for that specific date/time, the system blocks the lock to prevent ghosting. Ask them to log their hours, or contact the Head Admin for an override." },
-        { q: "How do I swap a proctor manually?", a: "In the 'Preview' tab, click the Proctor's name on any subject block. You can swap them for just that subject, or the entire block session." },
-        { q: "What is a 'Global' room source?", a: "If your department runs out of internal rooms, switching to 'Global' lets you borrow unoccupied rooms from other departments across the campus." }
+        { q: "Can I manage proctors for other departments?", a: "No. Your power is scoped only to your assigned department card. You create and manage proctors exclusively for your own department pool." },
+        { q: "How do I handle a Proctor's emergency flag?", a: "In the preview timeline, their assignment will be highlighted in orange. It does not automatically remove them. You must review the note and manually switch the proctor." },
+        { q: "How does Proctor Switching work?", a: "Click any specific subject hour. You can swap the proctor from your Department Pool or the Global Pool, provided they have logged availability and no overlapping assignments for that day." },
+        { q: "What is Reliever Logic?", a: "During a manual proctor switch, if your chosen substitute proctor already has an exam, the system auto-detects the conflict and offers a 'Find Reliever' button to safely re-assign their original slot." },
+        { q: "Can I manually switch rooms?", a: "Yes, but strictly within the same year level and department. Cross-department room swaps are blocked to prevent accidental global conflicts. Consecutive room preferences are automatically reapplied." },
+        { q: "Why won't the system let me save a manual change?", a: "The Re-Validation Engine runs after every manual action. If a hard constraint is violated, the slot turns red and saving is blocked until you resolve the conflict." }
       ];
     } else {
+      // PROCTOR
       return [
-        { q: "How do I log my availability?", a: "Use the 'Availability Log Book' on your dashboard. You can add time slots manually, or use the 'Bulk Upload' feature with our provided Excel template." },
-        { q: "What if I have an emergency on exam day?", a: "Click the red warning triangle next to your assigned subject. State your reason. This instantly flags the block red and alerts your Department Head." },
-        { q: "How do I export my final schedule?", a: "Use the 'Export Excel' or 'PDF Itinerary' buttons at the bottom of your assignment list. It will auto-format to your personal timeline." }
+        { q: "How do I log my availability?", a: "Use your Log Book to add exact date and time windows (e.g., '04/10/2026 from 09:00 AM - 01:00 PM'). This instantly syncs to your Dept Head as the single source of truth." },
+        { q: "What if I have an emergency on exam day?", a: "Click the 'Flag for Emergency' button on your slot and leave a required note (e.g., 'Medical emergency'). This turns the block orange on the master timeline and alerts your Admins immediately." },
+        { q: "Why was I only assigned to one session today?", a: "By default, the system enforces a strict 'one-session-per-day' rule for proctors. You will not receive multiple blocks unless an Admin manually reactivates you for another slot." },
+        { q: "Can I edit other schedules on the Global Resource Monitor?", a: "No, it is strictly a read-only view for your context. You can see the full university schedule, but you cannot edit anything outside your own assignments." }
       ];
     }
   };
 
   const faqs = getFaqContent();
+  
+  // Filter logic: checks if the search query matches the question OR the answer
+  const filteredFaqs = faqs.filter(faq => 
+    faq.q.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    faq.a.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-[0_0_100px_rgba(0,0,0,0.3)] z-[200] flex flex-col animate-in slide-in-from-right-full duration-500 border-l-[8px] border-emerald-500">
@@ -305,17 +348,48 @@ const HelpCenter = ({ role, onClose }) => {
         </div>
         <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all active:scale-95"><X size={20}/></button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
-        <div className="bg-emerald-50 text-emerald-800 p-6 rounded-3xl md:rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
-          <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your current database access level.</p>
+      
+      {/* SEARCH BAR SECTION */}
+      <div className="p-4 md:px-8 md:pt-8 bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Search guides, rules, or logic..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white p-4 pl-12 rounded-[2rem] font-black text-xs border-2 border-slate-100 outline-none focus:border-emerald-500 transition-colors shadow-sm text-slate-800"
+          />
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 bg-slate-100 p-1 rounded-full transition-colors">
+              <X size={14} />
+            </button>
+          )}
         </div>
-        {faqs.map((faq, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl md:rounded-[2rem] border-2 border-slate-100 shadow-sm hover:border-emerald-200 transition-all group cursor-default">
-            <h4 className="text-xs font-black text-slate-900 mb-3 leading-snug group-hover:text-emerald-600 transition-colors">{faq.q}</h4>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed">{faq.a}</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 md:px-8 pb-8 space-y-4 custom-scrollbar bg-slate-50">
+        
+        {/* Hide the welcome banner if the user is actively searching */}
+        {!searchQuery && (
+          <div className="bg-emerald-50 text-emerald-800 p-6 rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
+            <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
           </div>
-        ))}
+        )}
+
+        {filteredFaqs.length === 0 ? (
+          <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-[2rem]">
+             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No matching guides found</p>
+          </div>
+        ) : (
+          filteredFaqs.map((faq, i) => (
+            <div key={i} className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 shadow-sm hover:border-emerald-200 transition-all group cursor-default">
+              <h4 className="text-xs font-black text-slate-900 mb-3 leading-snug group-hover:text-emerald-600 transition-colors">{faq.q}</h4>
+              <p className="text-[10px] font-bold text-slate-500 leading-relaxed">{faq.a}</p>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
