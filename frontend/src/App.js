@@ -1350,9 +1350,30 @@ function App() {
 
   const handleDeleteUser = async (id) => {
     if (window.confirm("Delete account permanently?")) {
+      // 1. Identify the profile BEFORE deleting so we know what department to clean up
+      const targetProfile = allProfiles.find(p => p.id === id);
+
+      // 2. Delete the account from the profiles table
       await supabase.from('profiles').delete().eq('id', id);
+
+      // 3. Delete ALL of their logged availability so they disappear from the Log Books
+      await supabase.from('proctor_availability').delete().eq('proctor_id', id);
+
+      // 4. Remove them from the Department's internal roster to fix the "Global Pool" ghosting
+      if (targetProfile && targetProfile.assigned_dept) {
+        const targetDept = departments.find(d => d.code === targetProfile.assigned_dept);
+        if (targetDept && targetDept.proctors) {
+          const updatedProctors = targetDept.proctors.filter(
+            p => p.name !== targetProfile.full_name?.trim().toUpperCase()
+          );
+          await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
+        }
+      }
+
       await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
-      fetchProfiles();
+      
+      // 5. Run a FULL sync so the Global Pool and Availability state update instantly
+      await fetchAllData(false);
     }
   };
 
