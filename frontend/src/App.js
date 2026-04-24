@@ -1,3 +1,4 @@
+import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -1490,7 +1491,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
-          <Lock className="mx-auto text-blue-600 mb-6" size={48} />
+          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
           {authMode === 'login' ? (
@@ -1632,8 +1633,8 @@ function App() {
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
-        <div className="hidden md:flex bg-blue-600 p-4 rounded-2xl mb-12 shadow-lg shadow-blue-500/40">
-          <Globe size={32} className="text-white" />
+        <div className="hidden md:flex bg-white p-3 rounded-2xl mb-12 shadow-lg shadow-blue-500/20 border-2 border-slate-100">
+          <img src={accordLogo} alt="Accord Logo" className="w-10 h-10 object-contain" />
         </div>
         
         <button 
