@@ -20,13 +20,15 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
     setShowHistory(prev => ({ ...prev, [asgnId]: !prev[asgnId] }));
   };
 
+  // FIXED: Converted everything to uppercase so "John Doe" perfectly matches "JOHN DOE"
   const getAssignments = (nameOrNumber, type) => {
     return globalSchedule.filter(item => 
-      type === 'proctor' ? item.proctor === nameOrNumber : item.room === nameOrNumber
+      type === 'proctor' 
+        ? String(item.proctor || "").toUpperCase() === String(nameOrNumber || "").toUpperCase()
+        : String(item.room || "").toUpperCase() === String(nameOrNumber || "").toUpperCase()
     );
   };
 
-  // Check if any part of the assignment was modified from auto-gen
   const checkIsModified = (asgn) => {
     return (
       asgn.proctor !== asgn.original_proctor || 
@@ -183,18 +185,23 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                     const assignments = getAssignments(room.number, 'room');
                     const isOccupied = assignments.length > 0;
                     const isOpen = expandedId === `r-${room.id}`;
+                    
+                    // FIXED: Added the missing hasFlags check for rooms
+                    const hasFlags = assignments.some(a => a.flagged);
 
                     return (
-                        <div key={`r-${room.id}`} className={`border-2 rounded-[2rem] transition-all ${isOpen ? 'border-amber-100 bg-amber-50/5' : 'border-slate-50'}`}>
+                        <div key={`r-${room.id}`} className={`border-2 rounded-[2rem] transition-all ${hasFlags ? 'border-rose-200 bg-rose-50/10' : isOpen ? 'border-amber-100 bg-amber-50/5' : 'border-slate-50'}`}>
                             <div onClick={() => toggleExpand(`r-${room.id}`)} className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-[2rem]">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-3 h-3 rounded-full ${isOccupied ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                    <div className={`w-3 h-3 rounded-full ${hasFlags ? 'bg-rose-500 animate-pulse' : isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">ROOM {room.number}</p>
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{room.type}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {/* FIXED: Show the red shield if room is flagged */}
+                                    {hasFlags && <ShieldAlert size={14} className="text-rose-500" />}
                                     <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${isOccupied ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                         {isOccupied ? 'OCCUPIED' : 'VACANT'}
                                     </span>
@@ -209,7 +216,8 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                                         const viewingHistory = showHistory[asgn.id];
 
                                         return (
-                                            <div key={asgn.id} className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${modified ? 'border-amber-400' : 'border-blue-500'}`}>
+                                            // FIXED: Added the red border if flagged
+                                            <div key={asgn.id} className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${asgn.flagged ? 'border-rose-500' : modified ? 'border-amber-400' : 'border-blue-500'}`}>
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div>
                                                         <span className="text-[9px] font-black text-slate-900 uppercase flex items-center gap-1"><Clock size={10} className="text-blue-500"/> {asgn.start_time} - {asgn.end_time}</span>
@@ -243,6 +251,17 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                                                         <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">SEC {asgn.section}</span>
                                                     </div>
                                                 </div>
+
+                                                {/* FIXED: Added the red flag note box at the bottom */}
+                                                {asgn.flagged && !viewingHistory && (
+                                                    <div className="mt-3 bg-rose-50 p-3 rounded-xl border border-rose-100 flex items-start gap-2">
+                                                        <AlertTriangle size={14} className="text-rose-500 shrink-0 mt-0.5"/>
+                                                        <div>
+                                                            <span className="text-[8px] font-black text-rose-600 uppercase block">Issue Logged</span>
+                                                            <p className="text-[10px] font-bold text-rose-800 uppercase italic leading-tight">{asgn.flagNote || "No details provided."}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     }) : (
