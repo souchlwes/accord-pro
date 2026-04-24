@@ -1066,106 +1066,56 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
   );
 };
 
-
 // --- 4. MAIN APP COMPONENT ---
 function App() {
+  // --- GLOBAL STATES ---
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null); 
-  
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null); 
   const [activeTab, setActiveTab] = useState("dashboard"); 
   const [allProfiles, setAllProfiles] = useState([]);
   
+  // --- AUTH & REGISTRATION STATES ---
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
   const [regRole, setRegRole] = useState('PROCTOR'); 
   const [regDept, setRegDept] = useState(''); 
+  const [authMode, setAuthMode] = useState('login');
 
-  const executeRegistration = async () => {
-    setLoading(true);
-    try {
-      if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
-      
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
-      if (error) throw error;
-      
-      if (data?.user) {
-        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
-        
-        if (count === 0) {
-          // First user is automatically approved as Head Admin
-          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', status: 'ACTIVE' }]);
-          alert("First user auto-promoted to Head Admin!");
-          window.location.reload(); 
-        } else {
-          // Everyone else goes to the Pending Queue
-          await supabase.from('profiles').upsert([{ 
-            id: data.user.id, 
-            full_name: fullName, 
-            role: regRole, 
-            assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), 
-            status: 'PENDING' 
-          }]);
-          
-          if (regRole === 'PROCTOR') {
-            await sendNotification(regDept.toUpperCase(), 'DEPT_ADMIN', null, 'New Proctor Request', `${fullName} requested to join ${regDept.toUpperCase()}.`, 'info');
-          } else {
-            await sendNotification(null, 'HEAD_ADMIN', null, 'New Admin Request', `${fullName} requested access as a ${regRole}.`, 'info');
-          }
-          
-          alert("Registration submitted! Please wait for an Administrator to approve your account.");
-          setAuthMode('login');
-          setEmail(''); setPassword(''); setFullName(''); setRegDept('');
-        }
-      }
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
-  };
-
-  const handleApproveUser = async (id) => {
-    await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
-    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
-    fetchProfiles();
-  };
-  
+  // --- DATA STATES ---
   const [departments, setDepartments] = useState([]);
   const [globalSchedule, setGlobalSchedule] = useState([]);
   const [globalAvailability, setGlobalAvailability] = useState([]);
   const [allExamDates, setAllExamDates] = useState([]);
   const [viewingProctor, setViewingProctor] = useState(null);
   
+  // --- UI & MODAL STATES ---
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-  const [authMode, setAuthMode] = useState('login');
+  const [appToast, setAppToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
 
+  // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
   const isHeadAdmin = safeRole === 'HEAD_ADMIN';
   const isDeptAdmin = safeRole === 'DEPT_ADMIN';
   const isProctor = safeRole === 'PROCTOR';
 
+  // --- SYSTEM FUNCTIONS ---
   const sendNotification = async (targetDept, targetRole, targetUserId, title, message, type = 'info') => {
     try {
       const payload = [];
-      
       if (targetDept || targetRole || targetUserId) {
          payload.push({ target_dept: targetDept, target_role: targetRole, target_user_id: targetUserId, title, message, type });
       }
-      
       if (targetDept && targetRole !== 'HEAD_ADMIN') {
-         payload.push({ 
-           target_dept: null, 
-           target_role: 'HEAD_ADMIN', 
-           target_user_id: null, 
-           title: `[${targetDept}] ${title}`, 
-           message, 
-           type 
-         });
+         payload.push({ target_dept: null, target_role: 'HEAD_ADMIN', target_user_id: null, title: `[${targetDept}] ${title}`, message, type });
       }
-
       if (payload.length > 0) {
         await supabase.from('notifications').insert(payload);
       }
@@ -1179,27 +1129,13 @@ function App() {
   const fetchNotifications = async () => {
     if (!profile) return;
     let query = supabase.from('notifications').select('*').order('created_at', { ascending: false });
-    
-    if (isHeadAdmin) {
-      // Fetch Head Admin blasts OR personal direct messages
-      query = query.or(`target_role.eq.HEAD_ADMIN,target_user_id.eq.${profile.id}`);
-    } 
-    else if (isDeptAdmin) {
-      // Fetch Department blasts OR personal direct messages
-      query = query.or(`target_dept.eq.${profile.assigned_dept},target_user_id.eq.${profile.id}`);
-    } 
-    else {
-      // Proctors only get personal notifications
-      query = query.eq('target_user_id', profile.id);
-    }
+    if (isHeadAdmin) query = query.or(`target_role.eq.HEAD_ADMIN,target_user_id.eq.${profile.id}`);
+    else if (isDeptAdmin) query = query.or(`target_dept.eq.${profile.assigned_dept},target_user_id.eq.${profile.id}`);
+    else query = query.eq('target_user_id', profile.id);
 
     const { data } = await query;
     if (data) setNotifications(data);
   };
-
-  useEffect(() => { 
-    if (profile) fetchNotifications(); 
-  }, [profile]);
 
   const fetchAllData = async (showSpinner = true) => {
     if (showSpinner) { setLoading(true); setSyncError(null); }
@@ -1210,7 +1146,6 @@ function App() {
         supabase.from('proctor_availability').select('*'),
         supabase.from('profiles').select('*')
       ]);
-      
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database took too long to respond.")), 10000));
       const [deptsRes, schedsRes, availRes, profilesRes] = await Promise.race([fetchPromise, timeoutPromise]);
 
@@ -1227,9 +1162,7 @@ function App() {
         setGlobalSchedule(runConflictDetection(sortedData));
         setAllExamDates(dates);
       }
-      
       await fetchNotifications();
-
     } catch (err) {
       console.error("Silent Background Sync Error:", err.message);
       if (showSpinner) setSyncError(err.message);
@@ -1238,35 +1171,26 @@ function App() {
     }
   };
 
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('*');
+    setAllProfiles(data || []);
+  };
+
   // --- BULLETPROOF AUTHENTICATION ENGINE ---
   useEffect(() => {
     let isMounted = true;
-
-    // Single Source of Truth: Handles initial load, logins, and refreshes natively
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
-
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        
         if (!currentSession) {
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-          return;
+          setSession(null); setProfile(null); setLoading(false); return;
         }
+        setSession(currentSession); setLoading(true);
 
-        setSession(currentSession);
-        setLoading(true);
-
-        // 4-Try Retry Loop: Gives the database up to 4 seconds to catch up
         let fetchedProfile = null;
         for (let i = 0; i < 4; i++) {
            const { data: pData } = await supabase.from('profiles').select('*').eq('id', currentSession.user.id).maybeSingle();
-           if (pData) {
-              fetchedProfile = pData;
-              break; 
-           }
-           // Wait 1 full second before trying again
+           if (pData) { fetchedProfile = pData; break; }
            await new Promise(res => setTimeout(res, 1000));
         }
 
@@ -1276,28 +1200,15 @@ function App() {
         } else {
            console.error("Profile completely disconnected from database.");
         }
-        
         setLoading(false);
-
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setProfile(null);
-        setDepartments([]);
-        setGlobalSchedule([]);
-        setGlobalAvailability([]);
-        setLoading(false);
+        setSession(null); setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
     });
-
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
 
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*');
-    setAllProfiles(data || []);
-  };
-
-  useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
+  useEffect(() => { if (profile) fetchProfiles(); fetchNotifications(); }, [profile]);
 
   useEffect(() => {
     if (!session) return;
@@ -1318,18 +1229,10 @@ function App() {
   }, [departments, profile, isHeadAdmin]);
 
   const handleAddAvailability = async (newAvail) => {
-    const { data, error } = await supabase.from('proctor_availability').insert([newAvail]);
-    if (error) {
-      alert(`DATABASE REJECTION: \nMessage: ${error.message} \nDetails: ${error.details || 'Check console'}`);
-    } else {
-      await sendNotification(
-        profile.assigned_dept, 
-        null, 
-        null, 
-        'Availability Logged', 
-        `${profile.full_name} has updated their availability calendar.`, 
-        'info'
-      );
+    const { error } = await supabase.from('proctor_availability').insert([newAvail]);
+    if (error) alert(`DATABASE REJECTION: \nMessage: ${error.message}`);
+    else {
+      await sendNotification(profile.assigned_dept, null, null, 'Availability Logged', `${profile.full_name} updated their calendar.`, 'info');
       await fetchAllData(false);
     }
   };
@@ -1337,14 +1240,7 @@ function App() {
   const handleBulkAddAvailability = async (bulkAvails) => {
     const { error } = await supabase.from('proctor_availability').insert(bulkAvails);
     if (error) return alert("Bulk Import Database Error: " + error.message);
-    
-    await sendNotification(
-      profile.assigned_dept, 
-      null, null, 
-      'Bulk Availability Logged', 
-      `${profile.full_name} uploaded ${bulkAvails.length} availability slots via Excel.`, 
-      'info'
-    );
+    await sendNotification(profile.assigned_dept, null, null, 'Bulk Availability Logged', `${profile.full_name} uploaded ${bulkAvails.length} slots via Excel.`, 'info');
     await fetchAllData(false);
   };
 
@@ -1355,15 +1251,7 @@ function App() {
 
   const handleFlagIssue = async (scheduleId, reason, deptCode, subjectCode) => {
     await supabase.from('schedules').update({ flagged: true, flagNote: reason }).eq('id', scheduleId);
-    
-    await sendNotification(
-      deptCode, 
-      null, 
-      null, 
-      'Urgent Proctor Flag', 
-      `${profile.full_name} flagged ${subjectCode}. Reason: ${reason}`, 
-      'urgent'
-    );
+    await sendNotification(deptCode, null, null, 'Urgent Proctor Flag', `${profile.full_name} flagged ${subjectCode}. Reason: ${reason}`, 'urgent');
     fetchAllData(false);
   };
 
@@ -1372,68 +1260,95 @@ function App() {
     localStorage.clear(); sessionStorage.clear(); window.location.reload();
   };
 
-  // Opens the visual modal instead of the browser prompts
   const handleCreateAccount = () => {
     setCreateModal({ isOpen: true, name: '', email: '', pass: '', dept: '' });
   };
 
-  // Executes the creation from the modal's form data
   const executeCreateAccount = async (e) => {
     e.preventDefault();
     const { name, email, pass, dept } = createModal;
     let d = isHeadAdmin ? dept : profile.assigned_dept;
-    
     if (!name || !email || !pass) return;
     
     const { data, error } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
     if (error) {
-      alert("Error: " + error.message);
+      setAppToast({ message: error.message, type: 'error' });
     } else if (data.user) {
       await supabase.from('profiles').upsert([{ 
-        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
-        assigned_dept: d, status: 'ACTIVE' 
+        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', assigned_dept: d, status: 'ACTIVE' 
       }]);
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
-      alert("Account successfully created!");
+      setAppToast({ message: "Account successfully created!", type: 'success' });
       setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
       fetchProfiles();
     }
-  
   };
 
-
   const handleBlockUser = async (id, currentStatus) => {
-    await supabase.from('profiles').update({ status: currentStatus === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE' }).eq('id', id);
+    const newStatus = currentStatus === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
+    await supabase.from('profiles').update({ status: newStatus }).eq('id', id);
+    setAppToast({ message: `Account ${newStatus.toLowerCase()} successfully.`, type: 'success' });
     fetchProfiles();
   };
 
-  const handleDeleteUser = async (id) => {
-    if (window.confirm("Delete account permanently?")) {
-      // 1. Identify the profile BEFORE deleting so we know what department to clean up
-      const targetProfile = allProfiles.find(p => p.id === id);
+  const handleDeleteUser = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete account permanently?",
+      text: "This action is permanent. All associated logs and availability data will be destroyed.",
+      action: async () => {
+        const targetProfile = allProfiles.find(p => p.id === id);
+        await supabase.from('profiles').delete().eq('id', id);
+        await supabase.from('proctor_availability').delete().eq('proctor_id', id);
 
-      // 2. Delete the account from the profiles table
-      await supabase.from('profiles').delete().eq('id', id);
+        if (targetProfile && targetProfile.assigned_dept) {
+          const targetDept = departments.find(d => d.code === targetProfile.assigned_dept);
+          if (targetDept && targetDept.proctors) {
+            const updatedProctors = targetDept.proctors.filter(p => p.name !== targetProfile.full_name?.trim().toUpperCase());
+            await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
+          }
+        }
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
+        await fetchAllData(false);
+        setAppToast({ message: "Account permanently deleted.", type: "success" });
+      }
+    });
+  };
 
-      // 3. Delete ALL of their logged availability so they disappear from the Log Books
-      await supabase.from('proctor_availability').delete().eq('proctor_id', id);
-
-      // 4. Remove them from the Department's internal roster to fix the "Global Pool" ghosting
-      if (targetProfile && targetProfile.assigned_dept) {
-        const targetDept = departments.find(d => d.code === targetProfile.assigned_dept);
-        if (targetDept && targetDept.proctors) {
-          const updatedProctors = targetDept.proctors.filter(
-            p => p.name !== targetProfile.full_name?.trim().toUpperCase()
-          );
-          await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
+  const executeRegistration = async () => {
+    setLoading(true);
+    try {
+      if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+      if (error) throw error;
+      
+      if (data?.user) {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
+        if (count === 0) {
+          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', status: 'ACTIVE' }]);
+          setAppToast({ message: "First user auto-promoted to Head Admin!", type: "success" });
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          await supabase.from('profiles').upsert([{ 
+            id: data.user.id, full_name: fullName, role: regRole, assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), status: 'PENDING' 
+          }]);
+          
+          if (regRole === 'PROCTOR') await sendNotification(regDept.toUpperCase(), 'DEPT_ADMIN', null, 'New Proctor Request', `${fullName} requested to join ${regDept.toUpperCase()}.`, 'info');
+          else await sendNotification(null, 'HEAD_ADMIN', null, 'New Admin Request', `${fullName} requested access as a ${regRole}.`, 'info');
+          
+          await supabase.auth.signOut();
+          setAuthMode('success'); 
+          setEmail(''); setPassword(''); setFullName(''); setRegDept('');
         }
       }
+    } catch (err) { setAppToast({ message: err.message, type: "error" }); } finally { setLoading(false); }
+  };
 
-      await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
-      
-      // 5. Run a FULL sync so the Global Pool and Availability state update instantly
-      await fetchAllData(false);
-    }
+  const handleApproveUser = async (id) => {
+    await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
+    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
+    setAppToast({ message: "Account approved successfully.", type: "success" });
+    fetchProfiles();
   };
 
   async function handleDepartmentUpdate(actionType, payload) {
@@ -1443,26 +1358,19 @@ function App() {
         const { hasConflict, conflictType, ...validData } = item;
         if (validData.id && String(validData.id).includes('temp')) delete validData.id;
         if (validData.tempId) delete validData.tempId;
-        return {
-          ...validData, year_level: String(validData.year_level), flagged: Boolean(validData.flagged ?? false),
-          isManualProctor: Boolean(validData.isManualProctor ?? false), original_proctor: validData.original_proctor || validData.proctor
-        };
+        return { ...validData, year_level: String(validData.year_level), flagged: Boolean(validData.flagged ?? false), isManualProctor: Boolean(validData.isManualProctor ?? false), original_proctor: validData.original_proctor || validData.proctor };
       });
       await supabase.from('schedules').upsert(dataToSync, { onConflict: 'id' });
-      
       const dCode = payload[0]?.dept_code || profile?.assigned_dept || 'Unknown';
       await sendNotification(null, 'HEAD_ADMIN', null, `Master Schedule: ${actionType.replace(/_/g, ' ')}`, `Department ${dCode} applied manual overrides/locks to the timeline.`, 'warning');
-      
       await fetchAllData(false);
       return true;
     }
     if (['proctors', 'rooms', 'subjects'].includes(actionType)) {
       if (!payload?.id) return false;
       await supabase.from('departments').update({ [actionType]: payload[actionType] }).eq('id', payload.id);
-      
       await sendNotification(null, 'HEAD_ADMIN', null, `Registry Updated: ${actionType}`, `Department ${payload.code} updated their ${actionType} list.`, 'info');
       await fetchAllData(false);
-      
       return true;
     }
     return true;
@@ -1479,9 +1387,7 @@ function App() {
         start_time: item.start_time, end_time: item.end_time, flagged: false, flagNote: "", isManualProctor: false
       }));
       await supabase.from('schedules').insert(formattedData);
-      
       await sendNotification(null, 'HEAD_ADMIN', null, 'Schedule Generated', `Department ${deptCode} generated a draft for Year ${targetYear}.`, 'info');
-      
       await fetchAllData(false);
     } catch (err) { alert("Failed to save schedule."); }
   };
@@ -1501,7 +1407,6 @@ function App() {
     const code = window.prompt("Enter UNIQUE Dept Code:");
     if (!name || !code) return;
     const { error } = await supabase.from('departments').insert([{ name, code: code.toUpperCase() }]);
-    
     if (error) alert(error.message); 
     else {
       await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()}.`, 'info');
@@ -1510,52 +1415,50 @@ function App() {
   };
 
   const deleteDepartment = async (deptId, deptCode) => {
-    if (window.confirm(`Delete ${deptCode} permanently?`)) {
-      await supabase.from('departments').delete().eq('id', deptId);
-      await sendNotification(null, 'HEAD_ADMIN', null, 'Department Deleted', `Removed department ${deptCode}.`, 'urgent');
-      await fetchAllData(false);
-    }
-  };
-
-  const handleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert(error.message);
-  };
-
-  const handleSignUp = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
-      if (error) throw error;
-      if (data?.user) {
-        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
-        if (count === 0) {
-          await supabase.from('profiles').update({ role: 'HEAD_ADMIN', full_name: fullName }).eq('id', data.user.id);
-          alert("Promoted to Head Admin!");
-          window.location.reload(); 
-        } else {
-          alert("Check email for confirmation!");
-        }
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete ${deptCode} Department?`,
+      text: "This action is permanent. All associated schedules and resources will be destroyed.",
+      action: async () => {
+        await supabase.from('departments').delete().eq('id', deptId);
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Department Deleted', `Removed department ${deptCode}.`, 'urgent');
+        await fetchAllData(false);
+        setAppToast({ message: "Department permanently deleted.", type: "success" });
       }
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+    });
   };
 
+ 
   if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><RefreshCw className="text-blue-500 animate-spin" size={48} /></div>;
 
-  if (!session) {
+   if (!session) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
           <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
-          {authMode === 'login' ? (
+          {authMode === 'success' ? (
+            <div className="animate-in fade-in zoom-in duration-300 py-8">
+              <CheckCircle2 size={64} className="mx-auto text-emerald-500 mb-6" />
+              <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Request Sent!</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">
+                Your account has been registered.<br/>Please wait for an Administrator to approve your access.
+              </p>
+              <button onClick={() => setAuthMode('login')} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl active:scale-95">
+                Return to Login
+              </button>
+            </div>
+          ) : authMode === 'login' ? (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
               <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
               <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
               
-              <button onClick={async () => {const {error}=await supabase.auth.signInWithPassword({email,password}); if(error)alert(error.message);}} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
+              <button onClick={async () => {
+                const {error}=await supabase.auth.signInWithPassword({email,password}); 
+                if(error) setAppToast({ message: error.message, type: "error" });
+              }} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
                 Sign In
               </button>
               
@@ -1586,8 +1489,8 @@ function App() {
                 )}
               </div>
               
-              <button onClick={executeRegistration} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all mb-6 shadow-xl active:scale-95">
-                Submit Request
+              <button onClick={executeRegistration} disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
+                {loading ? "Processing..." : "Submit Request"}
               </button>
               
               <div className="pt-6 border-t-2 border-slate-50">
@@ -1598,6 +1501,15 @@ function App() {
             </div>
           )}
         </div>
+        
+        {/* We put the Toast here too so errors show on the login screen! */}
+        {appToast && (
+          <div className={`fixed bottom-10 right-10 z-[400] p-6 rounded-2xl shadow-2xl flex items-center gap-4 text-white font-black text-[10px] uppercase tracking-widest animate-in slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+            {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
+            <span>{appToast.message}</span>
+            <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1945,9 +1857,34 @@ function App() {
           </div>
         </div>
       )}
+      {/* --- GLOBAL TOAST NOTIFICATION --- */}
+      {appToast && (
+        <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[400] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+          {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
+          <span>{appToast.message}</span>
+          <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+        </div>
+      )}
+
+      {/* --- GLOBAL CONFIRMATION MODAL --- */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+            <AlertTriangle className="mx-auto text-rose-500 mb-6" size={48} />
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">{confirmModal.title}</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">{confirmModal.text}</p>
+            <div className="flex gap-4">
+              <button onClick={() => setConfirmModal({ isOpen: false, title: '', text: '', action: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => { confirmModal.action(); setConfirmModal({ isOpen: false, title: '', text: '', action: null }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 shadow-lg transition-colors">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       </main>
     </div>
   );
 }
 
 export default App;
+     
