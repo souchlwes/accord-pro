@@ -1182,33 +1182,50 @@ function App() {
     }
   };
 
+  const fetchProfile = async (userId) => {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (data) setProfile(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('*');
+    setAllProfiles(data || []);
+  };
+
+  // --- BULLETPROOF AUTHENTICATION INITIALIZER ---
   useEffect(() => {
     let isMounted = true;
-    const getSessionAndProfile = async () => {
+
+    const loadSessionData = async (activeSession) => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (isMounted) setSession(session);
-        if (session && isMounted) {
-          await fetchProfile(session.user.id);
-          await fetchAllData();
-        }
+        if (isMounted) setLoading(true);
+        await fetchProfile(activeSession.user.id);
+        await fetchAllData(false);
       } catch (err) {
-        if (isMounted) setSyncError("Failed to authenticate session.");
+        console.error(err);
       } finally {
-        if (isMounted) setLoading(false); 
+        if (isMounted) setLoading(false);
       }
     };
 
-    getSessionAndProfile();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
       setSession(session);
       if (session) {
-        if (event === 'SIGNED_IN') setLoading(true); 
-        await fetchProfile(session.user.id);
-        await fetchAllData();
+        loadSessionData(session);
+      } else {
         setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!isMounted || event === 'INITIAL_SESSION') return; // Fixes the double-load bug!
+      
+      setSession(newSession);
+      if (newSession) {
+        loadSessionData(newSession);
       } else {
         setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
@@ -1217,20 +1234,7 @@ function App() {
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
 
-  const fetchProfile = async (userId) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (data) setProfile(data);
-    } catch (err) { console.error(err); }
-  };
-
-   const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*');
-    setAllProfiles(data || []);
-  };
-
-  useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
-
+  // --- REAL-TIME DATABASE SYNC ---
   useEffect(() => {
     if (!session) return;
     const dbChannel = supabase.channel('system-sync')
@@ -1241,7 +1245,7 @@ function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchNotifications())
       .subscribe();
     return () => { supabase.removeChannel(dbChannel); };
-  }, [session, profile]);
+  }, [session]);
 
   const conflictCount = useMemo(() => globalSchedule.filter(s => s.hasConflict).length, [globalSchedule]);
   const visibleDepartments = useMemo(() => {
