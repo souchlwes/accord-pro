@@ -431,12 +431,12 @@ const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
 };
 
 // --- 1. USER REGISTRY COMPONENT ---
-const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, currentRole, onView }) => {
+const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, currentRole, currentUserDept, onView }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const isHead = currentRole === 'HEAD_ADMIN';
 
   const filteredProfiles = profiles.filter(p => 
-    (p.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (p.full_name || p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -448,7 +448,7 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
             <Shield className="text-blue-500" size={24} /> System <span className="text-blue-500 italic">Registry</span>
           </h3>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
-            {isHead ? 'Global Account Control' : 'Departmental Proctor Management'}
+            Global Staff Directory
           </p>
         </div>
         <button 
@@ -460,13 +460,14 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
       </div>
 
       <div className="p-4 md:p-8">
-        <div className="mb-6">
+        <div className="mb-6 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input 
             type="text" 
-            placeholder="Search users by name or email..." 
+            placeholder="Search staff globally by name or email..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 p-3 md:p-5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
           />
         </div>
 
@@ -490,7 +491,7 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
               {filteredProfiles.map(p => (
                 <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' ? 'opacity-40 grayscale' : ''}`}>
                   <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
-                    <p className="font-black text-slate-900 uppercase text-sm">{p.full_name}</p>
+                    <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
                     <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
                   </td>
                   <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
@@ -514,12 +515,18 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
                           <LayoutDashboard size={16} />
                         </button>
                       )}
-                      <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400">
-                        <Lock size={16} />
-                      </button>
-                      <button onClick={() => onDelete(p.id)} className="p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400">
-                        <Trash2 size={16} />
-                      </button>
+                      
+                      {/* Security Logic: Head Admin can edit anyone. Dept Admin can only edit their own staff. */}
+                      {(isHead || p.assigned_dept === currentUserDept) && (
+                        <>
+                          <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title={p.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}>
+                            <Lock size={16} />
+                          </button>
+                          <button onClick={() => onDelete(p.id)} className="p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="Delete User">
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -532,6 +539,7 @@ const UserRegistry = ({ profiles, onBlock, onArchive, onDelete, onCreate, curren
   );
 };
 
+      
 // --- 2. AVAILABILITY LOG BOOK COMPONENT ---
 const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, onDelete, readOnly = false, showToast }) => {
   const [date, setDate] = useState("");
@@ -1717,7 +1725,12 @@ function App() {
 
                 <div className="grid grid-cols-1 gap-8 md:gap-12 mb-16 md:mb-20">
                   <ConflictTable schedule={globalSchedule} />
-                  <GlobalResourceMonitor allDepartments={departments} globalSchedule={globalSchedule} />
+                  <GlobalResourceMonitor 
+  allDepartments={departments} 
+  globalSchedule={globalSchedule} 
+  allProfiles={allProfiles}
+  onViewProctor={(p) => setViewingProctor(p)}
+/>
                 </div>
 
                 <div className="space-y-16 md:space-y-24">
@@ -1768,16 +1781,17 @@ function App() {
                 </div>
               </div>
             ) : (
-              <div className="mt-6 md:mt-10">
-              <UserRegistry 
-                profiles={isHeadAdmin ? allProfiles : allProfiles.filter(p => p.assigned_dept === profile?.assigned_dept && p.role?.trim().toUpperCase() === 'PROCTOR')} 
-                onCreate={handleCreateAccount}
-                onBlock={handleBlockUser}
-                onDelete={handleDeleteUser}
-                currentRole={safeRole}
-                onView={(proctorData) => setViewingProctor(proctorData)}
-              />
-            </div>
+             <div className="mt-6 md:mt-10">
+                <UserRegistry 
+                  profiles={allProfiles} 
+                  onCreate={handleCreateAccount}
+                  onBlock={handleBlockUser}
+                  onDelete={handleDeleteUser}
+                  currentRole={safeRole}
+                  currentUserDept={profile?.assigned_dept}
+                  onView={(proctorData) => setViewingProctor(proctorData)}
+                />
+              </div>
             )}
           </>
         )}
