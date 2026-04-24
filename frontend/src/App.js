@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import './index.css';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from './supabaseClient';
@@ -1183,50 +1182,33 @@ function App() {
     }
   };
 
-  const fetchProfile = async (userId) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (data) setProfile(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*');
-    setAllProfiles(data || []);
-  };
-
-  // --- BULLETPROOF AUTHENTICATION INITIALIZER ---
   useEffect(() => {
     let isMounted = true;
-
-    const loadSessionData = async (activeSession) => {
+    const getSessionAndProfile = async () => {
       try {
-        if (isMounted) setLoading(true);
-        await fetchProfile(activeSession.user.id);
-        await fetchAllData(false);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (isMounted) setSession(session);
+        if (session && isMounted) {
+          await fetchProfile(session.user.id);
+          await fetchAllData();
+        }
       } catch (err) {
-        console.error(err);
+        if (isMounted) setSyncError("Failed to authenticate session.");
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) setLoading(false); 
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted) return;
+    getSessionAndProfile();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session) {
-        loadSessionData(session);
-      } else {
+        if (event === 'SIGNED_IN') setLoading(true); 
+        await fetchProfile(session.user.id);
+        await fetchAllData();
         setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (!isMounted || event === 'INITIAL_SESSION') return; // Fixes the double-load bug!
-      
-      setSession(newSession);
-      if (newSession) {
-        loadSessionData(newSession);
       } else {
         setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
@@ -1235,7 +1217,20 @@ function App() {
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
 
-  // --- REAL-TIME DATABASE SYNC ---
+  const fetchProfile = async (userId) => {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (data) setProfile(data);
+    } catch (err) { console.error(err); }
+  };
+
+   const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('*');
+    setAllProfiles(data || []);
+  };
+
+  useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
+
   useEffect(() => {
     if (!session) return;
     const dbChannel = supabase.channel('system-sync')
@@ -1246,7 +1241,7 @@ function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchNotifications())
       .subscribe();
     return () => { supabase.removeChannel(dbChannel); };
-  }, [session]);
+  }, [session, profile]);
 
   const conflictCount = useMemo(() => globalSchedule.filter(s => s.hasConflict).length, [globalSchedule]);
   const visibleDepartments = useMemo(() => {
