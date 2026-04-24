@@ -1182,58 +1182,79 @@ function App() {
     }
   };
 
+  // --- BULLETPROOF AUTHENTICATION ENGINE ---
   useEffect(() => {
     let isMounted = true;
-    const getSessionAndProfile = async () => {
+
+    const initializeApp = async () => {
       try {
+        if (isMounted) setLoading(true);
+
+        // 1. Grab the active session
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (isMounted) setSession(session);
-        if (session && isMounted) {
-          await fetchProfile(session.user.id);
-          await fetchAllData();
+
+        if (session) {
+          if (isMounted) setSession(session);
+
+          // 2. SUPABASE GLITCH FIX: The 3-Try Retry Loop
+          let fetchedProfile = null;
+          for (let i = 0; i < 3; i++) {
+             const { data: pData } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+             if (pData) {
+                fetchedProfile = pData;
+                break; // Success! Break the loop.
+             }
+             // If null, wait 500ms and try again to let Supabase catch up
+             await new Promise(res => setTimeout(res, 500));
+          }
+
+          if (fetchedProfile) {
+             if (isMounted) setProfile(fetchedProfile);
+             await fetchAllData(false); // Fetch everything else silently
+          } else {
+             console.warn("Profile disconnected even after 3 retries.");
+          }
         }
       } catch (err) {
+        console.error("Auth Error:", err);
         if (isMounted) setSyncError("Failed to authenticate session.");
       } finally {
-        if (isMounted) setLoading(false); 
+        if (isMounted) setLoading(false);
       }
     };
 
-    getSessionAndProfile();
+    initializeApp();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      
-      // MAGIC BOUNCER LINE: Blocks the duplicate load!
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!isMounted) return;
+
+      // INFINITE LOADING FIX: Block the duplicate initial trigger
       if (event === 'INITIAL_SESSION') return;
 
-      setSession(session);
-      if (session) {
-        if (event === 'SIGNED_IN') setLoading(true); 
-        await fetchProfile(session.user.id);
-        await fetchAllData();
-        setLoading(false);
-      } else {
+      setSession(newSession);
+
+      if (newSession && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        if (event === 'SIGNED_IN') setLoading(true);
+        const { data: pData } = await supabase.from('profiles').select('*').eq('id', newSession.user.id).maybeSingle();
+        if (pData) setProfile(pData);
+        await fetchAllData(false);
+        if (event === 'SIGNED_IN') setLoading(false);
+      } else if (!newSession) {
         setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
     });
 
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
-  
-  const fetchProfile = async (userId) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (data) setProfile(data);
-    } catch (err) { console.error(err); }
-  };
 
-   const fetchProfiles = async () => {
+  const fetchProfiles = async () => {
     const { data } = await supabase.from('profiles').select('*');
     setAllProfiles(data || []);
   };
 
   useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
+  
 
   useEffect(() => {
     if (!session) return;
