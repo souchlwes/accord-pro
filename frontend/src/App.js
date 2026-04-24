@@ -833,20 +833,23 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         </div>
       )}
 
-      <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+    <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
         <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
           <Globe size={24} className="text-blue-500" />
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
         </div>
+
         <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
           <div className="text-left md:text-right mr-auto md:mr-4">
             <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">
               {isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}
             </p>
-            <p className="text-xs font-bold text-blue-400">{profile?.full_name}</p>
-            <span className="bg-slate-800 text-rose-400 px-2 py-1 rounded-md text-[8px] md:text-[9px] font-mono mt-1 inline-block md:block text-center">
-              DB: "{profile?.role}"
-            </span>
+            <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
+            {profile?.assigned_dept && (
+              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">
+                {profile.assigned_dept} DEPARTMENT
+              </p>
+            )}
           </div>
           
           <div className="flex gap-2">
@@ -1072,6 +1075,8 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
+  const [authMode, setAuthMode] = useState('login');
 
   const safeRole = profile?.role?.trim().toUpperCase() || '';
   const isHeadAdmin = safeRole === 'HEAD_ADMIN';
@@ -1293,55 +1298,35 @@ function App() {
     localStorage.clear(); sessionStorage.clear(); window.location.reload();
   };
 
-  const handleCreateAccount = async () => {
-    if (!profile) return alert("System is still verifying your profile. Please wait a moment.");
-    
-    const name = window.prompt("Full Name:");
-    const email = window.prompt("Email:");
-    const pass = window.prompt("Initial Password:");
-    let dept = isHeadAdmin ? window.prompt("Assign to which Dept Code? (MUST EXIST FIRST):") : profile?.assigned_dept;
-
-    if (!name || !email || !pass) return;
-
-    const safeDeptCode = dept ? dept.trim().toUpperCase() : '';
-
-    if (isHeadAdmin && safeDeptCode) {
-      const exists = departments.some(d => d.code === safeDeptCode);
-      if (!exists) return alert(`ERROR: Department "${safeDeptCode}" does not exist. Create the Department Card first!`);
-    }
-
-    alert("SYSTEM ALERT: Creating this account will briefly sign you out of your current session. Please sign back in afterward.");
-    const { data, error: authError } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
-    if (authError) return alert("Auth Error: " + authError.message);
-    
-    if (data?.user) {
-      const { error: profileError } = await supabase.from('profiles').upsert([{
-        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR',
-        assigned_dept: safeDeptCode || null, status: 'ACTIVE'
-      }]);
-      
-      if (profileError) {
-         alert("Auth created, but Profile failed: " + profileError.message);
-      } else {
-        if (isDeptAdmin || (isHeadAdmin && safeDeptCode)) {
-           const targetDept = departments.find(d => d.code === safeDeptCode);
-           if (targetDept) {
-              const today = new Date().toISOString().split('T')[0];
-              const newProctorEntry = {
-                id: Date.now(), name: name.trim().toUpperCase(), dayStart: today, dayEnd: "2030-12-31", timeStart: "00:00", timeEnd: "23:59"
-              };
-              const updatedProctors = [...(targetDept.proctors || []), newProctorEntry];
-              await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
-           }
-        }
-        
-        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `New ${isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR'} account generated for ${name}.`, 'info');
-        
-        alert(`Account successfully created and linked for ${name}! Please log back in.`);
-        window.location.reload();
-      }
-    }
+  // Opens the visual modal instead of the browser prompts
+  const handleCreateAccount = () => {
+    setCreateModal({ isOpen: true, name: '', email: '', pass: '', dept: '' });
   };
+
+  // Executes the creation from the modal's form data
+  const executeCreateAccount = async (e) => {
+    e.preventDefault();
+    const { name, email, pass, dept } = createModal;
+    let d = isHeadAdmin ? dept : profile.assigned_dept;
+    
+    if (!name || !email || !pass) return;
+    
+    const { data, error } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+    if (error) {
+      alert("Error: " + error.message);
+    } else if (data.user) {
+      await supabase.from('profiles').upsert([{ 
+        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
+        assigned_dept: d, status: 'ACTIVE' 
+      }]);
+      sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
+      alert("Account successfully created!");
+      setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
+      fetchProfiles();
+    }
+  
+  };
+
 
   const handleBlockUser = async (id, currentStatus) => {
     await supabase.from('profiles').update({ status: currentStatus === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE' }).eq('id', id);
@@ -1481,25 +1466,51 @@ function App() {
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
+  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><RefreshCw className="text-blue-500 animate-spin" size={48} /></div>;
+
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6">
-        <div className="bg-white w-full max-w-[90%] md:max-w-md rounded-3xl md:rounded-[3.5rem] p-8 md:p-12 shadow-2xl">
-          <div className="text-center mb-8 md:mb-10">
-            <div className="inline-flex bg-blue-600 p-4 md:p-5 rounded-2xl md:rounded-[2rem] mb-6 text-white shadow-xl">
-              <Lock size={28} className="md:w-8 md:h-8" />
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+        <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
+          <Lock className="mx-auto text-blue-600 mb-6" size={48} />
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
+          
+          {authMode === 'login' ? (
+            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
+              <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+              <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+              
+              <button onClick={async () => {const {error}=await supabase.auth.signInWithPassword({email,password}); if(error)alert(error.message);}} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
+                Sign In
+              </button>
+              
+              <div className="pt-6 border-t-2 border-slate-50">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
+                <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-100 transition-all active:scale-95">
+                  Create New Account
+                </button>
+              </div>
             </div>
-            <h1 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter text-slate-900">Accord <span className="text-blue-600">Pro</span></h1>
-            <input type="text" placeholder="Full Name (For Signup)" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full mt-4 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
-            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full mt-2 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
-            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full mt-2 bg-slate-50 p-4 md:p-5 rounded-2xl font-black text-xs border-2 border-slate-50 outline-none focus:border-blue-500" />
-            <button onClick={handleSignIn} className="w-full mt-4 bg-slate-900 text-white p-4 md:p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">Sign In</button>
-            <button onClick={handleSignUp} className="w-full mt-2 text-slate-400 p-2 font-black uppercase text-[9px] hover:text-blue-600 transition-all">Register</button>
-          </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Staff Registration</p>
+              <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+              <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+              <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+              
+              <button onClick={async () => {const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName}}}); if(error)alert(error.message); else if(data.user) {const {count}=await supabase.from('profiles').select('*',{count:'exact',head:true}).eq('role','HEAD_ADMIN'); if(count===0)await supabase.from('profiles').update({role:'HEAD_ADMIN',full_name:fullName}).eq('id',data.user.id); alert("Verify email."); window.location.reload();}}} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all mb-6 shadow-xl active:scale-95">
+                Register Account
+              </button>
+              
+              <div className="pt-6 border-t-2 border-slate-50">
+                <button onClick={() => { setAuthMode('login'); setEmail(''); setPassword(''); }} className="w-full bg-slate-50 text-slate-500 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <ArrowLeft size={14}/> Back to Login
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        <button onClick={handleHardReset} className="mt-8 flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase text-rose-500 bg-rose-500/10 px-5 md:px-6 py-3 rounded-full hover:bg-rose-500/20 transition-all active:scale-95">
-          <AlertOctagon size={14} /> Clear Cache & Reset Login
-        </button>
       </div>
     );
   }
@@ -1655,13 +1666,19 @@ function App() {
 
       <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
         
-        {/* TRUTH REVEALER BADGE */}
-        <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0">
+       {/* TRUTH REVEALER BADGE */}
+        <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0 text-left md:text-right">
            <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{session?.user?.email}</p>
-           <p className="text-xs font-bold text-slate-900">{profile?.full_name || 'Missing Profile Data'}</p>
-           <span className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-mono mt-1 md:mt-2 shadow-sm md:shadow-lg border uppercase tracking-widest ${isHeadAdmin ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-blue-400 border-slate-700'}`}>
-             DB ROLE: [{profile?.role || 'NULL'}]
-           </span>
+           <p className="text-sm font-black text-slate-900 uppercase">{profile?.full_name || 'Missing Profile Data'}</p>
+           {profile?.assigned_dept ? (
+             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
+               {profile.assigned_dept} DEPARTMENT
+             </p>
+           ) : (
+             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
+               {profile?.role === 'HEAD_ADMIN' ? 'GLOBAL HEAD ADMIN' : ''}
+             </p>
+           )}
         </div>
 
         {loading ? (
@@ -1766,6 +1783,50 @@ function App() {
             )}
           </>
         )}
+
+        {/* --- STAFF REGISTRATION MODAL --- */}
+      {createModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-blue-600 mb-6">
+              <UserPlus size={32} />
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Register Staff</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                  {isHeadAdmin ? 'Create Dept Head Account' : 'Create Proctor Account'}
+                </p>
+              </div>
+            </div>
+            
+            <form onSubmit={executeCreateAccount} className="space-y-4 mb-2">
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                <input required type="text" value={createModal.name} onChange={e=>setCreateModal({...createModal, name: e.target.value})} placeholder="e.g. Jane Doe" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Email Address</label>
+                <input required type="email" value={createModal.email} onChange={e=>setCreateModal({...createModal, email: e.target.value})} placeholder="staff@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Temporary Password</label>
+                <input required type="password" value={createModal.pass} onChange={e=>setCreateModal({...createModal, pass: e.target.value})} placeholder="Min. 6 characters" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+              </div>
+              
+              {isHeadAdmin && (
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Assign Department Code</label>
+                  <input required type="text" value={createModal.dept} onChange={e=>setCreateModal({...createModal, dept: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                </div>
+              )}
+              
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Account</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       </main>
     </div>
   );
