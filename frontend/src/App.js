@@ -432,7 +432,7 @@ const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
 };
 
 // --- 1. USER REGISTRY COMPONENT ---
-const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, currentRole, currentUserDept, onView }) => {
+const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onApprove, currentRole, currentUserDept, onView }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const isHead = currentRole === 'HEAD_ADMIN';
 
@@ -472,7 +472,6 @@ const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, currentRole, curr
           />
         </div>
 
-        {/* MOBILE SCROLL HINT */}
         <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 animate-pulse">
           <ArrowRight size={12} /> Swipe table to view actions
         </div>
@@ -490,7 +489,7 @@ const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, currentRole, curr
             </thead>
             <tbody>
               {filteredProfiles.map(p => (
-                <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' ? 'opacity-40 grayscale' : ''}`}>
+                <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
                   <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
                     <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
                     <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
@@ -505,19 +504,26 @@ const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, currentRole, curr
                   </td>
                   <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${p.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <div className={`w-2 h-2 rounded-full ${p.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : p.status === 'PENDING' ? 'bg-amber-500 animate-bounce' : 'bg-rose-500'}`} />
                       <span className="text-[10px] font-black uppercase">{p.status}</span>
                     </div>
                   </td>
                   <td className="bg-slate-50 p-6 rounded-r-[2rem] border-y-2 border-r-2 border-slate-100 text-right">
                     <div className="flex justify-end gap-2">
-                      {p.role?.trim().toUpperCase() === 'PROCTOR' && (
+                      
+                      {/* NEW: Approve Button for Pending Users */}
+                      {p.status === 'PENDING' && (isHead || p.assigned_dept === currentUserDept) && (
+                        <button onClick={() => onApprove(p.id)} className="p-3 bg-white hover:bg-emerald-500 hover:text-white rounded-xl border-2 border-emerald-100 transition-all text-emerald-500 shadow-sm" title="Approve Request">
+                          <CheckCircle2 size={16} />
+                        </button>
+                      )}
+
+                      {p.role?.trim().toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE' && (
                         <button onClick={() => onView(p)} className="p-3 bg-white hover:bg-blue-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="View Dashboard">
                           <LayoutDashboard size={16} />
                         </button>
                       )}
                       
-                      {/* Security Logic: Head Admin can edit anyone. Dept Admin can only edit their own staff. */}
                       {(isHead || p.assigned_dept === currentUserDept) && (
                         <>
                           <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title={p.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}>
@@ -1074,6 +1080,54 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
+  const [regRole, setRegRole] = useState('PROCTOR'); 
+  const [regDept, setRegDept] = useState(''); 
+
+  const executeRegistration = async () => {
+    setLoading(true);
+    try {
+      if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
+      
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+      if (error) throw error;
+      
+      if (data?.user) {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
+        
+        if (count === 0) {
+          // First user is automatically approved as Head Admin
+          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', status: 'ACTIVE' }]);
+          alert("First user auto-promoted to Head Admin!");
+          window.location.reload(); 
+        } else {
+          // Everyone else goes to the Pending Queue
+          await supabase.from('profiles').upsert([{ 
+            id: data.user.id, 
+            full_name: fullName, 
+            role: regRole, 
+            assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), 
+            status: 'PENDING' 
+          }]);
+          
+          if (regRole === 'PROCTOR') {
+            await sendNotification(regDept.toUpperCase(), 'DEPT_ADMIN', null, 'New Proctor Request', `${fullName} requested to join ${regDept.toUpperCase()}.`, 'info');
+          } else {
+            await sendNotification(null, 'HEAD_ADMIN', null, 'New Admin Request', `${fullName} requested access as a ${regRole}.`, 'info');
+          }
+          
+          alert("Registration submitted! Please wait for an Administrator to approve your account.");
+          setAuthMode('login');
+          setEmail(''); setPassword(''); setFullName(''); setRegDept('');
+        }
+      }
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
+  };
+
+  const handleApproveUser = async (id) => {
+    await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
+    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
+    fetchProfiles();
+  };
   
   const [departments, setDepartments] = useState([]);
   const [globalSchedule, setGlobalSchedule] = useState([]);
@@ -1492,7 +1546,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
-          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl" />
+          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
           {authMode === 'login' ? (
@@ -1513,14 +1567,27 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Staff Registration</p>
-              <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-              <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-              <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 text-left">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center">Staff Registration</p>
               
-              <button onClick={async () => {const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName}}}); if(error)alert(error.message); else if(data.user) {const {count}=await supabase.from('profiles').select('*',{count:'exact',head:true}).eq('role','HEAD_ADMIN'); if(count===0)await supabase.from('profiles').update({role:'HEAD_ADMIN',full_name:fullName}).eq('id',data.user.id); alert("Verify email."); window.location.reload();}}} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all mb-6 shadow-xl active:scale-95">
-                Register Account
+              <div className="space-y-3 mb-6">
+                <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                
+                <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
+                  <option value="PROCTOR">Proctor</option>
+                  <option value="DEPT_ADMIN">Department Head</option>
+                  <option value="HEAD_ADMIN">Global Head Admin</option>
+                </select>
+                
+                {regRole !== 'HEAD_ADMIN' && (
+                  <input type="text" placeholder="Department Code (e.g. CS)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+                )}
+              </div>
+              
+              <button onClick={executeRegistration} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all mb-6 shadow-xl active:scale-95">
+                Submit Request
               </button>
               
               <div className="pt-6 border-t-2 border-slate-50">
@@ -1531,6 +1598,29 @@ function App() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // --- BOUNCERS: BLOCK PENDING & BLOCKED ACCOUNTS ---
+  if (session && profile && profile.status === 'BLOCKED') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+        <Lock size={64} className="text-rose-500 mb-6" />
+        <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Account Suspended</h1>
+        <p className="text-slate-400 text-[10px] font-bold max-w-sm mb-8 uppercase tracking-widest leading-relaxed">Your access has been blocked by an administrator. Please contact your Department Head.</p>
+        <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl active:scale-95">Sign Out</button>
+      </div>
+    );
+  }
+
+  if (session && profile && profile.status === 'PENDING') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+        <Clock size={64} className="text-amber-500 mb-6 animate-pulse" />
+        <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Awaiting Approval</h1>
+        <p className="text-slate-400 text-[10px] font-bold max-w-sm mb-8 uppercase tracking-widest leading-relaxed">Your registration request has been sent. You will gain access once an Administrator approves your account.</p>
+        <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-amber-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl active:scale-95">Sign Out</button>
       </div>
     );
   }
@@ -1802,6 +1892,7 @@ function App() {
                   onCreate={handleCreateAccount}
                   onBlock={handleBlockUser}
                   onDelete={handleDeleteUser}
+                  onApprove={handleApproveUser}
                   currentRole={safeRole}
                   currentUserDept={profile?.assigned_dept}
                   onView={(proctorData) => setViewingProctor(proctorData)}
