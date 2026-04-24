@@ -1186,62 +1186,50 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const initializeApp = async () => {
-      try {
-        if (isMounted) setLoading(true);
-
-        // 1. Grab the active session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-
-        if (session) {
-          if (isMounted) setSession(session);
-
-          // 2. SUPABASE GLITCH FIX: The 3-Try Retry Loop
-          let fetchedProfile = null;
-          for (let i = 0; i < 3; i++) {
-             const { data: pData } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-             if (pData) {
-                fetchedProfile = pData;
-                break; // Success! Break the loop.
-             }
-             // If null, wait 500ms and try again to let Supabase catch up
-             await new Promise(res => setTimeout(res, 500));
-          }
-
-          if (fetchedProfile) {
-             if (isMounted) setProfile(fetchedProfile);
-             await fetchAllData(false); // Fetch everything else silently
-          } else {
-             console.warn("Profile disconnected even after 3 retries.");
-          }
-        }
-      } catch (err) {
-        console.error("Auth Error:", err);
-        if (isMounted) setSyncError("Failed to authenticate session.");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initializeApp();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    // Single Source of Truth: Handles initial load, logins, and refreshes natively
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
-      // INFINITE LOADING FIX: Block the duplicate initial trigger
-      if (event === 'INITIAL_SESSION') return;
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        
+        if (!currentSession) {
+          setSession(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
 
-      setSession(newSession);
+        setSession(currentSession);
+        setLoading(true);
 
-      if (newSession && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        if (event === 'SIGNED_IN') setLoading(true);
-        const { data: pData } = await supabase.from('profiles').select('*').eq('id', newSession.user.id).maybeSingle();
-        if (pData) setProfile(pData);
-        await fetchAllData(false);
-        if (event === 'SIGNED_IN') setLoading(false);
-      } else if (!newSession) {
-        setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
+        // 4-Try Retry Loop: Gives the database up to 4 seconds to catch up
+        let fetchedProfile = null;
+        for (let i = 0; i < 4; i++) {
+           const { data: pData } = await supabase.from('profiles').select('*').eq('id', currentSession.user.id).maybeSingle();
+           if (pData) {
+              fetchedProfile = pData;
+              break; 
+           }
+           // Wait 1 full second before trying again
+           await new Promise(res => setTimeout(res, 1000));
+        }
+
+        if (fetchedProfile) {
+           setProfile(fetchedProfile);
+           await fetchAllData(false); 
+        } else {
+           console.error("Profile completely disconnected from database.");
+        }
+        
+        setLoading(false);
+
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setProfile(null);
+        setDepartments([]);
+        setGlobalSchedule([]);
+        setGlobalAvailability([]);
+        setLoading(false);
       }
     });
 
@@ -1254,7 +1242,6 @@ function App() {
   };
 
   useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
-  
 
   useEffect(() => {
     if (!session) return;
