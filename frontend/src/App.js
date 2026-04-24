@@ -1203,6 +1203,10 @@ function App() {
     getSessionAndProfile();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      
+      // MAGIC BOUNCER LINE: Blocks the duplicate load!
+      if (event === 'INITIAL_SESSION') return;
+
       setSession(session);
       if (session) {
         if (event === 'SIGNED_IN') setLoading(true); 
@@ -1216,7 +1220,7 @@ function App() {
 
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
-
+  
   const fetchProfile = async (userId) => {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
