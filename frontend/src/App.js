@@ -844,7 +844,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
 
     <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
         <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
-          <Globe size={24} className="text-blue-500" />
+          <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-lg" />
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
         </div>
 
@@ -1633,8 +1633,8 @@ function App() {
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
-        <div className="hidden md:flex bg-white p-3 rounded-2xl mb-12 shadow-lg shadow-blue-500/20 border-2 border-slate-100">
-          <img src={accordLogo} alt="Accord Logo" className="w-10 h-10 object-contain" />
+        <div className="hidden md:flex justify-center items-center mb-12 bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-xl">
+          <img src={accordLogo} alt="Accord Logo" className="w-10 h-10 object-contain drop-shadow-md transition-transform hover:scale-110 duration-300" />
         </div>
         
         <button 
