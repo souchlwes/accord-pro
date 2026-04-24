@@ -1634,9 +1634,9 @@ function App() {
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
-        <div className="hidden md:flex bg-blue-600 p-4 rounded-2xl mb-12 shadow-lg shadow-blue-500/40 hover:scale-105 transition-transform cursor-pointer">
-          {/* The logo is now pure white and perfectly centered in the blue box! */}
-          <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 object-contain brightness-0 invert" />
+        <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer">
+          {/* Removed the blue background, padding, and shadow. Made the logo slightly larger to compensate! */}
+          <img src={accordLogo} alt="Accord Logo" className="w-12 h-12 object-contain brightness-0 invert opacity-90" />
         </div>
         
         <button 
