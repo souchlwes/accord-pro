@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { 
   Users, DoorOpen, ChevronDown, ChevronUp, Search, 
   Calendar, Clock, BookOpen, AlertTriangle, History, 
-  ShieldAlert, Tag, RotateCcw
+  ShieldAlert, Tag, RotateCcw, LayoutDashboard
 } from 'lucide-react';
 
-const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
+const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, onViewProctor }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [showHistory, setShowHistory] = useState({});
 
-  // 1. Aggregate resources
   const allProctors = allDepartments.flatMap(d => d.proctors.map(p => ({ ...p, deptCode: d.code })));
   const allRooms = allDepartments.flatMap(d => d.rooms.map(r => ({ ...r, deptCode: d.code })));
 
@@ -20,7 +19,6 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
     setShowHistory(prev => ({ ...prev, [asgnId]: !prev[asgnId] }));
   };
 
-  // FIXED: Converted everything to uppercase so "John Doe" perfectly matches "JOHN DOE"
   const getAssignments = (nameOrNumber, type) => {
     return globalSchedule.filter(item => 
       type === 'proctor' 
@@ -39,18 +37,17 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
 
   return (
     <div className="space-y-6">
-      {/* --- HEADER --- */}
-      <div className="flex justify-between items-end px-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end px-6 gap-4">
         <div>
             <h2 className="text-3xl font-black uppercase italic text-slate-900 tracking-tighter">Global <span className="text-blue-600">Resource</span> Monitor</h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Live Deployment & Change History</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Live Deployment & Dashboard Launcher</p>
         </div>
-        <div className="relative">
+        <div className="relative w-full md:w-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
             <input 
                 type="text" 
-                placeholder="Filter proctors or rooms..." 
-                className="pl-10 pr-6 py-3 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase w-64 focus:border-blue-500 outline-none transition-all shadow-sm"
+                placeholder="Search to locate & view..." 
+                className="pl-10 pr-6 py-3 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase w-full md:w-72 focus:border-blue-500 outline-none transition-all shadow-sm"
                 onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
             />
         </div>
@@ -63,34 +60,48 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
             <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Users size={18} className="text-emerald-400" />
-                    <h3 className="font-black uppercase tracking-widest text-[10px]">Proctor Assignments</h3>
+                    <h3 className="font-black uppercase tracking-widest text-[10px]">Proctor Directory</h3>
                 </div>
                 <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[9px] font-black">{allProctors.length} Total</span>
             </div>
             
             <div className="p-4 max-h-[600px] overflow-y-auto space-y-3 custom-scrollbar">
-                {allProctors.filter(p => p.name.includes(searchTerm)).map((proctor) => {
+                {allProctors.filter(p => p.name.toUpperCase().includes(searchTerm)).map((proctor) => {
                     const assignments = getAssignments(proctor.name, 'proctor');
                     const isAssigned = assignments.length > 0;
                     const isOpen = expandedId === `p-${proctor.id}`;
                     const hasFlags = assignments.some(a => a.flagged);
+                    
+                    // Match the text proctor to their actual user profile to link the dashboard
+                    const profileData = (allProfiles || []).find(p => (p.full_name || p.name || "").toUpperCase() === proctor.name.toUpperCase());
 
                     return (
                         <div key={`p-${proctor.id}`} className={`border-2 rounded-[2rem] transition-all ${hasFlags ? 'border-rose-200 bg-rose-50/10' : isOpen ? 'border-blue-100 shadow-md' : 'border-slate-50'}`}>
-                            <div onClick={() => toggleExpand(`p-${proctor.id}`)} className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-[2rem]">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-3 h-3 rounded-full ${hasFlags ? 'bg-rose-500 animate-pulse' : isAssigned ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                            <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-[2rem]">
+                                <div className="flex items-center gap-4" onClick={() => toggleExpand(`p-${proctor.id}`)}>
+                                    <div className={`w-3 h-3 rounded-full shrink-0 ${hasFlags ? 'bg-rose-500 animate-pulse' : isAssigned ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{proctor.name}</p>
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{proctor.deptCode} DEPARTMENT</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {profileData && (
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); onViewProctor(profileData); }}
+                                        className="p-2 bg-white hover:bg-blue-600 hover:text-white border text-slate-400 rounded-xl transition-all shadow-sm"
+                                        title="Launch Full Dashboard"
+                                      >
+                                        <LayoutDashboard size={14}/>
+                                      </button>
+                                    )}
                                     {hasFlags && <ShieldAlert size={14} className="text-rose-500" />}
-                                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${isAssigned ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                        {isAssigned ? `${assignments.length} SESSIONS` : 'IDLE'}
-                                    </span>
-                                    {isOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                                    <div onClick={() => toggleExpand(`p-${proctor.id}`)} className="flex items-center gap-2">
+                                      <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${isAssigned ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                          {isAssigned ? `${assignments.length} SESSIONS` : 'IDLE'}
+                                      </span>
+                                      {isOpen ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
+                                    </div>
                                 </div>
                             </div>
 
@@ -181,12 +192,10 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
             </div>
 
             <div className="p-4 max-h-[600px] overflow-y-auto space-y-3 custom-scrollbar">
-                {allRooms.filter(r => r.number.includes(searchTerm)).map((room) => {
+                {allRooms.filter(r => r.number.toUpperCase().includes(searchTerm)).map((room) => {
                     const assignments = getAssignments(room.number, 'room');
                     const isOccupied = assignments.length > 0;
                     const isOpen = expandedId === `r-${room.id}`;
-                    
-                    // FIXED: Added the missing hasFlags check for rooms
                     const hasFlags = assignments.some(a => a.flagged);
 
                     return (
@@ -200,7 +209,6 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    {/* FIXED: Show the red shield if room is flagged */}
                                     {hasFlags && <ShieldAlert size={14} className="text-rose-500" />}
                                     <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${isOccupied ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                         {isOccupied ? 'OCCUPIED' : 'VACANT'}
@@ -216,7 +224,6 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                                         const viewingHistory = showHistory[asgn.id];
 
                                         return (
-                                            // FIXED: Added the red border if flagged
                                             <div key={asgn.id} className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${asgn.flagged ? 'border-rose-500' : modified ? 'border-amber-400' : 'border-blue-500'}`}>
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div>
@@ -252,7 +259,6 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* FIXED: Added the red flag note box at the bottom */}
                                                 {asgn.flagged && !viewingHistory && (
                                                     <div className="mt-3 bg-rose-50 p-3 rounded-xl border border-rose-100 flex items-start gap-2">
                                                         <AlertTriangle size={14} className="text-rose-500 shrink-0 mt-0.5"/>
