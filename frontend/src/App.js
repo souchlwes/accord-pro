@@ -1216,14 +1216,12 @@ function App() {
     } catch (err) { console.error(err); }
   };
 
-  const fetchProfiles = async () => {
-    let query = supabase.from('profiles').select('*');
-    if (isDeptAdmin) { query = query.eq('assigned_dept', profile.assigned_dept).ilike('role', 'PROCTOR'); }
-    const { data } = await query;
+   const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('*');
     setAllProfiles(data || []);
   };
 
-  useEffect(() => { if (profile && activeTab === "users") fetchProfiles(); }, [profile, activeTab, isDeptAdmin]);
+  useEffect(() => { if (profile) fetchProfiles(); }, [profile]);
 
   useEffect(() => {
     if (!session) return;
@@ -1771,15 +1769,15 @@ function App() {
               </div>
             ) : (
               <div className="mt-6 md:mt-10">
-                <UserRegistry 
-                  profiles={allProfiles} 
-                  onCreate={handleCreateAccount}
-                  onBlock={handleBlockUser}
-                  onDelete={handleDeleteUser}
-                  currentRole={safeRole}
-                  onView={(proctorData) => setViewingProctor(proctorData)}
-                />
-              </div>
+              <UserRegistry 
+                profiles={isHeadAdmin ? allProfiles : allProfiles.filter(p => p.assigned_dept === profile?.assigned_dept && p.role?.trim().toUpperCase() === 'PROCTOR')} 
+                onCreate={handleCreateAccount}
+                onBlock={handleBlockUser}
+                onDelete={handleDeleteUser}
+                currentRole={safeRole}
+                onView={(proctorData) => setViewingProctor(proctorData)}
+              />
+            </div>
             )}
           </>
         )}
