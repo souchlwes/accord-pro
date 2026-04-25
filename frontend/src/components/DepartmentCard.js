@@ -607,34 +607,38 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
        if (exportConfig.format === 'pdf') {
         const doc = new jsPDF({ orientation: 'landscape' });
         
-        // 1. Reusable Letterhead Function
         const titleText = `${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`;
+        
+        // 1. UPDATED LETTERHEAD FUNCTION
         const drawLetterhead = (data) => {
-          // Prevent drawing the header multiple times if multiple tables are on the same page
           if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
           if (doc.headerPrintedPages.has(data.pageNumber)) return;
           doc.headerPrintedPages.add(data.pageNumber);
 
-          // Logo & Main Title
-          doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
-          doc.setFont("helvetica", "bold");
+          doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
+
+          // "ACCORD PRO" Branding
+          doc.setFont("helvetica", "bolditalic");
           doc.setFontSize(22);
-          doc.setTextColor(15, 23, 42); // Slate 900
-          doc.text("ACCORD", 32, 22);
+          doc.setTextColor(15, 23, 42); 
+          doc.text("ACCORD", 30, 20);
+          
+          const accordWidth = doc.getTextWidth("ACCORD ");
+          doc.setTextColor(37, 99, 235); 
+          doc.text("PRO", 30 + accordWidth, 20);
 
-          // Subtitle
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(12);
-          doc.setTextColor(100, 116, 139); // Slate 500
-          doc.text(`|   ${titleText}`, 65, 21.5);
+          // Clean Subtitle
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(100, 116, 139); 
+          doc.text(titleText.toUpperCase(), 30, 26);
 
-          // Elegant Divider Line
-          doc.setDrawColor(226, 232, 240); // Slate 200
+          doc.setDrawColor(37, 99, 235); 
           doc.setLineWidth(0.5);
-          doc.line(14, 28, doc.internal.pageSize.getWidth() - 14, 28);
+          doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
         };
 
-        let currentY = 35; // Start drawing below the letterhead
+        let currentY = 40; 
 
         const groupedData = {};
         sorted.forEach(item => {
@@ -660,23 +664,19 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             autoTable(doc, { 
               head: [
                 [
-                  { 
-                    content: `SECTION: ${section}   |   EXAM DATE: ${date}`, 
-                    colSpan: 5, 
-                    styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } 
-                  }
+                  { content: `SECTION: ${section}   |   EXAM DATE: ${date}`, colSpan: 5, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } }
                 ],
                 ["Time", "Year", "Subject", "Room", "Proctor"]
               ],
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
-              // Enforce crisp Helvetica font across the whole table
               styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
               headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-              margin: { top: 35, bottom: 20 }, // Ensures auto-page breaks don't hit the letterhead
+              // 2. THE FIX FOR MISSING HEADERS
+              margin: { top: 40, bottom: 20 }, 
               pageBreak: 'avoid',
-              didDrawPage: drawLetterhead // STAMPS HEADER ON EVERY PAGE
+              didDrawPage: drawLetterhead 
             });
 
             currentY = doc.lastAutoTable.finalY + 15; 
@@ -686,8 +686,11 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         doc.save(`Accord_${deptCode || 'DEPT'}_${titleSuffix}.pdf`);
         showToast("PDF Downloaded!");
         
-        
       } else {
+        
+        
+        
+    
         const headers = ["Date,Start Time,End Time,Year Level,Section,Subject Code,Subject Name,Room,Proctor"];
         const rows = sorted.map(item => `${item.exam_date || ""},${formatTime(item.start_time)},${formatTime(item.end_time)},${item.year_level || ""},${item.section || ""},${item.subject_code || ""},"${item.subject_name || ""}",${item.room || ""},"${item.proctor || ""}"`);
         const csvContent = headers.concat(rows).join("\n");
