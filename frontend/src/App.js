@@ -1221,6 +1221,35 @@ function App() {
     await sendNotification(deptCode, null, null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
     fetchAllData(false);
   };
+  // --- NEW: ACCEPT RELIEVER ASSIGNMENT ---
+  const handleAcceptAssignment = async (proctorId, proctorName, deptCode, examDate, startTime, endTime, subjectCode) => {
+    // 1. Log the availability to verify the pending slot
+    const { error } = await supabase.from('proctor_availability').insert([{
+      proctor_id: proctorId,
+      proctor_name: proctorName,
+      dept_code: deptCode,
+      exam_date: examDate,
+      start_time: startTime,
+      end_time: endTime,
+      is_emergency_flag: false,
+      note: "Accepted Proctor Assignment Request"
+    }]);
+
+    if (error) {
+      alert("Database Error: " + error.message);
+    } else {
+      // 2. Fire the targeted notification (This automatically alerts Dept Admin AND Head Admin)
+      await sendNotification(
+        deptCode, 
+        null, 
+        null, 
+        'Proctor Assignment Request Accepted', 
+        `${proctorName} has accepted the proctor assignment for ${subjectCode} on ${examDate}.`, 
+        'success'
+      );
+      await fetchAllData(false);
+    }
+  };
 
   const handleHardReset = async () => {
     await supabase.auth.signOut();
@@ -1583,6 +1612,7 @@ function App() {
           onShowChat={() => setShowChat(true)}
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
+          onAcceptAssignment={handleAcceptAssignment}
           
           // --- NEW PROPS PASSED HERE ---
           allProfiles={allProfiles}
