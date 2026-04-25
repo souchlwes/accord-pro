@@ -59,6 +59,7 @@ const DepartmentCard = ({
   const [proctorModal, setProctorModal] = useState({ isOpen: false, targetSub: null, pool: 'Department' });
   const [roomModal, setRoomModal] = useState({ isOpen: false, targetBlock: null, pool: 'Department' });
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
+  const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
   
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
@@ -652,16 +653,12 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
   const handleApproveAndLock = async () => {
     // 1. Identify unverified assignments in the current local draft
     const unverifiedAssignments = localSchedule.filter(item => {
-      // NEW: Check if this is an internal proctor by searching the registry
       const isInternal = allProfiles.some(p => 
         (p.full_name === item.proctor || p.name === item.proctor) && 
         p.role?.toUpperCase() === 'PROCTOR'
       );
-
-      // NEW: If external, bypass the strict log requirement
       if (!isInternal) return false;
-
-      // INTERNAL: Check if they have logged availability
+      
       return !globalAvailability?.some(entry => 
         entry.proctor_name === item.proctor && 
         entry.exam_date === item.exam_date &&
@@ -669,21 +666,21 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       );
     });
 
-    if (role === 'HEAD_ADMIN' && unverifiedAssignments.length > 0) {
-      const reason = prompt(
-        `SYSTEM ALERT: ${unverifiedAssignments.length} assignments involve proctors not verified in the Log Book.\n\nAs HEAD ADMIN, please provide a justification for this override to proceed:`
-      );
-      
-      if (!reason) {
-        alert("Action Cancelled. An override reason is required for unverified assignments.");
-        return;
-      }
-      
-      setAuditLog(prev => [...prev, `[ADMIN OVERRIDE] ${reason}`]);
-    } 
-    else if (role !== 'HEAD_ADMIN' && unverifiedAssignments.length > 0) {
-      alert("CRITICAL: You cannot lock this schedule. Some proctors have not logged their availability in Phase 3. Please contact the Head Admin for a Global Override.");
+    // 2. If there are unverified proctors, trigger the new Reliever Request Modal
+    if (unverifiedAssignments.length > 0) {
+      setSummaryModalIsOpen(false);
+      setUnverifiedModal({ isOpen: true, assignments: unverifiedAssignments, reason: '' });
       return;
+    }
+
+    // 3. If everything is clean, proceed to save normally
+    executeSave();
+  };
+
+  // --- NEW: Universal Save Engine (Handles normal saves AND Reliever Requests) ---
+  const executeSave = async (overrideReason = null, unverifiedToNotify = []) => {
+    if (overrideReason) {
+      setAuditLog(prev => [...prev, `[OVERRIDE] ${overrideReason}`]);
     }
 
     const dataToSave = localSchedule.map(item => ({
@@ -699,9 +696,22 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
     try {
       await onUpdate('lock_and_save', dataToSave);
       setSummaryModalIsOpen(false);
+      setUnverifiedModal({ isOpen: false, assignments: [], reason: '' });
+
+      // If we bypassed the lock, instantly send notifications to those specific proctors!
+      if (unverifiedToNotify.length > 0) {
+        const proctorsToNotify = new Set(unverifiedToNotify.map(a => a.proctor));
+        proctorsToNotify.forEach(pName => {
+           const proctorProfile = allProfiles.find(p => p.full_name === pName || p.name === pName);
+           if (proctorProfile) {
+             onNotify(null, null, proctorProfile.id, 'Proctor Assignment Request', 'You have been assigned to an exam slot without logged availability. Please Accept or Decline on your dashboard.', 'urgent');
+           }
+        });
+      }
+      
       showToast("Schedule locked and saved globally!", "success");
     } catch (error) {
-      showToast("Failed to save!", "error");
+      showToast("Failed to save schedule!", "error");
     }
   };
 
@@ -1409,6 +1419,41 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
           </div>
         </div>
       )}
+      {unverifiedModal.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+              <Users size={32} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Reliever Override</h3>
+            </div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed">
+              {unverifiedModal.assignments.length} assignments involve proctors who have not logged availability for their assigned times.
+            </p>
+            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-8">
+               <p className="text-amber-800 text-xs font-bold leading-relaxed">
+                 Proceeding will lock the schedule and automatically send a <strong className="font-black">Reliever Request</strong> to these proctors, asking them to Accept or Decline the assignment.
+               </p>
+            </div>
+            
+            {/* Optional Reason for the Audit Log */}
+            <input
+              type="text"
+              placeholder="Admin Override Reason (Optional)"
+              value={unverifiedModal.reason}
+              onChange={e => setUnverifiedModal({...unverifiedModal, reason: e.target.value})}
+              className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 mb-8 transition-all"
+            />
+            
+            <div className="flex gap-4">
+              <button onClick={() => setUnverifiedModal({ isOpen: false, assignments: [], reason: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                 executeSave(unverifiedModal.reason, unverifiedModal.assignments);
+              }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Send Requests & Lock</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 };
