@@ -743,8 +743,21 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onShowHelp, onShowChat, allProfiles, onViewProctor }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor }) => {
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
+  
+  // --- NEW: SEPARATE PENDING REQUESTS FROM CONFIRMED ASSIGNMENTS ---
+  const pendingRequests = [];
+  const confirmedAssignments = [];
+
+  mySchedule.forEach(s => {
+    const isVerified = globalAvailability.some(a => a.proctor_id === profile.id && a.exam_date === s.exam_date && (s.start_time < a.end_time && s.end_time > a.start_time));
+    if (!isVerified && !s.flagged && !isViewMode) {
+      pendingRequests.push(s);
+    } else {
+      confirmedAssignments.push(s);
+    }
+  });
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
   const [declineModal, setDeclineModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
@@ -758,10 +771,11 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
 
   const handleExportPDF = () => {
     try {
-      if (!mySchedule || mySchedule.length === 0) {
-        showToast("You have no assignments to export!", "error");
+      if (!confirmedAssignments || confirmedAssignments.length === 0) {
+        showToast("You have no confirmed assignments to export!", "error");
         return;
       }
+      
       const doc = new jsPDF({ orientation: 'landscape' });
       doc.setFontSize(16);
       doc.text(`Official Proctor Itinerary: ${profile?.full_name || 'Staff'}`, 14, 20);
@@ -769,7 +783,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       const tableColumn = ["Date", "Time", "Dept", "Subject", "Section", "Room"];
       const tableRows = [];
 
-      const sorted = [...mySchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
+      const sorted = [...confirmedAssignments].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
       sorted.forEach(item => {
         tableRows.push([
@@ -785,16 +799,15 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', styles: { fontSize: 10, cellPadding: 5 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
       doc.save(`Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.pdf`);
       showToast("PDF Itinerary Downloaded!");
-    } catch (err) { showToast("SYSTEM ERROR: " + err.message, "error"); }
+    } catch (err) { showToast("SYSTEM ERROR during PDF generation: " + err.message, "error"); }
   };
 
   const handleExportExcel = () => {
     try {
-      if (!mySchedule || mySchedule.length === 0) return showToast("No assignments to export!", "error");
+      if (!confirmedAssignments || confirmedAssignments.length === 0) return showToast("No confirmed assignments to export!", "error");
       const headers = ["Date,Time,Department,Subject Code,Subject Name,Section,Room"];
-      const sorted = [...mySchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
+      const sorted = [...confirmedAssignments].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
       const rows = sorted.map(item => `${item.exam_date || "N/A"},${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`);
-      
       const csvContent = headers.concat(rows).join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
@@ -811,8 +824,9 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 relative">
       
+      {/* FIXED TOAST UI */}
       {toast && (
-        <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[200] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+        <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[400] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
           {toast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
           <span>{toast.message}</span>
           <button onClick={() => setToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
@@ -883,52 +897,78 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-12">
-          <div className="lg:col-span-1 bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col h-[500px] md:h-auto">
-            <div className="mb-6"><h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {isViewMode ? "Their Assignments" : "My Assignments"}</h2></div>
+          
+          <div className="lg:col-span-1 flex flex-col gap-6">
             
-            <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
-              {mySchedule.length === 0 ? (
-                <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">No assignments found.</p>
-              ) : mySchedule.map((s, i) => {
-                const isVerified = globalAvailability.some(a => a.proctor_id === profile.id && a.exam_date === s.exam_date && (s.start_time < a.end_time && s.end_time > a.start_time));
-                const isPendingRequest = !isVerified && !s.flagged && !isViewMode;
-
-                return (
-                  <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
-                    {isPendingRequest && (
-                      <div className="mb-4 bg-amber-500/20 border border-amber-500/50 p-4 rounded-xl">
-                        <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-2"><Users size={14} className="animate-pulse"/> Reliever Request</p>
-                        <p className="text-[10px] font-bold text-amber-100 mb-4 leading-relaxed">You have not logged availability for this slot. Do you accept this emergency assignment?</p>
-                        <div className="flex gap-2">
-                          <button onClick={() => {
-                            const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
-                            const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
-                            onAddAvailability({ proctor_id: profile.id, proctor_name: profile.full_name, dept_code: profile.assigned_dept, exam_date: s.exam_date, start_time: fStart, end_time: fEnd, is_emergency_flag: false, note: "Accepted Reliever Request" });
-                            showToast("Request Accepted! Schedule verified.", "success");
-                          }} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 shadow-lg">Accept</button>
-                          <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-slate-800 hover:bg-rose-500 text-white font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 border border-slate-700">Decline</button>
-                        </div>
+            {/* --- NEW: DEDICATED PENDING REQUESTS SECTION --- */}
+            {pendingRequests.length > 0 && (
+              <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-6 shadow-lg animate-in slide-in-from-bottom-4">
+                <h3 className="text-amber-600 font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Users size={16} className="animate-pulse"/> Action Required ({pendingRequests.length})
+                </h3>
+                
+                <div className="space-y-4">
+                  {pendingRequests.map((s, i) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                      <div className="mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">{s.subject_code}</p>
+                        <p className="text-xs font-bold truncate text-slate-800">{s.subject_name}</p>
                       </div>
-                    )}
-                    <div className="flex justify-between items-start mb-3">
-                       <div><p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p><p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p></div>
-                       {!isViewMode && !s.flagged && <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency"><AlertTriangle size={14}/></button>}
-                       {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
-                    </div>
-                    {s.flagged && s.flagNote && <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl"><p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p><p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p></div>}
-                    <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
-                      <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
-                      <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
-                      <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      
+                      <div className="flex flex-wrap items-center bg-amber-50 p-2.5 rounded-xl gap-3 mb-4">
+                        <span className="text-[9px] font-black text-amber-700 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
+                        <span className="text-[9px] font-black text-amber-700 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
+                      </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6 border-t border-white/10">
-              <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2"><Download size={16} /> <span className="sm:hidden">Export Excel</span></button>
-              <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2"><Printer size={16} /> PDF Itinerary</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
+                          const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
+                          onAddAvailability({ proctor_id: profile.id, proctor_name: profile.full_name, dept_code: profile.assigned_dept, exam_date: s.exam_date, start_time: fStart, end_time: fEnd, is_emergency_flag: false, note: "Accepted Reliever Request" });
+                          showToast("Request Accepted! Schedule verified.", "success");
+                        }} className="flex-1 bg-amber-500 hover:bg-amber-400 text-white font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 shadow-md">Accept</button>
+                        
+                        <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 border border-slate-200">Decline</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CONFIRMED ASSIGNMENTS SECTION */}
+            <div className="bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col flex-1 max-h-[600px]">
+              <div className="mb-6 flex justify-between items-center">
+                <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {isViewMode ? "Their Schedule" : "Confirmed Schedule"}</h2>
+                <span className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black">{confirmedAssignments.length}</span>
+              </div>
+              
+              <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
+                {confirmedAssignments.length === 0 ? (
+                  <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">No confirmed assignments.</p>
+                ) : confirmedAssignments.map((s, i) => (
+                    <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
+                      <div className="flex justify-between items-start mb-3">
+                         <div><p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p><p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p></div>
+                         {!isViewMode && !s.flagged && <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency"><AlertTriangle size={14}/></button>}
+                         {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
+                      </div>
+                      {s.flagged && s.flagNote && <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl"><p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p><p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p></div>}
+                      <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
+                        <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
+                        <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
+                        <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6 border-t border-white/10">
+                <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2"><Download size={16} /> <span className="sm:hidden">Export Excel</span></button>
+                <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2"><Printer size={16} /> PDF Itinerary</button>
+              </div>
             </div>
           </div>
           
@@ -966,11 +1006,16 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl">
             <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6"><AlertTriangle size={28} className="md:w-8 md:h-8" /><h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Decline Request</h3></div>
-            <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head.</p>
+            <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head and removes you from the schedule.</p>
             <textarea value={declineModal.note} onChange={(e) => setDeclineModal({...declineModal, note: e.target.value})} placeholder="e.g. Schedule conflict, out of town..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6 transition-all" />
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               <button onClick={() => setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={() => { onFlagIssue(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); showToast("Assignment Declined. Admins have been notified.", "success"); }} disabled={!declineModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors shadow-lg">Submit Decline</button>
+              <button onClick={() => { 
+                
+                onDeclineAssignment(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); 
+                setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); 
+                showToast("Assignment Declined. Admins notified.", "success"); 
+              }} disabled={!declineModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors shadow-lg">Submit Decline</button>
             </div>
           </div>
         </div>
@@ -1166,6 +1211,14 @@ function App() {
   const handleFlagIssue = async (scheduleId, reason, deptCode, subjectCode) => {
     await supabase.from('schedules').update({ flagged: true, flagNote: reason }).eq('id', scheduleId);
     await sendNotification(deptCode, null, null, 'Urgent Proctor Flag', `${profile.full_name} flagged ${subjectCode}. Reason: ${reason}`, 'urgent');
+    fetchAllData(false);
+  };
+
+  // --- NEW: VOID DECLINED ASSIGNMENTS ---
+  const handleDeclineAssignment = async (scheduleId, reason, deptCode, subjectCode) => {
+    // Sets flagged to true, logs the reason, AND voids the proctor so it reads "TBA" globally!
+    await supabase.from('schedules').update({ flagged: true, flagNote: reason, proctor: 'TBA' }).eq('id', scheduleId);
+    await sendNotification(deptCode, null, null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
     fetchAllData(false);
   };
 
@@ -1529,6 +1582,7 @@ function App() {
           onShowHelp={() => setShowHelp(true)}
           onShowChat={() => setShowChat(true)}
           onFlagIssue={handleFlagIssue}
+          onDeclineAssignment={handleDeclineAssignment}
           
           // --- NEW PROPS PASSED HERE ---
           allProfiles={allProfiles}
