@@ -1,4 +1,4 @@
-import accordLogo from '../accord.png';
+import accordLogo from './accord.png';
 import React, { useState, useMemo, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -604,43 +604,44 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
       });
 
-        if (exportConfig.format === 'pdf') {
+       if (exportConfig.format === 'pdf') {
         const doc = new jsPDF({ orientation: 'landscape' });
+        
+        // 1. Reusable Letterhead Function
+        const titleText = `${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`;
+        const drawLetterhead = (data) => {
+          // Prevent drawing the header multiple times if multiple tables are on the same page
+          if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
+          if (doc.headerPrintedPages.has(data.pageNumber)) return;
+          doc.headerPrintedPages.add(data.pageNumber);
 
-        // --- NEW PROFESSIONAL LETTERHEAD ---
-        // 1. Add the Accord Logo (x: 14, y: 12, width: 14, height: 14)
-        // Note: jsPDF handles imported PNGs perfectly if they are converted to base64 by your bundler.
-        doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
+          // Logo & Main Title
+          doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(22);
+          doc.setTextColor(15, 23, 42); // Slate 900
+          doc.text("ACCORD", 32, 22);
 
-        // 2. Bold "ACCORD" Branding
-        doc.setFontSize(22);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(15, 23, 42); // Slate-900 (matches your UI)
-        doc.text("ACCORD", 32, 22);
+          // Subtitle
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(12);
+          doc.setTextColor(100, 116, 139); // Slate 500
+          doc.text(`|   ${titleText}`, 65, 21.5);
 
-        // 3. Department Subtitle
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100, 116, 139); // Slate-500 for a slick, muted look
-        doc.text(`|   ${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`, 65, 21.5);
+          // Elegant Divider Line
+          doc.setDrawColor(226, 232, 240); // Slate 200
+          doc.setLineWidth(0.5);
+          doc.line(14, 28, doc.internal.pageSize.getWidth() - 14, 28);
+        };
 
-        // 4. Elegant Divider Line
-        doc.setDrawColor(226, 232, 240); // Slate-200
-        doc.setLineWidth(0.5);
-        doc.line(14, 28, 283, 28); // Spans the width of the landscape page
+        let currentY = 35; // Start drawing below the letterhead
 
-        // 5. Shift the starting point of the first table down to give the header breathing room
-        let currentY = 38; 
-
-        // --- THE REST REMAINS UNCHANGED ---
         const groupedData = {};
         sorted.forEach(item => {
           const sec = item.section || "N/A";
           const date = item.exam_date || "N/A";
-
           if (!groupedData[sec]) groupedData[sec] = {};
           if (!groupedData[sec][date]) groupedData[sec][date] = [];
-
           groupedData[sec][date].push(item);
         });
 
@@ -670,10 +671,12 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
-              styles: { fontSize: 10, cellPadding: 5 }, 
-              headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-              margin: { top: 20, bottom: 20 },
-              pageBreak: 'avoid' 
+              // Enforce crisp Helvetica font across the whole table
+              styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
+              headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+              margin: { top: 35, bottom: 20 }, // Ensures auto-page breaks don't hit the letterhead
+              pageBreak: 'avoid',
+              didDrawPage: drawLetterhead // STAMPS HEADER ON EVERY PAGE
             });
 
             currentY = doc.lastAutoTable.finalY + 15; 
@@ -682,6 +685,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
         doc.save(`Accord_${deptCode || 'DEPT'}_${titleSuffix}.pdf`);
         showToast("PDF Downloaded!");
+        
         
       } else {
         const headers = ["Date,Start Time,End Time,Year Level,Section,Subject Code,Subject Name,Room,Proctor"];
