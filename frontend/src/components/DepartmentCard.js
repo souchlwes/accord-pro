@@ -603,26 +603,65 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
       });
 
-      if (exportConfig.format === 'pdf') {
+       if (exportConfig.format === 'pdf') {
         const doc = new jsPDF({ orientation: 'landscape' });
-        doc.setFontSize(16);
+        doc.setFontSize(18);
         doc.text(`${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`, 14, 20);
-        
-        const tableColumn = ["Date", "Time", "Year", "Section", "Subject", "Room", "Proctor"];
-        const tableRows = sorted.map(item => [
-          item.exam_date || "N/A", 
-          `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
-          item.year_level || "N/A", 
-          item.section || "N/A", 
-          `${item.subject_code || ""} - ${item.subject_name || ""}`,
-          item.room || "N/A", 
-          item.proctor || "TBA"
-        ]);
 
-        autoTable(doc, { 
-          head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', 
-          styles: { fontSize: 9, cellPadding: 4 }, 
-          headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } 
+        let currentY = 30; // Tracks the vertical position on the page
+
+        // 1. Group the sorted data by Section, then by Date
+        const groupedData = {};
+        sorted.forEach(item => {
+          const sec = item.section || "N/A";
+          const date = item.exam_date || "N/A";
+
+          if (!groupedData[sec]) groupedData[sec] = {};
+          if (!groupedData[sec][date]) groupedData[sec][date] = [];
+
+          groupedData[sec][date].push(item);
+        });
+
+        const tableColumn = ["Time", "Year", "Subject", "Room", "Proctor"];
+
+        Object.keys(groupedData).sort().forEach(section => {
+          Object.keys(groupedData[section]).sort().forEach(date => {
+            const items = groupedData[section][date];
+
+            if (currentY > 160) {
+              doc.addPage();
+              currentY = 20;
+            }
+
+            // Print the clean Group Header (Section & Date)
+            doc.setFontSize(12);
+            doc.setTextColor(37, 99, 235); // Accord Blue
+            doc.setFont("helvetica", "bold");
+            doc.text(`Section: ${section}   |   Exam Date: ${date}`, 14, currentY);
+            currentY += 5;
+
+            // Map the rows for this specific table
+            const tableRows = items.map(item => [
+              `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
+              item.year_level || "N/A",
+              `${item.subject_code || ""} - ${item.subject_name || ""}`,
+              item.room || "N/A",
+              item.proctor || "TBA"
+            ]);
+
+            // Draw the table
+            autoTable(doc, { 
+              head: [tableColumn], 
+              body: tableRows, 
+              startY: currentY, 
+              theme: 'grid', 
+              styles: { fontSize: 10, cellPadding: 5 }, 
+              headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] }, // Slate-900 header
+              margin: { top: 10, bottom: 10 }
+            });
+
+            currentY = doc.lastAutoTable.finalY + 15; 
+          });
         });
 
         doc.save(`Accord_${deptCode || 'DEPT'}_${titleSuffix}.pdf`);
