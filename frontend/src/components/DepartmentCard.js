@@ -1,3 +1,4 @@
+import accordLogo from './accord.png';
 import React, { useState, useMemo, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -603,14 +604,35 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
       });
 
-       if (exportConfig.format === 'pdf') {
+        if (exportConfig.format === 'pdf') {
         const doc = new jsPDF({ orientation: 'landscape' });
-        doc.setFontSize(18);
-        doc.text(`${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`, 14, 20);
 
-        let currentY = 30; // Tracks the vertical position on the page
+        // --- NEW PROFESSIONAL LETTERHEAD ---
+        // 1. Add the Accord Logo (x: 14, y: 12, width: 14, height: 14)
+        // Note: jsPDF handles imported PNGs perfectly if they are converted to base64 by your bundler.
+        doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
 
-        // 1. Group the sorted data by Section, then by Date
+        // 2. Bold "ACCORD" Branding
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42); // Slate-900 (matches your UI)
+        doc.text("ACCORD", 32, 22);
+
+        // 3. Department Subtitle
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139); // Slate-500 for a slick, muted look
+        doc.text(`|   ${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`, 65, 21.5);
+
+        // 4. Elegant Divider Line
+        doc.setDrawColor(226, 232, 240); // Slate-200
+        doc.setLineWidth(0.5);
+        doc.line(14, 28, 283, 28); // Spans the width of the landscape page
+
+        // 5. Shift the starting point of the first table down to give the header breathing room
+        let currentY = 38; 
+
+        // --- THE REST REMAINS UNCHANGED ---
         const groupedData = {};
         sorted.forEach(item => {
           const sec = item.section || "N/A";
@@ -622,25 +644,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
           groupedData[sec][date].push(item);
         });
 
-        const tableColumn = ["Time", "Year", "Subject", "Room", "Proctor"];
-
         Object.keys(groupedData).sort().forEach(section => {
           Object.keys(groupedData[section]).sort().forEach(date => {
             const items = groupedData[section][date];
 
-            if (currentY > 160) {
-              doc.addPage();
-              currentY = 20;
-            }
-
-            // Print the clean Group Header (Section & Date)
-            doc.setFontSize(12);
-            doc.setTextColor(37, 99, 235); // Accord Blue
-            doc.setFont("helvetica", "bold");
-            doc.text(`Section: ${section}   |   Exam Date: ${date}`, 14, currentY);
-            currentY += 5;
-
-            // Map the rows for this specific table
             const tableRows = items.map(item => [
               `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
               item.year_level || "N/A",
@@ -649,15 +656,24 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               item.proctor || "TBA"
             ]);
 
-            // Draw the table
             autoTable(doc, { 
-              head: [tableColumn], 
+              head: [
+                [
+                  { 
+                    content: `SECTION: ${section}   |   EXAM DATE: ${date}`, 
+                    colSpan: 5, 
+                    styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } 
+                  }
+                ],
+                ["Time", "Year", "Subject", "Room", "Proctor"]
+              ],
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
               styles: { fontSize: 10, cellPadding: 5 }, 
-              headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] }, // Slate-900 header
-              margin: { top: 10, bottom: 10 }
+              headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+              margin: { top: 20, bottom: 20 },
+              pageBreak: 'avoid' 
             });
 
             currentY = doc.lastAutoTable.finalY + 15; 
