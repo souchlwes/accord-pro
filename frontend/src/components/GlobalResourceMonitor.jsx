@@ -10,7 +10,15 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
   const [expandedId, setExpandedId] = useState(null);
   const [showHistory, setShowHistory] = useState({});
 
-  const allProctors = allDepartments.flatMap(d => d.proctors.map(p => ({ ...p, deptCode: d.code })));
+// --- DYNAMIC PROCTOR SYNC ---
+  const allProctors = (allProfiles || [])
+    .filter(p => p.role?.toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE')
+    .map(p => ({
+      id: p.id,
+      name: p.full_name || p.name,
+      deptCode: p.assigned_dept || 'GLOBAL'
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const allRooms = allDepartments.flatMap(d => d.rooms.map(r => ({ ...r, deptCode: d.code })));
 
   const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
