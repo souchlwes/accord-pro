@@ -780,31 +780,40 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       const proctorName = profile?.full_name || 'Staff';
       const titleText = `Official Proctor Itinerary: ${proctorName}`;
 
-      // 1. Reusable Letterhead Function
+      // 1. UPDATED LETTERHEAD FUNCTION
       const drawLetterhead = (data) => {
         if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
         if (doc.headerPrintedPages.has(data.pageNumber)) return;
         doc.headerPrintedPages.add(data.pageNumber);
 
-        doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
-        doc.setFont("helvetica", "bold");
+        // Logo
+        doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
+
+        // "ACCORD PRO" Official System Font (Bold & Italic)
+        doc.setFont("helvetica", "bolditalic");
         doc.setFontSize(22);
-        doc.setTextColor(15, 23, 42); 
-        doc.text("ACCORD", 32, 22);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.text("ACCORD", 30, 20);
+        
+        // Dynamically calculate width so "PRO" sits perfectly next to it
+        const accordWidth = doc.getTextWidth("ACCORD ");
+        doc.setTextColor(37, 99, 235); // Accord Blue
+        doc.text("PRO", 30 + accordWidth, 20);
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(12);
-        doc.setTextColor(100, 116, 139); 
-        doc.text(`|   ${titleText}`, 65, 21.5);
+        // Clean Subtitle (Removed the pipe character, made it uppercase & bold)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.text(titleText.toUpperCase(), 30, 26);
 
-        doc.setDrawColor(226, 232, 240); 
+        // Enhanced Blue Divider Line
+        doc.setDrawColor(37, 99, 235); 
         doc.setLineWidth(0.5);
-        doc.line(14, 28, doc.internal.pageSize.getWidth() - 14, 28);
+        doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
       };
 
-      let currentY = 35; 
+      let currentY = 40; // Shifted down to account for the new header
 
-      // 2. Group Proctor Assignments by Date
       const groupedData = {};
       const sorted = [...confirmedAssignments].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
@@ -814,7 +823,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         groupedData[date].push(item);
       });
 
-      // 3. Render Distinct Tables per Date
       Object.keys(groupedData).sort().forEach(date => {
         const items = groupedData[date];
 
@@ -829,11 +837,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         autoTable(doc, { 
           head: [
             [
-              { 
-                content: `EXAM DATE: ${date}`, 
-                colSpan: 5, 
-                styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } 
-              }
+              { content: `EXAM DATE: ${date}`, colSpan: 5, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } }
             ],
             ["Time", "Department", "Section", "Subject", "Room"]
           ],
@@ -842,9 +846,10 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           theme: 'grid', 
           styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
           headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-          margin: { top: 35, bottom: 20 }, 
+          // 2. THE FIX FOR MISSING HEADERS: Explicitly reserve the top 40 units of every page!
+          margin: { top: 40, bottom: 20 }, 
           pageBreak: 'avoid',
-          didDrawPage: drawLetterhead // STAMPS HEADER ON EVERY PAGE
+          didDrawPage: drawLetterhead 
         });
 
         currentY = doc.lastAutoTable.finalY + 15; 
@@ -856,6 +861,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       showToast("SYSTEM ERROR during PDF generation: " + err.message, "error"); 
     }
   };
+  
   const handleExportExcel = () => {
     try {
       if (!confirmedAssignments || confirmedAssignments.length === 0) return showToast("No confirmed assignments to export!", "error");
