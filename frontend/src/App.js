@@ -777,31 +777,85 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       }
       
       const doc = new jsPDF({ orientation: 'landscape' });
-      doc.setFontSize(16);
-      doc.text(`Official Proctor Itinerary: ${profile?.full_name || 'Staff'}`, 14, 20);
+      const proctorName = profile?.full_name || 'Staff';
+      const titleText = `Official Proctor Itinerary: ${proctorName}`;
 
-      const tableColumn = ["Date", "Time", "Dept", "Subject", "Section", "Room"];
-      const tableRows = [];
+      // 1. Reusable Letterhead Function
+      const drawLetterhead = (data) => {
+        if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
+        if (doc.headerPrintedPages.has(data.pageNumber)) return;
+        doc.headerPrintedPages.add(data.pageNumber);
 
+        doc.addImage(accordLogo, 'PNG', 14, 12, 14, 14);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(15, 23, 42); 
+        doc.text("ACCORD", 32, 22);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(12);
+        doc.setTextColor(100, 116, 139); 
+        doc.text(`|   ${titleText}`, 65, 21.5);
+
+        doc.setDrawColor(226, 232, 240); 
+        doc.setLineWidth(0.5);
+        doc.line(14, 28, doc.internal.pageSize.getWidth() - 14, 28);
+      };
+
+      let currentY = 35; 
+
+      // 2. Group Proctor Assignments by Date
+      const groupedData = {};
       const sorted = [...confirmedAssignments].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
       sorted.forEach(item => {
-        tableRows.push([
-          item.exam_date || "N/A",
-          `${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"}`,
-          item.dept_code || "N/A",
-          `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
-          item.section || "N/A",
-          item.room || "N/A"
-        ]);
+        const date = item.exam_date || "N/A";
+        if (!groupedData[date]) groupedData[date] = [];
+        groupedData[date].push(item);
       });
 
-      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', styles: { fontSize: 10, cellPadding: 5 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
-      doc.save(`Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.pdf`);
-      showToast("PDF Itinerary Downloaded!");
-    } catch (err) { showToast("SYSTEM ERROR during PDF generation: " + err.message, "error"); }
-  };
+      // 3. Render Distinct Tables per Date
+      Object.keys(groupedData).sort().forEach(date => {
+        const items = groupedData[date];
 
+        const tableRows = items.map(item => [
+          `${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"}`,
+          item.dept_code || "N/A",
+          item.section || "N/A",
+          `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
+          item.room || "N/A"
+        ]);
+
+        autoTable(doc, { 
+          head: [
+            [
+              { 
+                content: `EXAM DATE: ${date}`, 
+                colSpan: 5, 
+                styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } 
+              }
+            ],
+            ["Time", "Department", "Section", "Subject", "Room"]
+          ],
+          body: tableRows, 
+          startY: currentY, 
+          theme: 'grid', 
+          styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
+          headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+          margin: { top: 35, bottom: 20 }, 
+          pageBreak: 'avoid',
+          didDrawPage: drawLetterhead // STAMPS HEADER ON EVERY PAGE
+        });
+
+        currentY = doc.lastAutoTable.finalY + 15; 
+      });
+
+      doc.save(`Accord_Itinerary_${proctorName.replace(/\s+/g, '_')}.pdf`);
+      showToast("PDF Itinerary Downloaded!");
+    } catch (err) { 
+      showToast("SYSTEM ERROR during PDF generation: " + err.message, "error"); 
+    }
+  };
   const handleExportExcel = () => {
     try {
       if (!confirmedAssignments || confirmedAssignments.length === 0) return showToast("No confirmed assignments to export!", "error");
