@@ -1431,7 +1431,10 @@ function App() {
  
   if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><RefreshCw className="text-blue-500 animate-spin" size={48} /></div>;
 
-   if (!session) {
+   // --- AUTHENTICATION SCREEN LOCK ---
+  const isRegisteringProcess = session && !profile && (authMode === 'register' || authMode === 'success');
+  
+  if (!session || isRegisteringProcess || authMode === 'success') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
