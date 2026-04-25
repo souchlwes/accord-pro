@@ -747,6 +747,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
+  const [declineModal, setDeclineModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
   const [toast, setToast] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -761,7 +762,6 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         showToast("You have no assignments to export!", "error");
         return;
       }
-      
       const doc = new jsPDF({ orientation: 'landscape' });
       doc.setFontSize(16);
       doc.text(`Official Proctor Itinerary: ${profile?.full_name || 'Staff'}`, 14, 20);
@@ -769,18 +769,12 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
       const tableColumn = ["Date", "Time", "Dept", "Subject", "Section", "Room"];
       const tableRows = [];
 
-      const sorted = [...mySchedule].sort((a, b) => {
-        const dateA = new Date(a.exam_date || 0);
-        const dateB = new Date(b.exam_date || 0);
-        return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
-      });
+      const sorted = [...mySchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
       sorted.forEach(item => {
-        const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
-        const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
         tableRows.push([
           item.exam_date || "N/A",
-          `${safeStart} - ${safeEnd}`,
+          `${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"}`,
           item.dept_code || "N/A",
           `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
           item.section || "N/A",
@@ -788,50 +782,27 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         ]);
       });
 
-      autoTable(doc, { 
-        head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', 
-        styles: { fontSize: 10, cellPadding: 5 }, 
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } 
-      });
-      
+      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', styles: { fontSize: 10, cellPadding: 5 }, headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } });
       doc.save(`Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.pdf`);
       showToast("PDF Itinerary Downloaded!");
-    } catch (err) {
-      console.error("PDF Error Detail:", err);
-      showToast("SYSTEM ERROR during PDF generation: " + err.message, "error");
-    }
+    } catch (err) { showToast("SYSTEM ERROR: " + err.message, "error"); }
   };
 
   const handleExportExcel = () => {
     try {
       if (!mySchedule || mySchedule.length === 0) return showToast("No assignments to export!", "error");
       const headers = ["Date,Time,Department,Subject Code,Subject Name,Section,Room"];
-      
-      const sorted = [...mySchedule].sort((a, b) => {
-        const dateA = new Date(a.exam_date || 0);
-        const dateB = new Date(b.exam_date || 0);
-        return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
-      });
-
-      const rows = sorted.map(item => {
-        const safeStart = item.start_time ? formatTime(item.start_time) : "--:--";
-        const safeEnd = item.end_time ? formatTime(item.end_time) : "--:--";
-        return `${item.exam_date || "N/A"},${safeStart} - ${safeEnd},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`;
-      });
+      const sorted = [...mySchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
+      const rows = sorted.map(item => `${item.exam_date || "N/A"},${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"},${item.dept_code || "N/A"},${item.subject_code || ""},"${item.subject_name || ""}",${item.section || "N/A"},${item.room || "N/A"}`);
       
       const csvContent = headers.concat(rows).join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `Accord_Itinerary_${(profile?.full_name || 'Proctor').replace(/\s+/g, '_')}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
       showToast("Excel Itinerary Downloaded!");
-    } catch (err) {
-      console.error(err);
-      showToast("Excel Export Failed: " + err.message, "error");
-    }
+    } catch (err) { showToast("Excel Export Failed: " + err.message, "error"); }
   };
 
   const proctorDirectory = (allProfiles || []).filter(p => p.role?.trim().toUpperCase() === 'PROCTOR' && p.id !== profile?.id);
@@ -848,91 +819,54 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         </div>
       )}
 
-    <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+      <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
         <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
-          {/* Added brightness-0 invert to make it pure white! */}
           <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
         </div>
 
         <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
           <div className="text-left md:text-right mr-auto md:mr-4">
-            <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">
-              {isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}
-            </p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
             <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
-            {profile?.assigned_dept && (
-              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">
-                {profile.assigned_dept} DEPARTMENT
-              </p>
-            )}
+            {profile?.assigned_dept && <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">{profile.assigned_dept} DEPARTMENT</p>}
           </div>
           
           <div className="flex gap-2">
             {!isViewMode && (
               <>
-                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
-                  <MessageSquare size={18} />
-                </button>
-                <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative">
-                  <HelpCircle size={18} />
-                </button>
+                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative"><MessageSquare size={18} /></button>
+                <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
                 <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
                   <Bell size={18} />
                   {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
                 </button>
               </>
             )}
-
             {isViewMode ? (
-              <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">
-                Close View
-              </button>
+              <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
             ) : (
-              <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all">
-                <LogOut size={18} />
-              </button>
+              <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
             )}
           </div>
         </div>
       </nav>
 
       <main className="container mx-auto px-4 md:px-6 max-w-7xl">
-        
         {!isViewMode && (
           <div className="bg-white rounded-3xl md:rounded-[2rem] p-4 md:p-5 mb-6 md:mb-8 border-2 border-slate-100 shadow-xl flex flex-col md:flex-row items-center gap-4 relative z-40 animate-in slide-in-from-top-4">
-            <div className="flex items-center w-full md:w-auto text-blue-600 gap-2 font-black uppercase text-[10px] tracking-widest px-2">
-              <Search size={18} /> Directory Search
-            </div>
+            <div className="flex items-center w-full md:w-auto text-blue-600 gap-2 font-black uppercase text-[10px] tracking-widest px-2"><Search size={18} /> Directory Search</div>
             <div className="relative w-full flex-1">
-              <input
-                type="text"
-                placeholder="Search other proctors to view their dashboard..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
-              />
-              
+              <input type="text" placeholder="Search other proctors to view their dashboard..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"/>
               {searchQuery && filteredDirectory.length > 0 && (
                 <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar z-50">
                   {filteredDirectory.map(p => (
                     <div key={p.id} onClick={() => { onViewProctor(p); setSearchQuery(""); }} className="p-4 border-b border-slate-50 hover:bg-blue-50 cursor-pointer flex justify-between items-center group transition-all">
-                       <div>
-                         <p className="text-xs font-black text-slate-900 uppercase group-hover:text-blue-600 transition-colors">{p.full_name}</p>
-                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.assigned_dept || 'Global System'}</p>
-                       </div>
-                       <button className="bg-blue-100 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-                          <LayoutDashboard size={14} />
-                       </button>
+                       <div><p className="text-xs font-black text-slate-900 uppercase group-hover:text-blue-600 transition-colors">{p.full_name}</p><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.assigned_dept || 'Global System'}</p></div>
+                       <button className="bg-blue-100 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm"><LayoutDashboard size={14} /></button>
                     </div>
                   ))}
                 </div>
-              )}
-
-              {searchQuery && filteredDirectory.length === 0 && (
-                 <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl p-6 text-center z-50">
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No proctors found matching "{searchQuery}"</p>
-                 </div>
               )}
             </div>
           </div>
@@ -941,131 +875,111 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         {isViewMode && (
           <div className="bg-blue-600 text-white rounded-3xl md:rounded-[2rem] p-6 md:p-8 mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-center md:items-start text-center md:text-left shadow-2xl animate-in slide-in-from-top-4 gap-4 md:gap-0">
             <div>
-              <h4 className="font-black uppercase tracking-widest text-xs md:text-sm flex items-center justify-center md:justify-start gap-3">
-                <Shield size={20} className="text-blue-300" /> Read-Only Access
-              </h4>
-              <p className="text-blue-100 text-[10px] md:text-xs font-bold mt-2 leading-relaxed">
-                You are currently viewing <strong>{profile?.full_name}'s</strong> itinerary and availability logs. <br className="hidden md:block"/>
-                To assign or remove them from an exam, return to the Department Workspace.
-              </p>
+              <h4 className="font-black uppercase tracking-widest text-xs md:text-sm flex items-center justify-center md:justify-start gap-3"><Shield size={20} className="text-blue-300" /> Read-Only Access</h4>
+              <p className="text-blue-100 text-[10px] md:text-xs font-bold mt-2 leading-relaxed">You are currently viewing <strong>{profile?.full_name}'s</strong> itinerary and availability logs. <br className="hidden md:block"/>To assign or remove them from an exam, return to the Department Workspace.</p>
             </div>
-            <button onClick={onCloseView} className="w-full md:w-auto mt-2 md:mt-0 bg-white text-blue-600 hover:bg-blue-50 px-6 md:px-10 py-3 md:py-4 rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95">
-              Manage in Workspace
-            </button>
+            <button onClick={onCloseView} className="w-full md:w-auto mt-2 md:mt-0 bg-white text-blue-600 hover:bg-blue-50 px-6 md:px-10 py-3 md:py-4 rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95">Manage in Workspace</button>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-12">
           <div className="lg:col-span-1 bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col h-[500px] md:h-auto">
-            <div className="mb-6">
-              <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                <Calendar size={16}/> {isViewMode ? "Their Assignments" : "My Assignments"}
-              </h2>
-            </div>
+            <div className="mb-6"><h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {isViewMode ? "Their Assignments" : "My Assignments"}</h2></div>
             
             <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
               {mySchedule.length === 0 ? (
                 <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">No assignments found.</p>
-              ) : mySchedule.map((s, i) => (
-                <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
-                  <div className="flex justify-between items-start mb-3">
-                     <div>
-                       <p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p>
-                       <p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p>
-                     </div>
-                     {!isViewMode && !s.flagged && (
-                       <button onClick={() => {
-                         setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' });
-                       }} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency">
-                         <AlertTriangle size={14}/>
-                       </button>
-                     )}
-                     {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
-                  </div>
+              ) : mySchedule.map((s, i) => {
+                const isVerified = globalAvailability.some(a => a.proctor_id === profile.id && a.exam_date === s.exam_date && (s.start_time < a.end_time && s.end_time > a.start_time));
+                const isPendingRequest = !isVerified && !s.flagged && !isViewMode;
 
-                  {s.flagged && s.flagNote && (
-                    <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl">
-                      <p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p>
-                      <p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p>
+                return (
+                  <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
+                    {isPendingRequest && (
+                      <div className="mb-4 bg-amber-500/20 border border-amber-500/50 p-4 rounded-xl">
+                        <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-2"><Users size={14} className="animate-pulse"/> Reliever Request</p>
+                        <p className="text-[10px] font-bold text-amber-100 mb-4 leading-relaxed">You have not logged availability for this slot. Do you accept this emergency assignment?</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => {
+                            const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
+                            const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
+                            onAddAvailability({ proctor_id: profile.id, proctor_name: profile.full_name, dept_code: profile.assigned_dept, exam_date: s.exam_date, start_time: fStart, end_time: fEnd, is_emergency_flag: false, note: "Accepted Reliever Request" });
+                            showToast("Request Accepted! Schedule verified.", "success");
+                          }} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 shadow-lg">Accept</button>
+                          <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-slate-800 hover:bg-rose-500 text-white font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 border border-slate-700">Decline</button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-start mb-3">
+                       <div><p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p><p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p></div>
+                       {!isViewMode && !s.flagged && <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency"><AlertTriangle size={14}/></button>}
+                       {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
                     </div>
-                  )}
-                  
-                  <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
-                    <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
-                    <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
-                    <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
+                    {s.flagged && s.flagNote && <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl"><p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p><p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p></div>}
+                    <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
+                      <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
+                      <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
+                      <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6 border-t border-white/10">
-              <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2" title="Export Excel">
-                <Download size={16} /> <span className="sm:hidden">Export Excel</span>
-              </button>
-              <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2">
-                <Printer size={16} /> PDF Itinerary
-              </button>
+              <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2"><Download size={16} /> <span className="sm:hidden">Export Excel</span></button>
+              <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2"><Printer size={16} /> PDF Itinerary</button>
             </div>
           </div>
           
           <div className="lg:col-span-2">
-             <AvailabilityLogBook 
-                profile={profile} 
-                globalAvailability={globalAvailability} 
-                onAdd={onAddAvailability} 
-                onBulkAdd={onBulkAddAvailability}
-                onDelete={onDeleteAvailability} 
-                readOnly={isViewMode} 
-                showToast={showToast}
-             />
+             <AvailabilityLogBook profile={profile} globalAvailability={globalAvailability} onAdd={onAddAvailability} onBulkAdd={onBulkAddAvailability} onDelete={onDeleteAvailability} readOnly={isViewMode} showToast={showToast} />
           </div>
         </div>
 
         <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden relative">
           <div className="p-3 md:p-8 pb-0 flex justify-between items-end">
              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
-             <div className="md:hidden flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 mb-4 animate-pulse">
-                <ArrowRight size={10} /> Swipe
-             </div>
           </div>
           <div className="overflow-x-auto pb-4 custom-scrollbar">
-             <div className="min-w-[800px] px-2 md:px-0">
-               <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
-             </div>
+             <div className="min-w-[800px] px-2 md:px-0"><ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} /></div>
           </div>
         </div>
 
       </main>
 
+      {/* --- PROCTOR MODALS --- */}
       {flagModal.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
           <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6">
-              <AlertTriangle size={28} className="md:w-8 md:h-8" />
-              <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Flag Emergency</h3>
-            </div>
-            <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">State your reason. This instantly alerts your Dept Head.</p>
-            <textarea 
-              value={flagModal.note} onChange={(e) => setFlagModal({...flagModal, note: e.target.value})}
-              placeholder="e.g. Medical emergency, clash with another exam..."
-              className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6"
-            />
+            <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6"><AlertTriangle size={28} className="md:w-8 md:h-8" /><h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Flag Emergency</h3></div>
+            <textarea value={flagModal.note} onChange={(e) => setFlagModal({...flagModal, note: e.target.value})} placeholder="e.g. Medical emergency..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6" />
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               <button onClick={() => setFlagModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={() => {
-                onFlagIssue(flagModal.scheduleId, flagModal.note, flagModal.deptCode, flagModal.subjectCode);
-                setFlagModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
-                showToast("Emergency flag submitted successfully!", "success");
-              }} disabled={!flagModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors">Submit Flag</button>
+              <button onClick={() => { onFlagIssue(flagModal.scheduleId, flagModal.note, flagModal.deptCode, flagModal.subjectCode); setFlagModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); showToast("Emergency flag submitted successfully!", "success"); }} disabled={!flagModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors">Submit Flag</button>
             </div>
           </div>
         </div>
       )}
+
+      {declineModal.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl">
+            <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6"><AlertTriangle size={28} className="md:w-8 md:h-8" /><h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Decline Request</h3></div>
+            <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head.</p>
+            <textarea value={declineModal.note} onChange={(e) => setDeclineModal({...declineModal, note: e.target.value})} placeholder="e.g. Schedule conflict, out of town..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6 transition-all" />
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+              <button onClick={() => setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => { onFlagIssue(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); showToast("Assignment Declined. Admins have been notified.", "success"); }} disabled={!declineModal.note} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 transition-colors shadow-lg">Submit Decline</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
-
+            
 // --- 4. MAIN APP COMPONENT ---
 function App() {
   // --- GLOBAL STATES ---
