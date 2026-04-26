@@ -9,7 +9,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -1116,6 +1116,7 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
+  const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
   const [appToast, setAppToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
 
@@ -1458,15 +1459,20 @@ function App() {
     });
   };
 
-  const addDepartment = async () => {
-    const name = window.prompt("Enter Department Name:");
-    const code = window.prompt("Enter UNIQUE Dept Code:");
+  const executeAddDepartment = async (e) => {
+    e.preventDefault();
+    const { name, code } = deptModal;
     if (!name || !code) return;
+
     const { error } = await supabase.from('departments').insert([{ name, code: code.toUpperCase() }]);
-    if (error) alert(error.message); 
-    else {
+    
+    if (error) {
+      setAppToast({ message: error.message, type: "error" });
+    } else {
       await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()}.`, 'info');
       await fetchAllData(false);
+      setAppToast({ message: `Workspace ${code.toUpperCase()} initialized!`, type: "success" });
+      setDeptModal({ isOpen: false, name: '', code: '' });
     }
   };
 
@@ -1795,9 +1801,9 @@ function App() {
                     </div>
                   </div>
                   {isHeadAdmin && (
-                    <button onClick={addDepartment} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
-                      + Add Department
-                    </button>
+                    <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '' })} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
+  + Add Department
+</button>
                   )}
                 </div>
 
@@ -1941,7 +1947,38 @@ function App() {
           </div>
         </div>
       )}
-      
+      {/* --- ADD DEPARTMENT MODAL --- */}
+      {deptModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-blue-600 mb-6">
+              <Layers size={32} />
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Add Department</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                  Initialize a new system workspace
+                </p>
+              </div>
+            </div>
+            
+            <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+              </div>
+              
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       </main>
     </div>
   );
