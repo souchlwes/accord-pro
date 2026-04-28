@@ -1377,22 +1377,12 @@ function App() {
       isOpen: true,
       title: "Delete account permanently?",
       text: "This action is permanent. All associated logs and availability data will be destroyed.",
-     action: async () => {
+      action: async () => {
+        // 1. Delete their profile and availability logs
         await supabase.from('profiles').delete().eq('id', id);
         await supabase.from('proctor_availability').delete().eq('proctor_id', id);
 
-        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
-        await fetchAllData(false);
-        setAppToast({ message: "Account permanently deleted.", type: "success" });
-      
-
-        if (targetProfile && targetProfile.assigned_dept) {
-          const targetDept = departments.find(d => d.code === targetProfile.assigned_dept);
-          if (targetDept && targetDept.proctors) {
-            const updatedProctors = targetDept.proctors.filter(p => p.name !== targetProfile.full_name?.trim().toUpperCase());
-            await supabase.from('departments').update({ proctors: updatedProctors }).eq('id', targetDept.id);
-          }
-        }
+        // 2. Notify and Sync
         await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
         await fetchAllData(false);
         setAppToast({ message: "Account permanently deleted.", type: "success" });
