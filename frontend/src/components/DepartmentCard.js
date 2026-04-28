@@ -1570,6 +1570,6 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       
     </div>
   );
-
+};
 
 export default DepartmentCard;
