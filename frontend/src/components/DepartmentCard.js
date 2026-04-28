@@ -617,7 +617,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
           doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
 
-          // "ACCORD PRO" Branding
+          // "ACCORD" Branding
           doc.setFont("helvetica", "bolditalic");
           doc.setFontSize(22);
           doc.setTextColor(15, 23, 42); 
