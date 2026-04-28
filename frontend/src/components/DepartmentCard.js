@@ -24,6 +24,17 @@ const addHours = (time, hours) => {
   return `${String(totalH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+// --- NEW: SMART NAME NORMALIZER ---
+const normalizeName = (name) => {
+  if (!name) return "";
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ') // Replaces commas, periods, etc. with spaces
+    .split(/\s+/) // Splits the name into individual words
+    .filter(word => word && !['prof', 'dr', 'mr', 'ms', 'mrs'].includes(word)) // Removes empty spaces and titles
+    .sort() // Alphabetizes the words (so "James Chua" matches "Chua James")
+    .join(' ');
+};
+
 const DepartmentCard = ({
   dept,
   onUpdate,
@@ -323,10 +334,10 @@ const DepartmentCard = ({
       let availabilityConflicts = [];
 
       baseProctorPool.forEach(p => {
-        const pName = (p.full_name || p.name || "").trim().toLowerCase();
+        const normalizedPName = normalizeName(p.full_name || p.name);
         
-        // 1. Check Conflict of Interest
-        const isTeacher = daySubjects.some(sub => sub.prof?.trim().toLowerCase() === pName);
+        // 1. Check Conflict of Interest (SMART MATCHING)
+        const isTeacher = daySubjects.some(sub => normalizeName(sub.prof) === normalizedPName);
         if (isTeacher) {
           teacherConflicts.push(p.full_name || p.name);
           return; // Exclude them
@@ -1426,13 +1437,15 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
            {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
+                  const normalizedPName = normalizeName(pName); // <-- NEW!
                   
                   // CONFLICT OF INTEREST CHECK FOR MANUAL SWAP
                   const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
                   const isTeacherForBlock = blockSubs.some(s => {
                      const yearSubs = subjects[s.year_level] || [];
                      const sub = yearSubs.find(ys => ys.code === s.subject_code);
-                     return sub?.prof?.trim().toLowerCase() === pName.trim().toLowerCase();
+                     // <-- UPDATED COMPARISON!
+                     return normalizeName(sub?.prof) === normalizedPName; 
                   });
 
                   const hasLoggedAvailability = globalAvailability?.some(entry => {
