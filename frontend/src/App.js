@@ -1199,6 +1199,16 @@ function App() {
   // --- BULLETPROOF AUTHENTICATION ENGINE ---
   useEffect(() => {
     let isMounted = true;
+
+    // --- NEW: FORCED SESSION CHECK ON REFRESH ---
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!initialSession && isMounted) {
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -1230,16 +1240,30 @@ function App() {
 
   useEffect(() => { if (profile) fetchProfiles(); fetchNotifications(); }, [profile]);
 
+ // --- FIX 2: THE DEBOUNCER (Prevents the "Sledgehammer" Lag) ---
+  const syncTimeoutRef = useRef(null);
+
+  const triggerSmartSync = () => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    // Wait 3 seconds after the database stops changing before downloading new data
+    syncTimeoutRef.current = setTimeout(() => {
+      fetchAllData(false);
+    }, 3000); 
+  };
+
   useEffect(() => {
     if (!session) return;
     const dbChannel = supabase.channel('system-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => fetchAllData(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => fetchAllData(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, () => fetchAllData(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchProfiles())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchNotifications())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, triggerSmartSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, triggerSmartSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, triggerSmartSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles) // Profiles are light, instant is fine
       .subscribe();
-    return () => { supabase.removeChannel(dbChannel); };
+      
+    return () => { 
+      supabase.removeChannel(dbChannel); 
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
   }, [session, profile]);
 
   const conflictCount = useMemo(() => globalSchedule.filter(s => s.hasConflict).length, [globalSchedule]);
