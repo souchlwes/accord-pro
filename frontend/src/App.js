@@ -555,7 +555,7 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
   const fileInputRef = useRef(null);
 
   const myAvails = globalAvailability.filter(a => a.proctor_id === profile.id);
-
+  const todayString = new Date().toISOString().split('T')[0];
   const handleSubmit = () => {
     if (!date || !start || !end) return showToast ? showToast("Please fill in all fields.", "error") : alert("Please fill in all fields.");
     const formattedStart = start.length === 5 ? `${start}:00` : start;
@@ -698,9 +698,9 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
       
       {!readOnly && (
         <div className="bg-slate-50 rounded-3xl p-4 md:p-6 border-2 border-slate-100 mb-8 flex flex-col md:flex-row gap-4 items-end">
-          <div className="w-full md:flex-1">
+         <div className="w-full md:flex-1">
             <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Date</label>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+            <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
           </div>
           <div className="w-full md:flex-1">
             <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Start Time</label>
