@@ -374,7 +374,7 @@ const HelpCenter = ({ role, onClose }) => {
         {/* Hide the welcome banner if the user is actively searching */}
         {!searchQuery && (
           <div className="bg-emerald-50 text-emerald-800 p-6 rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Guide</p>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
             <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
           </div>
         )}
@@ -499,8 +499,8 @@ const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onApprove, curren
                       {p.role}
                     </span>
                   </td>
-                  <td className="bg-slate-50 p-6 border-y-2 border-slate-100 font-black text-[10px] text-blue-600 uppercase italic">
-                    {p.assigned_dept || "Global Access"}
+                 <td className="bg-slate-50 p-6 border-y-2 border-slate-100 font-black text-[10px] text-blue-600 uppercase italic">
+                    {!p.assigned_dept || p.assigned_dept === 'GLOBAL' ? "GLOBAL POOL" : `${p.assigned_dept} DEPARTMENT`}
                   </td>
                   <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
                     <div className="flex items-center gap-2">
@@ -789,7 +789,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         // Logo
         doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
 
-        // "ACCORD" Official System Font (Bold & Italic)
+        // "ACCORD PRO" Official System Font (Bold & Italic)
         doc.setFont("helvetica", "bolditalic");
         doc.setFontSize(22);
         doc.setTextColor(15, 23, 42); // Slate 900
@@ -1353,10 +1353,14 @@ function App() {
       isOpen: true,
       title: "Delete account permanently?",
       text: "This action is permanent. All associated logs and availability data will be destroyed.",
-      action: async () => {
-        const targetProfile = allProfiles.find(p => p.id === id);
+     action: async () => {
         await supabase.from('profiles').delete().eq('id', id);
         await supabase.from('proctor_availability').delete().eq('proctor_id', id);
+
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
+        await fetchAllData(false);
+        setAppToast({ message: "Account permanently deleted.", type: "success" });
+      
 
         if (targetProfile && targetProfile.assigned_dept) {
           const targetDept = departments.find(d => d.code === targetProfile.assigned_dept);
@@ -1500,7 +1504,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
-          <img src={accordLogo} alt="Accord Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
+          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
           {authMode === 'success' ? (
@@ -1549,8 +1553,8 @@ function App() {
                   <option value="HEAD_ADMIN">Global Head Admin</option>
                 </select>
                 
-                {regRole !== 'HEAD_ADMIN' && (
-                  <input type="text" placeholder="Department Code (e.g. CS)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+               {regRole !== 'HEAD_ADMIN' && (
+                  <input type="text" placeholder="Dept Code (or 'GLOBAL' for Part-Timers)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
                 )}
               </div>
               
@@ -1909,10 +1913,10 @@ function App() {
                 <input required type="password" value={createModal.pass} onChange={e=>setCreateModal({...createModal, pass: e.target.value})} placeholder="Min. 6 characters" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
               </div>
               
-              {isHeadAdmin && (
+               {isHeadAdmin && (
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Assign Department Code</label>
-                  <input required type="text" value={createModal.dept} onChange={e=>setCreateModal({...createModal, dept: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                  <input required type="text" value={createModal.dept} onChange={e=>setCreateModal({...createModal, dept: e.target.value.toUpperCase()})} placeholder="e.g. CS (or type 'GLOBAL' for Part-Timers)" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
                 </div>
               )}
               
