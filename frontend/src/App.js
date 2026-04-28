@@ -1200,41 +1200,50 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    // --- NEW: FORCED SESSION CHECK ON REFRESH ---
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (!initialSession && isMounted) {
-        setSession(null);
-        setProfile(null);
-        setLoading(false);
+    // 1. Unified function to handle both initial load and future logins
+    const loadUserSession = async (currentSession) => {
+      if (!currentSession) {
+        if (isMounted) { setSession(null); setProfile(null); setLoading(false); }
+        return;
       }
-    });
+      
+      if (isMounted) { setSession(currentSession); setLoading(true); }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!isMounted) return;
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (!currentSession) {
-          setSession(null); setProfile(null); setLoading(false); return;
-        }
-        setSession(currentSession); setLoading(true);
+      let fetchedProfile = null;
+      for (let i = 0; i < 4; i++) {
+         const { data: pData } = await supabase.from('profiles').select('*').eq('id', currentSession.user.id).maybeSingle();
+         if (pData) { fetchedProfile = pData; break; }
+         await new Promise(res => setTimeout(res, 1000)); // Retry logic
+      }
 
-        let fetchedProfile = null;
-        for (let i = 0; i < 4; i++) {
-           const { data: pData } = await supabase.from('profiles').select('*').eq('id', currentSession.user.id).maybeSingle();
-           if (pData) { fetchedProfile = pData; break; }
-           await new Promise(res => setTimeout(res, 1000));
-        }
-
+      if (isMounted) {
         if (fetchedProfile) {
            setProfile(fetchedProfile);
            await fetchAllData(false); 
         } else {
            console.error("Profile completely disconnected from database.");
         }
-        setLoading(false);
+        setLoading(false); // <--- Guarantees the spinner turns off!
+      }
+    };
+
+    // 2. Force check on mount (Fixes the perpetual refresh bug)
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      loadUserSession(initialSession);
+    });
+
+    // 3. Listen for Auth State Changes (Login / Logout / Expiry)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if (!isMounted) return;
+      
+      // We ignore INITIAL_SESSION here because getSession() already handled it!
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        loadUserSession(currentSession);
       } else if (event === 'SIGNED_OUT') {
         setSession(null); setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
     });
+
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
 
