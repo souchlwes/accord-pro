@@ -246,7 +246,7 @@ const DepartmentCard = ({
   const [roomNum, setRoomNum] = useState("");
   const [roomType, setRoomType] = useState("Department");
 
-  const globalProctorPool = useMemo(() => allDepartments.flatMap(d => d.proctors), [allDepartments]);
+  const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
 
   const handleExamDayChange = (val) => {
@@ -303,8 +303,12 @@ const DepartmentCard = ({
     );
 
     const isProctorFree = (p) => {
+      // 1. CONFLICT OF INTEREST RULE: The proctor cannot be the teacher of any subject in this block
+      const isTeacher = daySubjects.some(sub => sub.prof?.trim().toLowerCase() === (p.full_name || p.name || "").trim().toLowerCase());
+      if (isTeacher) return false;
+
+      // 2. Standard Availability Check
       const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
-      
       const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
         assign.proctor === p.full_name && assign.exam_date === dayDate
       );
@@ -312,7 +316,6 @@ const DepartmentCard = ({
       return pLogs.some(log => {
         const safeLogStart = log.start_time.substring(0, 5);
         const safeLogEnd = log.end_time.substring(0, 5);
-
         const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
 
         const isBurnt = pAssignments.some(assign => {
@@ -330,8 +333,12 @@ const DepartmentCard = ({
     const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
     let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
 
-    const localProctors = activeDeptProctors.filter(isProctorFree);
-    let availableProctors = [...localProctors];
+    // 3. GLOBAL VS DEPARTMENT POOL FIX
+    const baseProctorPool = proctorSource === "Department" 
+        ? activeDeptProctors // Internal Only
+        : globalProctorPool.filter(p => p.assigned_dept !== deptCode); // Exclude internals to force external/global proctors
+
+    let availableProctors = baseProctorPool.filter(isProctorFree);
 
     for (let s = 0; s < sectionCount; s++) {
       const sectionID = `${deptCode}${selectedYear}${String.fromCharCode(65 + s)}`;
@@ -617,7 +624,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
           doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
 
-          // "ACCORD" Branding
+          // "ACCORD PRO" Branding
           doc.setFont("helvetica", "bolditalic");
           doc.setFontSize(22);
           doc.setTextColor(15, 23, 42); 
@@ -840,10 +847,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       </div>
 
       <div className="p-12">
-        {/* SUBJECTS TAB */}
+       {/* SUBJECTS TAB */}
         {activeTab === 'subjects' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
               <div className="space-y-2">
                 <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
                 <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
@@ -858,29 +865,39 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                 <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
                 <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
               </div>
+              <div className="space-y-2 md:col-span-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Professor</label>
+                <input id={`sP-${deptId}`} placeholder="Prof. Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+              </div>
               <div className="pt-6">
                 <button onClick={() => {
                   const c = document.getElementById(`sC-${deptId}`).value;
                   const n = document.getElementById(`sN-${deptId}`).value;
-                  if (c && n) {
-                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n }] } });
+                  const p = document.getElementById(`sP-${deptId}`).value;
+                  if (c && n && p) {
+                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n, prof: p }] } });
                     document.getElementById(`sC-${deptId}`).value = '';
                     document.getElementById(`sN-${deptId}`).value = '';
+                    document.getElementById(`sP-${deptId}`).value = '';
                     showToast(`Subject ${c.toUpperCase()} added.`);
                   } else {
-                    showToast("Missing subject details.", "error");
+                    showToast("Please fill all subject details, including the Professor.", "error");
                   }
                 }} className="w-full h-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 flex items-center justify-center gap-2">
                   <Plus size={14}/> Add Subject
                 </button>
               </div>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {(subjects[selectedYear] || []).map((s, i) => (
                 <div key={i} className="group flex justify-between p-6 bg-white border-2 border-slate-50 rounded-3xl items-center transition-all hover:border-blue-100 hover:shadow-lg">
                   <div className="flex items-center gap-4">
                     <div className="bg-blue-50 p-3 rounded-xl text-blue-600 font-black text-xs">{s.code}</div>
-                    <span className="text-slate-600 font-black text-xs uppercase tracking-tight">{s.name}</span>
+                    <div className="flex flex-col">
+                      <span className="text-slate-600 font-black text-xs uppercase tracking-tight">{s.name}</span>
+                      <span className="text-slate-400 font-bold text-[9px] uppercase tracking-widest flex items-center gap-1 mt-1"><Users size={10}/> Prof. {s.prof}</span>
+                    </div>
                   </div>
                   <button onClick={() => {
                     onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
@@ -1377,44 +1394,49 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                   </div>
                 )}
 
-                {filteredList.map((p, idx) => {
+           {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
                   
+                  // CONFLICT OF INTEREST CHECK FOR MANUAL SWAP
+                  const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
+                  const isTeacherForBlock = blockSubs.some(s => {
+                     const yearSubs = subjects[s.year_level] || [];
+                     const sub = yearSubs.find(ys => ys.code === s.subject_code);
+                     return sub?.prof?.trim().toLowerCase() === pName.trim().toLowerCase();
+                  });
+
                   const hasLoggedAvailability = globalAvailability?.some(entry => {
                     const safeLogStart = entry.start_time.substring(0, 5);
                     const safeLogEnd = entry.end_time.substring(0, 5);
-                    
                     const subStart = t.start_time || t.startTime;
                     const subEnd = t.end_time || t.endTime;
-
-                    return entry.proctor_id === p.id && 
-                           entry.exam_date === (t.date || t.exam_date) &&
-                           (subStart >= safeLogStart && subEnd <= safeLogEnd);
+                    return entry.proctor_id === p.id && entry.exam_date === (t.date || t.exam_date) && (subStart >= safeLogStart && subEnd <= safeLogEnd);
                   });
 
                   return (
                     <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
+                      isTeacherForBlock ? 'border-rose-100 bg-rose-50/30' :
                       hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          <span className="font-black text-xs text-slate-800 uppercase">{pName}</span>
-                          <div className={`flex items-center gap-1 mt-1 ${hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            <ShieldCheck size={10} />
+                          <span className={`font-black text-xs uppercase ${isTeacherForBlock ? 'text-rose-600 line-through' : 'text-slate-800'}`}>{pName}</span>
+                          <div className={`flex items-center gap-1 mt-1 ${isTeacherForBlock ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {isTeacherForBlock ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                             <span className="text-[7px] font-black uppercase tracking-widest">
-                              {hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                              {isTeacherForBlock ? "Conflict: Subject Teacher" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex gap-2">
-                        <button onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
-                        <button onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability ? 'bg-blue-600' : 'bg-slate-900'}`}>Whole Session</button>
+                        <button disabled={isTeacherForBlock} onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-600 transition-colors">Subject Only</button>
+                        <button disabled={isTeacherForBlock} onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm disabled:opacity-30 transition-all ${hasLoggedAvailability && !isTeacherForBlock ? 'bg-blue-600' : isTeacherForBlock ? 'bg-rose-400' : 'bg-slate-900'}`}>Whole Session</button>
                       </div>
                     </div>
                   );
-                })}
+                })}                 
               </div>
             </div>
           </div>
