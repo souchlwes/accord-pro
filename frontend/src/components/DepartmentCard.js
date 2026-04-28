@@ -64,17 +64,22 @@ const DepartmentCard = ({
   
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
-  // ENHANCEMENT: Sync initial preview AND respond to external updates (like additions/deletions)
+   // ENHANCEMENT: Sync initial preview AND respond to external updates safely
   useEffect(() => {
-    const synced = globalSchedule
-      .filter(s => s.dept_code === deptCode)
-      .map(item => ({
+    const serverData = globalSchedule.filter(s => s.dept_code === deptCode);
+    
+    // SAFETY LOCK: Only auto-update the screen if the local draft is empty, 
+    // OR if the number of blocks strictly matches. This prevents the cloud from
+    // overwriting the Admin's unsaved manual edits!
+    if (localSchedule.length === 0 || serverData.length !== localSchedule.length) {
+      const synced = serverData.map(item => ({
         ...item,
         flagged: Boolean(item.flagged ?? false),
         flagNote: item.flagNote ?? "",
         isManualProctor: Boolean(item.isManualProctor ?? false)
       }));
-    setLocalSchedule(synced);
+      setLocalSchedule(synced);
+    }
   }, [globalSchedule, deptCode]);
 
   const showToast = (message, type = 'success', undoable = false) => {
@@ -255,52 +260,175 @@ const DepartmentCard = ({
     setExamDates(new Array(num).fill(''));
   };
 
+  
   const handleGenerateClick = () => {
-  setGenerationErrors([]);
-  const errors = [];
-  const yearSubs = subjects[selectedYear] || [];
+    setGenerationErrors([]);
+    const errors = [];
+    const yearSubs = subjects[selectedYear] || [];
 
-  if (yearSubs.length === 0) errors.push({ 
-    issue: "No Subjects", 
-    resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
-  });
-  if (examDays === 0 || sectionCount === 0) errors.push({ 
-    issue: "Configuration Error", 
-    resolution: "Set Total Exam Days and Total Sections to at least 1." 
-  });
-  if (examDates.some(d => !d)) errors.push({ 
-    issue: "Timeline Incomplete", 
-    resolution: "Please assign a specific date to every exam day in the list." 
-  });
+    if (yearSubs.length === 0) errors.push({ 
+      issue: "No Subjects", 
+      resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
+    });
+    if (examDays === 0 || sectionCount === 0) errors.push({ 
+      issue: "Configuration Error", 
+      resolution: "Set Total Exam Days and Total Sections to at least 1." 
+    });
+    if (examDates.some(d => !d)) errors.push({ 
+      issue: "Timeline Incomplete", 
+      resolution: "Please assign a specific date to every exam day in the list." 
+    });
 
-  if (errors.length > 0) {
-    setGenerationErrors(errors);
-    showToast("Generation Halted: Setup incomplete.", "error");
-    return;
-  }
+    if (errors.length > 0) {
+      setGenerationErrors(errors);
+      showToast("Generation Halted: Setup incomplete.", "error");
+      return;
+    }
 
-  const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
-  const dailySubs = Array.from({ length: examDays }, () => []);
-  shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
+    const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
+    const dailySubs = Array.from({ length: examDays }, () => []);
+    shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
 
-  const finalGeneratedData = [];
-  let generationFailed = false; 
+    const finalGeneratedData = [];
+    let generationFailed = false; 
 
-  for (let d = 0; d < examDays; d++) {
-    if (generationFailed) break; 
+    for (let d = 0; d < examDays; d++) {
+      if (generationFailed) break; 
 
-    const dayDate = examDates[d];
-    const daySubjects = dailySubs[d];
-    if (daySubjects.length === 0) continue;
+      const dayDate = examDates[d];
+      const daySubjects = dailySubs[d];
+      if (daySubjects.length === 0) continue;
 
-    const duration = daySubjects.length;
-    const endTime = addHours(startTime, duration);
+      const duration = daySubjects.length;
+      const endTime = addHours(startTime, duration);
 
-    const isRoomFree = (rNum) => !globalSchedule.some(gs => 
-      gs.room === rNum && 
-      gs.exam_date === dayDate && 
-      (startTime < gs.end_time && endTime > gs.start_time)
-    );
+      const isRoomFree = (rNum) => !globalSchedule.some(gs => 
+        gs.room === rNum && 
+        gs.exam_date === dayDate && 
+        (startTime < gs.end_time && endTime > gs.start_time)
+      );
+
+      const localRooms = rooms.filter(r => isRoomFree(r.number));
+      const otherRooms = globalRoomPool.filter(r => !rooms.find(dr => dr.number === r.number) && isRoomFree(r.number));
+      const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
+      let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
+
+      const baseProctorPool = proctorSource === "Department" 
+          ? activeDeptProctors 
+          : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
+
+      // --- SMART PROCTOR FILTERING & REASON TRACKING ---
+      let availableProctors = [];
+      let teacherConflicts = [];
+      let availabilityConflicts = [];
+
+      baseProctorPool.forEach(p => {
+        const pName = (p.full_name || p.name || "").trim().toLowerCase();
+        
+        // 1. Check Conflict of Interest
+        const isTeacher = daySubjects.some(sub => sub.prof?.trim().toLowerCase() === pName);
+        if (isTeacher) {
+          teacherConflicts.push(p.full_name || p.name);
+          return; // Exclude them
+        }
+
+        // 2. Check Logged Availability
+        const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
+        const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
+          assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
+        );
+
+        const hasValidLog = pLogs.some(log => {
+          const safeLogStart = log.start_time.substring(0, 5);
+          const safeLogEnd = log.end_time.substring(0, 5);
+          const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
+
+          const isBurnt = pAssignments.some(assign => {
+            const assignStart = assign.start_time.substring(0, 5);
+            const assignEnd = assign.end_time.substring(0, 5);
+            return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+          });
+
+          return coversExam && !isBurnt;
+        });
+
+        if (hasValidLog) availableProctors.push(p);
+        else availabilityConflicts.push(p.full_name || p.name);
+      });
+      // ------------------------------------------------------
+
+      for (let s = 0; s < sectionCount; s++) {
+        const sectionID = `${deptCode}${selectedYear}${String.fromCharCode(65 + s)}`;
+
+        if (availableRooms.length === 0) {
+          errors.push({ 
+            issue: `Room Shortage (Day ${d+1})`, 
+            resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
+          });
+          generationFailed = true;
+        }
+        
+        if (availableProctors.length === 0) {
+          // --- SMART ERROR REPORTING TO THE UI ---
+          let issueTitle = `Proctor Shortage (Day ${d+1})`;
+          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
+
+          if (teacherConflicts.length > 0 && availabilityConflicts.length === 0) {
+            issueTitle = `Conflict of Interest (Day ${d+1})`;
+            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this block and cannot proctor their own exams. Please assign external proctors.`;
+          } else if (teacherConflicts.length > 0) {
+            issueTitle = `Resource Blocked (Day ${d+1})`;
+            resolutionText = `${teacherConflicts.length} proctor(s) excluded due to teaching a subject in this block. The rest lacked logged hours. Add more proctors.`;
+          } else {
+            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+          }
+
+          errors.push({ issue: issueTitle, resolution: resolutionText });
+          generationFailed = true;
+        }
+
+        if (!generationFailed) {
+          const selectedRoom = availableRooms.shift();
+          const selectedProctor = availableProctors.shift();
+
+          daySubjects.forEach((sub, idx) => {
+            finalGeneratedData.push({
+              subject_code: sub.code,
+              subject_name: sub.name,
+              section: sectionID,
+              year_level: selectedYear,
+              dept_code: deptCode,
+              exam_date: dayDate,
+              start_time: addHours(startTime, idx),
+              end_time: addHours(startTime, idx + 1),
+              room: selectedRoom.number,
+              proctor: selectedProctor.full_name || selectedProctor.name,
+              original_proctor: selectedProctor.full_name || selectedProctor.name,
+              original_room: selectedRoom.number,
+              original_subject_code: sub.code,
+              status: 'ACTIVE',
+              flagged: false,
+              flagNote: '',
+              isManualProctor: false
+            });
+          });
+        } else {
+          break; 
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      setGenerationErrors(errors);
+      showToast("Generation Blocked: Resource conflicts found.", "error");
+      return; 
+    }
+
+    setLocalSchedule(finalGeneratedData);
+    setAuditLog(["Automated Generation Completed."]);
+    setActiveTab("preview");
+    showToast("Schedule Generated Successfully!");
+  };
 
     const isProctorFree = (p) => {
       // 1. CONFLICT OF INTEREST RULE: The proctor cannot be the teacher of any subject in this block
@@ -399,7 +527,7 @@ const DepartmentCard = ({
   setAuditLog(["Automated Generation Completed."]);
   setActiveTab("preview");
   showToast("Schedule Generated Successfully!");
-};
+
 
   const handleFlagSubmit = () => {
     const updated = localSchedule.map(s =>
@@ -1540,6 +1668,6 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       
     </div>
   );
-};
+
 
 export default DepartmentCard;
