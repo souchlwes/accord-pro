@@ -261,7 +261,7 @@ const DepartmentCard = ({
 
   const [roomNum, setRoomNum] = useState("");
   const [roomType, setRoomType] = useState("Department");
-
+  const todayString = new Date().toISOString().split('T')[0];
   const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
 
@@ -1087,11 +1087,11 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       <label className="text-[9px] font-black text-slate-500 uppercase ml-4 mb-2 block">Total Exam Days</label>
                       <input type="number" value={examDays || ''} onChange={e => handleExamDayChange(e.target.value)} placeholder="0" className="w-full bg-slate-800/50 p-6 rounded-[2rem] text-3xl font-black text-blue-400 border-2 border-slate-700 focus:border-blue-500 outline-none" />
                     </div>
-                    <div className="space-y-3 max-h-48 overflow-y-auto pr-4 custom-scrollbar">
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-4 custom-scrollbar">
                       {examDates.map((d, i) => (
                         <div key={i} className="flex items-center bg-slate-800 p-4 rounded-2xl border border-slate-700 group hover:border-blue-500/50 transition-all">
                           <span className="text-blue-500 font-black text-[10px] w-14">DAY {String(i+1).padStart(2, '0')}</span>
-                          <input type="date" value={d} onChange={e => { const updated = [...examDates]; updated[i] = e.target.value; setExamDates(updated); }} className="w-full bg-transparent text-xs font-black outline-none text-white cursor-pointer" />
+                          <input type="date" min={todayString} value={d} onChange={e => { const updated = [...examDates]; updated[i] = e.target.value; setExamDates(updated); }} className="w-full bg-transparent text-xs font-black outline-none text-white cursor-pointer" />
                         </div>
                       ))}
                     </div>
