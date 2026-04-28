@@ -1485,6 +1485,95 @@ function App() {
       return { ...item, hasConflict: !!conflict, conflictType: conflict ? (conflict.room === item.room ? 'ROOM' : 'PROCTOR') : null };
     });
   };
+// --- NEW: MASTER TIMELINE PDF EXPORT ---
+  const exportGlobalPDF = () => {
+    try {
+      if (!globalSchedule || globalSchedule.length === 0) {
+        setAppToast({ message: "No schedule data to export!", type: "error" });
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape' });
+      
+      const drawLetterhead = (data) => {
+        if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
+        if (doc.headerPrintedPages.has(data.pageNumber)) return;
+        doc.headerPrintedPages.add(data.pageNumber);
+
+        doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
+        doc.setFont("helvetica", "bolditalic");
+        doc.setFontSize(22);
+        doc.setTextColor(15, 23, 42); 
+        doc.text("ACCORD", 30, 20);
+        
+        const accordWidth = doc.getTextWidth("ACCORD ");
+        doc.setTextColor(37, 99, 235); 
+        doc.text("PRO", 30 + accordWidth, 20);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139); 
+        doc.text("UNIVERSITY MASTER TIMELINE", 30, 26);
+
+        doc.setDrawColor(37, 99, 235); 
+        doc.setLineWidth(0.5);
+        doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
+      };
+
+      let currentY = 40; 
+
+      // 1. Group by Date, then by Department
+      const groupedData = {};
+      const sorted = [...globalSchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
+
+      sorted.forEach(item => {
+        const date = item.exam_date || "N/A";
+        const dept = item.dept_code || "UNKNOWN";
+        if (!groupedData[date]) groupedData[date] = {};
+        if (!groupedData[date][dept]) groupedData[date][dept] = [];
+        groupedData[date][dept].push(item);
+      });
+
+      // 2. Iterate through Dates and Departments
+      Object.keys(groupedData).sort().forEach(date => {
+        Object.keys(groupedData[date]).sort().forEach(dept => {
+          const items = groupedData[date][dept];
+
+          const tableRows = items.map(item => [
+            `${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"}`,
+            `Yr ${item.year_level} - ${item.section}`,
+            `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
+            item.room || "N/A",
+            item.proctor || "TBA"
+          ]);
+
+          autoTable(doc, { 
+            head: [
+              [
+                { content: `EXAM DATE: ${date}   |   DEPARTMENT: ${dept}`, colSpan: 5, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } }
+              ],
+              ["Time", "Section", "Subject", "Room", "Proctor"]
+            ],
+            body: tableRows, 
+            startY: currentY, 
+            theme: 'grid', 
+            styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
+            headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+            margin: { top: 40, bottom: 20 }, 
+            pageBreak: 'avoid',
+            didDrawPage: drawLetterhead 
+          });
+
+          currentY = doc.lastAutoTable.finalY + 15; 
+        });
+      });
+
+      doc.save(`Accord_Master_Timeline.pdf`);
+      setAppToast({ message: "Master PDF Downloaded!", type: "success" });
+    } catch (err) { 
+      setAppToast({ message: "PDF Error: " + err.message, type: "error" }); 
+    }
+  };
 
   const executeAddDepartment = async (e) => {
     e.preventDefault();
@@ -1867,9 +1956,9 @@ function App() {
                 <div className="mt-12 md:mt-40 pt-8 md:pt-24 border-t-8 border-slate-900/5">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-12 px-2 md:px-10 gap-4 md:gap-0">
                     <h2 className="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
-                    <button onClick={() => window.print()} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-12 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-4 shadow-2xl active:scale-95 transition-all">
-                      <Printer size={16} className="md:w-6 md:h-6" /> Export Global PDF
-                    </button>
+                    <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-12 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-4 shadow-2xl hover:bg-blue-600 active:scale-95 transition-all">
+  <Printer size={16} className="md:w-6 md:h-6" /> Export Global PDF
+</button>
                   </div>
                   
                   {globalSchedule.length > 0 && (
