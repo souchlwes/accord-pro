@@ -374,7 +374,7 @@ const HelpCenter = ({ role, onClose }) => {
         {/* Hide the welcome banner if the user is actively searching */}
         {!searchQuery && (
           <div className="bg-emerald-50 text-emerald-800 p-6 rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Guide</p>
             <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
           </div>
         )}
@@ -789,7 +789,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         // Logo
         doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
 
-        // "ACCORD PRO" Official System Font (Bold & Italic)
+        // "ACCORD" Official System Font (Bold & Italic)
         doc.setFont("helvetica", "bolditalic");
         doc.setFontSize(22);
         doc.setTextColor(15, 23, 42); // Slate 900
@@ -1500,7 +1500,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
-          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
+          <img src={accordLogo} alt="Accord Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
           {authMode === 'success' ? (
