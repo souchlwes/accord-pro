@@ -115,7 +115,7 @@ const DepartmentCard = ({
   const [roomModal, setRoomModal] = useState({ isOpen: false, targetBlock: null, pool: 'Department' });
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
   const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
-  
+  const [emergencyModal, setEmergencyModal] = useState({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
    // ENHANCEMENT: Sync initial preview AND respond to external updates safely
@@ -315,7 +315,7 @@ const DepartmentCard = ({
   };
 
   
-  const handleGenerateClick = () => {
+  const handleGenerateClick = async () => {
     setGenerationErrors([]);
     const errors = [];
     const yearSubs = subjects[selectedYear] || [];
@@ -384,8 +384,8 @@ for (let d = 0; d < examDays; d++) {
           pool.forEach(p => {
             const pArr = normalizeNameToArray(p.full_name || p.name);
             
-            // 1. Check Conflict of Interest (SMART PREFIX MATCHING)
-            const isTeacher = daySubjects.some(sub => {
+           // 1. Check Conflict of Interest (SMART PREFIX MATCHING - ENTIRE CURRICULUM)
+            const isTeacher = yearSubs.some(sub => {
                 const profList = parseSubjectProfs(sub.prof);
                 return profList.some(profObj => {
                     const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
@@ -453,14 +453,23 @@ for (let d = 0; d < examDays; d++) {
               const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
               const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
 
-              if (availableTeachers.length > 0) {
-                 const teacherName = availableTeachers[0].full_name || availableTeachers[0].name;
-                 const accept = window.confirm(`Both Internal and Global pools are exhausted for Section ${sectionID} on ${dayDate}.\n\nHowever, the Subject Teacher (${teacherName}) is available and has logged time.\n\nYou may try to have the subject teacher (who has to be a proctor too) as the proctor. Accept?`);
+            if (availableTeachers.length > 0) {
+                 // --- NEW: BEAUTIFUL REACT PROMISE MODAL INSTEAD OF WINDOW.PROMPT ---
+                 const selectedTeacher = await new Promise((resolve) => {
+                    setEmergencyModal({
+                       isOpen: true,
+                       teachers: availableTeachers,
+                       sectionID: sectionID,
+                       dayDate: dayDate,
+                       resolve: resolve
+                    });
+                 });
                  
-                 if (accept) {
-                    evalResult.available = [availableTeachers[0]]; 
+                 if (selectedTeacher) {
+                    evalResult.available = [selectedTeacher]; // Emergency Override Accepted!
                  }
               }
+              
            }
         }
 
@@ -1628,19 +1637,15 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   const pName = p.full_name || p.name;
                   const pArr = normalizeNameToArray(pName); // <-- UPGRADED!
                   
-                  const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
-                  const isTeacherForBlock = blockSubs.some(s => {
-                     const yearSubs = subjects[s.year_level] || [];
-                     const sub = yearSubs.find(ys => ys.code === s.subject_code);
-                     if (!sub) return false;
-                     
-                     const profList = parseSubjectProfs(sub?.prof);
+                // NEW: Checks the entire year level curriculum for the ban!
+                  const yearSubs = subjects[t.year_level] || [];
+                  const isTeacherForSection = yearSubs.some(sub => {
+                     const profList = parseSubjectProfs(sub.prof);
                      const sectionLetter = t.section.slice(-1);
-                     
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         const profArr = normalizeNameToArray(profObj.name); // <-- UPGRADED!
-                         const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w)); // <-- UPGRADED!
+                         const profArr = normalizeNameToArray(profObj.name);
+                         const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w));
                          return appliesToThisSection && nameMatch;
                      });
                   });
@@ -1655,35 +1660,38 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                   return (
                     <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
-                      isTeacherForBlock ? 'border-rose-100 bg-rose-50/30' :
+                      isTeacherForSection ? 'border-rose-100 bg-rose-50/30' :
                       hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForBlock ? 'text-rose-600 line-through' : 'text-slate-800'}`}>
+                          {/* Removed the line-through so the name is readable */}
+                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForSection ? 'text-rose-600' : 'text-slate-800'}`}>
                             {pName}
-                            {/* --- NEW: Show Department Badge for Global Proctors --- */}
                             {p.assigned_dept && p.assigned_dept !== deptCode && (
                                <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
                                  {p.assigned_dept}
                                </span>
                             )}
                           </span>
-                          <div className={`flex items-center gap-1 mt-1 ${isTeacherForBlock ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            {isTeacherForBlock ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
+                          <div className={`flex items-center gap-1 mt-1 ${isTeacherForSection ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                             <span className="text-[7px] font-black uppercase tracking-widest">
-                              {isTeacherForBlock ? "Conflict: Subject Teacher" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                              {isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex gap-2">
-                        <button disabled={isTeacherForBlock} onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-600 transition-colors">Subject Only</button>
-                        <button disabled={isTeacherForBlock} onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm disabled:opacity-30 transition-all ${hasLoggedAvailability && !isTeacherForBlock ? 'bg-blue-600' : isTeacherForBlock ? 'bg-rose-400' : 'bg-slate-900'}`}>Whole Session</button>
+                        {/* REMOVED disabled={isTeacherForBlock} so admins can force the assignment! */}
+                        <button onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
+                        <button onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
                       </div>
                     </div>
                   );
+       
+            
                 })}                 
               </div>
             </div>
@@ -1785,7 +1793,49 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
           </div>
         </div>
       )}
-      
+      {/* --- NEW: EMERGENCY GENERATOR MODAL --- */}
+      {emergencyModal.isOpen && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+              <AlertTriangle size={32} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Critical Shortage</h3>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
+              All eligible Global and Internal proctors are exhausted for <strong className="text-slate-800">Section {emergencyModal.sectionID}</strong> on <strong className="text-slate-800">{emergencyModal.dayDate}</strong>.
+            </p>
+            
+            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-6 shadow-inner">
+               <p className="text-amber-800 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
+                 The following <strong className="font-black text-rose-500">Subject Teachers</strong> are available. Select one to force an override, or cancel to halt generation.
+               </p>
+            </div>
+            
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar mb-8">
+              {emergencyModal.teachers.map((t, idx) => (
+                 <div key={idx} onClick={() => {
+                    emergencyModal.resolve(t); // Resumes the generator loop!
+                    setEmergencyModal({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
+                 }} className="p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-amber-400 hover:bg-amber-50 cursor-pointer flex justify-between items-center group transition-all shadow-sm">
+                    <div>
+                       <p className="font-black text-xs uppercase text-slate-900 group-hover:text-amber-700 transition-colors">{t.full_name || t.name}</p>
+                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Subject Teacher Conflict</p>
+                    </div>
+                    <button className="bg-amber-100 text-amber-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase group-hover:bg-amber-500 group-hover:text-white transition-all shadow-sm">Assign & Continue</button>
+                 </div>
+              ))}
+            </div>
+            
+            <button onClick={() => {
+               emergencyModal.resolve(null); // Fails the override, halts generation
+               setEmergencyModal({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
+            }} className="w-full p-5 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 transition-colors">
+              Halt Generation
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
