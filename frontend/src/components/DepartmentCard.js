@@ -45,11 +45,13 @@ const DepartmentCard = ({
   allDepartments = [],
   allProfiles = [],
   globalAvailability = [], 
-  role 
+  role,
+  onNotify
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
   const [generationErrors, setGenerationErrors] = useState([]);
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   // Destructure from the 'dept' prop directly for logic
   const { subjects, proctors, rooms, name: deptName, code: deptCode, id: deptId } = dept;
   
@@ -789,6 +791,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
   // --- NEW: Universal Save Engine (Handles normal saves AND Reliever Requests) ---
   const executeSave = async (overrideReason = null, unverifiedToNotify = []) => {
+    if (isProcessing) return; // Prevent double-clicks!
+    setIsProcessing(true);
+
     if (overrideReason) {
       setAuditLog(prev => [...prev, `[OVERRIDE] ${overrideReason}`]);
     }
@@ -813,7 +818,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         const proctorsToNotify = new Set(unverifiedToNotify.map(a => a.proctor));
         proctorsToNotify.forEach(pName => {
            const proctorProfile = allProfiles.find(p => p.full_name === pName || p.name === pName);
-           if (proctorProfile) {
+           if (proctorProfile && onNotify) {
              onNotify(null, null, proctorProfile.id, 'Proctor Assignment Request', 'You have been assigned to an exam slot without logged availability. Please Accept or Decline on your dashboard.', 'urgent');
            }
         });
@@ -821,7 +826,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       
       showToast("Schedule locked and saved globally!", "success");
     } catch (error) {
+      console.error(error);
       showToast("Failed to save schedule!", "error");
+    } finally {
+      setIsProcessing(false); // Unlock the buttons when done
     }
   };
 
@@ -1134,8 +1142,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <ChevronRight size={14}/>
                       </button>
                       <button
-                        onClick={() => { onClearSchedule(deptCode, selectedYear); showToast("Year draft cleared."); }}
-                        className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center text-rose-500 transition-all group mt-2"
+  onClick={() => onClearSchedule(deptCode, selectedYear)}
+
+className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center text-rose-500 transition-all group mt-2"
                       >
                         <span className="flex items-center gap-3"><RefreshCw size={16} /> Wipe Current Year Draft</span>
                         <span className="opacity-40 tracking-widest text-[8px]">RESET</span>
@@ -1557,7 +1566,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setSummaryModalIsOpen(false)} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Back to Editing</button>
-              <button onClick={handleApproveAndLock} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">I Confirm - Lock Schedule</button>
+<button onClick={handleApproveAndLock} disabled={isProcessing} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 shadow-lg transition-colors">
+  {isProcessing ? 'Processing...' : 'I Confirm - Lock Schedule'}
+</button>
             </div>
           </div>
         </div>
@@ -1589,9 +1600,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             
             <div className="flex gap-4">
               <button onClick={() => setUnverifiedModal({ isOpen: false, assignments: [], reason: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={() => {
-                 executeSave(unverifiedModal.reason, unverifiedModal.assignments);
-              }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Send Requests & Lock</button>
+<button onClick={() => { executeSave(unverifiedModal.reason, unverifiedModal.assignments); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Send Requests & Lock</button>
             </div>
           </div>
         </div>
