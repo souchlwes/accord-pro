@@ -534,10 +534,15 @@ for (let d = 0; d < examDays; d++) {
     }
   
 
-    if (errors.length > 0) {
+   if (errors.length > 0) {
       setGenerationErrors(errors);
       showToast("Generation Blocked: Resource conflicts found.", "error");
       return; 
+    }
+
+    // --- NEW: Instantly push the draft to Supabase so items receive valid IDs ---
+    if (onGenerate) {
+       onGenerate(finalGeneratedData, examDates);
     }
 
     setLocalSchedule(finalGeneratedData);
@@ -1644,8 +1649,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      const sectionLetter = t.section.slice(-1);
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         const profArr = normalizeNameToArray(profObj.name);
-                         const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w));
+                         // --- UPGRADED: Now uses the Smart Prefix Engine! ---
+                         const nameMatch = checkNameMatch(profObj.name, pName);
                          return appliesToThisSection && nameMatch;
                      });
                   });
