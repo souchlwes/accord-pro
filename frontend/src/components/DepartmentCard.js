@@ -34,6 +34,19 @@ const normalizeName = (name) => {
     .sort() // Alphabetizes the words (so "James Chua" matches "Chua James")
     .join(' ');
 };
+// --- NEW: SMART SECTION PARSER ---
+// Reads strings like "Kelly (C,D), Smith (A)" and outputs an array of objects
+const parseSubjectProfs = (profString) => {
+  if (!profString) return [];
+  // Split by comma, but ignore commas inside parentheses
+  const parts = profString.split(/,(?![^\(\)]*\))/g);
+  return parts.map(part => {
+     const match = part.match(/(.*?)(?:\((.*?)\))?$/);
+     const name = match[1] ? match[1].trim() : part.trim();
+     const sections = match[2] ? match[2].split(',').map(s => s.trim().toUpperCase()) : [];
+     return { name, sections };
+  });
+};
 
 const DepartmentCard = ({
   dept,
@@ -52,6 +65,7 @@ const DepartmentCard = ({
   const [generationErrors, setGenerationErrors] = useState([]);
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
   // Destructure from the 'dept' prop directly for logic
   const { subjects, proctors, rooms, name: deptName, code: deptCode, id: deptId } = dept;
   
@@ -326,52 +340,60 @@ const DepartmentCard = ({
       const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
       let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
 
-      const baseProctorPool = proctorSource === "Department" 
+   const baseProctorPool = proctorSource === "Department" 
           ? activeDeptProctors 
           : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
 
-      // --- SMART PROCTOR FILTERING & REASON TRACKING ---
-      let availableProctors = [];
-      let teacherConflicts = [];
-      let availabilityConflicts = [];
+      for (let s = 0; s < sectionCount; s++) {
+        const sectionLetter = String.fromCharCode(65 + s);
+        const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-      baseProctorPool.forEach(p => {
-        const normalizedPName = normalizeName(p.full_name || p.name);
-        
-        // 1. Check Conflict of Interest (SMART MATCHING)
-        const isTeacher = daySubjects.some(sub => normalizeName(sub.prof) === normalizedPName);
-        if (isTeacher) {
-          teacherConflicts.push(p.full_name || p.name);
-          return; // Exclude them
-        }
+        // --- NEW: EVALUATE CONFLICTS PER-SECTION ---
+        let availableProctors = [];
+        let teacherConflicts = [];
+        let availabilityConflicts = [];
 
-        // 2. Check Logged Availability
-        const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
-        const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
-          assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
-        );
-
-        const hasValidLog = pLogs.some(log => {
-          const safeLogStart = log.start_time.substring(0, 5);
-          const safeLogEnd = log.end_time.substring(0, 5);
-          const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
-
-          const isBurnt = pAssignments.some(assign => {
-            const assignStart = assign.start_time.substring(0, 5);
-            const assignEnd = assign.end_time.substring(0, 5);
-            return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+        baseProctorPool.forEach(p => {
+          const normalizedPName = normalizeName(p.full_name || p.name);
+          
+          // 1. Check Conflict of Interest (SECTION-SPECIFIC)
+          const isTeacher = daySubjects.some(sub => {
+              const profList = parseSubjectProfs(sub.prof);
+              return profList.some(profObj => {
+                  // If sections array is empty, they teach all sections. Otherwise, check for a match.
+                  const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                  return appliesToThisSection && normalizeName(profObj.name) === normalizedPName;
+              });
           });
 
-          return coversExam && !isBurnt;
+          if (isTeacher) {
+            teacherConflicts.push(p.full_name || p.name);
+            return; // Exclude them
+          }
+
+          // 2. Check Logged Availability
+          const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
+          const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
+            assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
+          );
+
+          const hasValidLog = pLogs.some(log => {
+            const safeLogStart = log.start_time.substring(0, 5);
+            const safeLogEnd = log.end_time.substring(0, 5);
+            const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
+
+            const isBurnt = pAssignments.some(assign => {
+              const assignStart = assign.start_time.substring(0, 5);
+              const assignEnd = assign.end_time.substring(0, 5);
+              return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+            });
+
+            return coversExam && !isBurnt;
+          });
+
+          if (hasValidLog) availableProctors.push(p);
+          else availabilityConflicts.push(p.full_name || p.name);
         });
-
-        if (hasValidLog) availableProctors.push(p);
-        else availabilityConflicts.push(p.full_name || p.name);
-      });
-      // ------------------------------------------------------
-
-      for (let s = 0; s < sectionCount; s++) {
-        const sectionID = `${deptCode}${selectedYear}${String.fromCharCode(65 + s)}`;
 
         if (availableRooms.length === 0) {
           errors.push({ 
@@ -382,16 +404,15 @@ const DepartmentCard = ({
         }
         
         if (availableProctors.length === 0) {
-          // --- SMART ERROR REPORTING TO THE UI ---
           let issueTitle = `Proctor Shortage (Day ${d+1})`;
           let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
 
           if (teacherConflicts.length > 0 && availabilityConflicts.length === 0) {
             issueTitle = `Conflict of Interest (Day ${d+1})`;
-            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this block and cannot proctor their own exams. Please assign external proctors.`;
+            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this section block and cannot proctor their own exams. Please assign external proctors.`;
           } else if (teacherConflicts.length > 0) {
             issueTitle = `Resource Blocked (Day ${d+1})`;
-            resolutionText = `${teacherConflicts.length} proctor(s) excluded due to teaching a subject in this block. The rest lacked logged hours. Add more proctors.`;
+            resolutionText = `${teacherConflicts.length} proctor(s) excluded due to teaching a subject in this section block. The rest lacked logged hours. Add more proctors.`;
           } else {
             resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
           }
@@ -428,8 +449,7 @@ const DepartmentCard = ({
         } else {
           break; 
         }
-      }
-    }
+      }  
 
     if (errors.length > 0) {
       setGenerationErrors(errors);
@@ -895,45 +915,92 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         ))}
       </div>
 
-      <div className="p-12">
+     <div className="p-12">
        {/* SUBJECTS TAB */}
         {activeTab === 'subjects' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
-                <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
-                </select>
+            
+            {/* --- UPGRADED DYNAMIC SUBJECT FORM --- */}
+            <div className="flex flex-col gap-6 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
+                  <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                    {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Subject Code</label>
+                  <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
+                  <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Subject Code</label>
-                <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+
+              {/* --- NEW: DYNAMIC PROCTOR BOXES --- */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+                 <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Assigned Professor(s) & Sections</label>
+                 </div>
+                 
+                 {tempProfs.map((p, idx) => (
+                    <div key={idx} className="flex flex-col md:flex-row gap-3 items-center bg-slate-50 p-3 rounded-2xl">
+                       <input
+                         placeholder="Prof Name (e.g. Jane Doe)"
+                         value={p.name}
+                         onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
+                         className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                       />
+                       <input
+                         placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                         value={p.sections}
+                         onChange={(e) => { const newP = [...tempProfs]; newP[idx].sections = e.target.value; setTempProfs(newP); }}
+                         className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                       />
+                       {tempProfs.length > 1 && (
+                         <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                           <Trash2 size={18}/>
+                         </button>
+                       )}
+                    </div>
+                 ))}
+                 
+                 <button onClick={() => setTempProfs([...tempProfs, { name: '', sections: '' }])} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
+                    <Plus size={14}/> Add Co-Teacher
+                 </button>
               </div>
-              <div className="space-y-2 md:col-span-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
-                <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-2 md:col-span-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Professor</label>
-                <input id={`sP-${deptId}`} placeholder="Prof. Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
-              </div>
-              <div className="pt-6">
+
+              <div className="pt-2">
                 <button onClick={() => {
                   const c = document.getElementById(`sC-${deptId}`).value;
                   const n = document.getElementById(`sN-${deptId}`).value;
-                  const p = document.getElementById(`sP-${deptId}`).value;
-                  if (c && n && p) {
-                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n, prof: p }] } });
+                  
+                  const validProfs = tempProfs.filter(p => p.name.trim() !== '');
+                  if (validProfs.length === 0) {
+                     showToast("Please add at least one professor.", "error");
+                     return;
+                  }
+
+                  // Background Compiler: Turns the dynamic boxes into the perfect string for the Smart Parser
+                  const compiledProfString = validProfs.map(p => {
+                     const secs = p.sections.trim();
+                     return secs ? `${p.name.trim()} (${secs.toUpperCase()})` : p.name.trim();
+                  }).join(', ');
+
+                  if (c && n) {
+                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n, prof: compiledProfString }] } });
                     document.getElementById(`sC-${deptId}`).value = '';
                     document.getElementById(`sN-${deptId}`).value = '';
-                    document.getElementById(`sP-${deptId}`).value = '';
+                    setTempProfs([{ name: '', sections: '' }]); // Reset boxes back to 1
                     showToast(`Subject ${c.toUpperCase()} added.`);
                   } else {
-                    showToast("Please fill all subject details, including the Professor.", "error");
+                    showToast("Please fill all subject details.", "error");
                   }
-                }} className="w-full h-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                  <Plus size={14}/> Add Subject
+                }} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 flex items-center justify-center gap-2 transition-all">
+                  <Plus size={16}/> Add Subject to Curriculum
                 </button>
               </div>
             </div>
@@ -1459,10 +1526,18 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   const normalizedPName = normalizeName(pName); 
                   
                   const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
-                  const isTeacherForBlock = blockSubs.some(s => {
+                 const isTeacherForBlock = blockSubs.some(s => {
                      const yearSubs = subjects[s.year_level] || [];
                      const sub = yearSubs.find(ys => ys.code === s.subject_code);
-                     return normalizeName(sub?.prof) === normalizedPName; 
+                     if (!sub) return false;
+                     
+                     const profList = parseSubjectProfs(sub?.prof);
+                     const sectionLetter = t.section.slice(-1); // Extracts "A" from "CS1A"
+                     
+                     return profList.some(profObj => {
+                         const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                         return appliesToThisSection && normalizeName(profObj.name) === normalizedPName;
+                     });
                   });
 
                   const hasLoggedAvailability = globalAvailability?.some(entry => {
@@ -1609,5 +1684,5 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
     </div>
   );
 };
-
+};
 export default DepartmentCard;
