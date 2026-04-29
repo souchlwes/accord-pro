@@ -450,6 +450,7 @@ const DepartmentCard = ({
           break; 
         }
       }  
+    }
 
     if (errors.length > 0) {
       setGenerationErrors(errors);
@@ -1684,5 +1685,5 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
     </div>
   );
 };
-};
+
 export default DepartmentCard;
