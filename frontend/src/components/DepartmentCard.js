@@ -41,10 +41,16 @@ const parseSubjectProfs = (profString) => {
   // Split by comma, but ignore commas inside parentheses
   const parts = profString.split(/,(?![^\(\)]*\))/g);
   return parts.map(part => {
-     const match = part.match(/(.*?)(?:\((.*?)\))?$/);
-     const name = match[1] ? match[1].trim() : part.trim();
-     const sections = match[2] ? match[2].split(',').map(s => s.trim().toUpperCase()) : [];
-     return { name, sections };
+     let p = part.trim();
+     // Bulletproof extraction (ignores trailing spaces completely)
+     if (p.includes('(') && p.includes(')')) {
+        const start = p.indexOf('(');
+        const end = p.indexOf(')');
+        const name = p.substring(0, start).trim();
+        const sections = p.substring(start + 1, end).split(',').map(s => s.trim().toUpperCase());
+        return { name, sections };
+     }
+     return { name: p, sections: [] };
   });
 };
 
@@ -352,6 +358,7 @@ const DepartmentCard = ({
         let availableProctors = [];
         let teacherConflicts = [];
         let availabilityConflicts = [];
+        let diversityConflicts = []; // <-- NEW: Tracks rotation conflicts
 
         baseProctorPool.forEach(p => {
           const normalizedPName = normalizeName(p.full_name || p.name);
@@ -360,7 +367,6 @@ const DepartmentCard = ({
           const isTeacher = daySubjects.some(sub => {
               const profList = parseSubjectProfs(sub.prof);
               return profList.some(profObj => {
-                  // If sections array is empty, they teach all sections. Otherwise, check for a match.
                   const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
                   return appliesToThisSection && normalizeName(profObj.name) === normalizedPName;
               });
@@ -371,7 +377,18 @@ const DepartmentCard = ({
             return; // Exclude them
           }
 
-          // 2. Check Logged Availability
+          // 2. Check Diversity Rule (Cannot proctor the same section twice on different days)
+          const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
+             assign.proctor === (p.full_name || p.name) && 
+             assign.section === sectionID
+          );
+
+          if (hasProctoredThisSectionBefore) {
+             diversityConflicts.push(p.full_name || p.name);
+             return; // Exclude them
+          }
+
+          // 3. Check Logged Availability
           const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
           const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
             assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
@@ -402,6 +419,28 @@ const DepartmentCard = ({
           });
           generationFailed = true;
         }
+        
+        if (availableProctors.length === 0) {
+          let issueTitle = `Proctor Shortage (Day ${d+1})`;
+          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
+
+          if (teacherConflicts.length > 0 && availabilityConflicts.length === 0 && diversityConflicts.length === 0) {
+            issueTitle = `Conflict of Interest (Day ${d+1})`;
+            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
+          } else if (diversityConflicts.length > 0 && availabilityConflicts.length === 0 && teacherConflicts.length === 0) {
+            issueTitle = `Section Rotation Rule (Day ${d+1})`;
+            resolutionText = `Available proctors (${diversityConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
+          } else if (teacherConflicts.length > 0 || diversityConflicts.length > 0) {
+            issueTitle = `Resource Blocked (Day ${d+1})`;
+            resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
+          } else {
+            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+          }
+
+          errors.push({ issue: issueTitle, resolution: resolutionText });
+          generationFailed = true;
+        }
+
         
         if (availableProctors.length === 0) {
           let issueTitle = `Proctor Shortage (Day ${d+1})`;
