@@ -42,6 +42,19 @@ const normalizeNameToArray = (name) => {
     .split(/\s+/)
     .filter(word => word && !['prof', 'dr', 'mr', 'ms', 'mrs'].includes(word));
 };
+// --- NEW: SMART PREFIX ENGINE ---
+// Allows "J. Smith" to perfectly match "John Smith"
+const checkNameMatch = (typedName, systemName) => {
+   const typedArr = normalizeNameToArray(typedName);
+   const systemArr = normalizeNameToArray(systemName);
+   
+   if (typedArr.length === 0 || systemArr.length === 0) return false;
+   
+   // Every word/initial typed by the Admin must match OR be the starting letter of the System Name
+   return typedArr.every(searchWord => 
+       systemArr.some(sysWord => sysWord === searchWord || sysWord.startsWith(searchWord))
+   );
+};
 // --- NEW: SMART SECTION PARSER ---
 // Reads strings like "Kelly (C,D), Smith (A)" and outputs an array of objects
 const parseSubjectProfs = (profString) => {
@@ -333,7 +346,7 @@ const DepartmentCard = ({
     const finalGeneratedData = [];
     let generationFailed = false; 
 
-    for (let d = 0; d < examDays; d++) {
+for (let d = 0; d < examDays; d++) {
       if (generationFailed) break; 
 
       const dayDate = examDates[d];
@@ -354,14 +367,6 @@ const DepartmentCard = ({
       const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
       let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
 
-   const baseProctorPool = proctorSource === "Department" 
-          ? activeDeptProctors 
-          : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
-
-      for (let s = 0; s < sectionCount; s++) {
-        const sectionLetter = String.fromCharCode(65 + s);
-        const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
-
       const primaryPool = proctorSource === "Department" ? activeDeptProctors : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
       const fallbackPool = proctorSource === "Department" ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors;
 
@@ -369,7 +374,7 @@ const DepartmentCard = ({
         const sectionLetter = String.fromCharCode(65 + s);
         const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-        // --- NEW: REUSABLE POOL EVALUATOR ---
+        // --- REUSABLE POOL EVALUATOR ---
         const evaluatePool = (pool, enforceRules = true) => {
           let available = [];
           let tConflicts = [];
@@ -379,14 +384,12 @@ const DepartmentCard = ({
           pool.forEach(p => {
             const pArr = normalizeNameToArray(p.full_name || p.name);
             
-            // 1. Check Conflict of Interest (ADVANCED PARTIAL MATCHING)
+            // 1. Check Conflict of Interest (SMART PREFIX MATCHING)
             const isTeacher = daySubjects.some(sub => {
                 const profList = parseSubjectProfs(sub.prof);
                 return profList.some(profObj => {
                     const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                    const profArr = normalizeNameToArray(profObj.name);
-                    // TRUE if the admin's typed name is found ANYWHERE inside the proctor's official account name
-                    const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w));
+                    const nameMatch = checkNameMatch(profObj.name, p.full_name || p.name);
                     return appliesToThisSection && nameMatch;
                 });
             });
@@ -435,14 +438,14 @@ const DepartmentCard = ({
 
         let evalResult = evaluatePool(primaryPool, true);
 
-        // --- NEW: AUTO-POOL SWITCHING & EMERGENCY TEACHER OVERRIDE ---
+        // --- AUTO-POOL SWITCHING & EMERGENCY TEACHER OVERRIDE ---
         if (evalResult.available.length === 0) {
            const fallbackResult = evaluatePool(fallbackPool, true);
            
            if (fallbackResult.available.length > 0) {
-              evalResult = fallbackResult; // Auto-Switch to Global/Department was successful!
+              evalResult = fallbackResult; // Switch successful
            } else {
-              // BOTH pools exhausted. Let's see if the Subject Teacher can save the day!
+              // EMERGENCY OVERRIDE
               const desperatePrimary = evaluatePool(primaryPool, false);
               const desperateFallback = evaluatePool(fallbackPool, false);
               const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
@@ -455,7 +458,7 @@ const DepartmentCard = ({
                  const accept = window.confirm(`Both Internal and Global pools are exhausted for Section ${sectionID} on ${dayDate}.\n\nHowever, the Subject Teacher (${teacherName}) is available and has logged time.\n\nYou may try to have the subject teacher (who has to be a proctor too) as the proctor. Accept?`);
                  
                  if (accept) {
-                    evalResult.available = [availableTeachers[0]]; // Emergency Override Accepted!
+                    evalResult.available = [availableTeachers[0]]; 
                  }
               }
            }
@@ -519,86 +522,8 @@ const DepartmentCard = ({
           break; 
         }
       }
-    
-
-        if (availableRooms.length === 0) {
-          errors.push({ 
-            issue: `Room Shortage (Day ${d+1})`, 
-            resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
-          });
-          generationFailed = true;
-        }
-        
-        if (availableProctors.length === 0) {
-          let issueTitle = `Proctor Shortage (Day ${d+1})`;
-          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
-
-          if (teacherConflicts.length > 0 && availabilityConflicts.length === 0 && diversityConflicts.length === 0) {
-            issueTitle = `Conflict of Interest (Day ${d+1})`;
-            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
-          } else if (diversityConflicts.length > 0 && availabilityConflicts.length === 0 && teacherConflicts.length === 0) {
-            issueTitle = `Section Rotation Rule (Day ${d+1})`;
-            resolutionText = `Available proctors (${diversityConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
-          } else if (teacherConflicts.length > 0 || diversityConflicts.length > 0) {
-            issueTitle = `Resource Blocked (Day ${d+1})`;
-            resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
-          } else {
-            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
-          }
-
-          errors.push({ issue: issueTitle, resolution: resolutionText });
-          generationFailed = true;
-        }
-
-        
-        if (availableProctors.length === 0) {
-          let issueTitle = `Proctor Shortage (Day ${d+1})`;
-          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
-
-          if (teacherConflicts.length > 0 && availabilityConflicts.length === 0) {
-            issueTitle = `Conflict of Interest (Day ${d+1})`;
-            resolutionText = `The only available proctors (${teacherConflicts.join(', ')}) are teaching subjects in this section block and cannot proctor their own exams. Please assign external proctors.`;
-          } else if (teacherConflicts.length > 0) {
-            issueTitle = `Resource Blocked (Day ${d+1})`;
-            resolutionText = `${teacherConflicts.length} proctor(s) excluded due to teaching a subject in this section block. The rest lacked logged hours. Add more proctors.`;
-          } else {
-            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
-          }
-
-          errors.push({ issue: issueTitle, resolution: resolutionText });
-          generationFailed = true;
-        }
-
-        if (!generationFailed) {
-          const selectedRoom = availableRooms.shift();
-          const selectedProctor = availableProctors.shift();
-
-          daySubjects.forEach((sub, idx) => {
-            finalGeneratedData.push({
-              subject_code: sub.code,
-              subject_name: sub.name,
-              section: sectionID,
-              year_level: selectedYear,
-              dept_code: deptCode,
-              exam_date: dayDate,
-              start_time: addHours(startTime, idx),
-              end_time: addHours(startTime, idx + 1),
-              room: selectedRoom.number,
-              proctor: selectedProctor.full_name || selectedProctor.name,
-              original_proctor: selectedProctor.full_name || selectedProctor.name,
-              original_room: selectedRoom.number,
-              original_subject_code: sub.code,
-              status: 'ACTIVE',
-              flagged: false,
-              flagNote: '',
-              isManualProctor: false
-            });
-          });
-        } else {
-          break; 
-        }
-      }  
     }
+  
 
     if (errors.length > 0) {
       setGenerationErrors(errors);
