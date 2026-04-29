@@ -1385,9 +1385,13 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-      {proctorModal.isOpen && proctorModal.targetSub && (() => {
+    {proctorModal.isOpen && proctorModal.targetSub && (() => {
         const t = proctorModal.targetSub;
-        const targetProctors = proctorModal.pool === 'Department' ? activeDeptProctors : globalProctorPool;
+        
+        // --- SMART GLOBAL AUTO-SEARCH ---
+        // If they type anything, auto-expand to search the entire Global Pool
+        const isSearching = proctorSearchTerm.trim().length > 0;
+        const targetProctors = (isSearching || proctorModal.pool === 'Global') ? globalProctorPool : activeDeptProctors;
         
         const filteredList = targetProctors.filter(p => 
           (p.full_name || p.name || "").toLowerCase().includes(proctorSearchTerm.toLowerCase()) && 
@@ -1404,14 +1408,20 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                     Target: {t.section} | {t.subject_code || 'Manual Entry'}
                   </p>
                 </div>
-                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({ isOpen: false, targetSub: null }); }} className="p-2 hover:bg-slate-100 rounded-full">
+                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' }); }} className="p-2 hover:bg-slate-100 rounded-full">
                   <X size={20} className="text-slate-400" />
                 </button>
               </div>
 
-              <div className="relative mb-6">
+              <div className="relative mb-4">
                 <input autoFocus type="text" placeholder="Search Proctor Name or Type New..." value={proctorSearchTerm} onChange={(e) => setProctorSearchTerm(e.target.value)} className="w-full p-5 pl-12 rounded-3xl text-xs font-black border-2 border-slate-100 focus:border-blue-500 outline-none transition-all" />
                 <Users className="absolute left-5 top-5 text-slate-400" size={16} />
+              </div>
+              
+              {/* --- NEW POOL TOGGLE UI --- */}
+              <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({...proctorModal, pool: 'Department'}) }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!isSearching && proctorModal.pool === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Internal Dept</button>
+                <button onClick={() => setProctorModal({...proctorModal, pool: 'Global'})} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${isSearching || proctorModal.pool === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>Global System</button>
               </div>
 
               <div className="max-h-80 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
@@ -1435,16 +1445,14 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                   </div>
                 )}
 
-           {filteredList.map((p, idx) => {
+                {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
-                  const normalizedPName = normalizeName(pName); // <-- NEW!
+                  const normalizedPName = normalizeName(pName); 
                   
-                  // CONFLICT OF INTEREST CHECK FOR MANUAL SWAP
                   const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
                   const isTeacherForBlock = blockSubs.some(s => {
                      const yearSubs = subjects[s.year_level] || [];
                      const sub = yearSubs.find(ys => ys.code === s.subject_code);
-                     // <-- UPDATED COMPARISON!
                      return normalizeName(sub?.prof) === normalizedPName; 
                   });
 
@@ -1463,7 +1471,15 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          <span className={`font-black text-xs uppercase ${isTeacherForBlock ? 'text-rose-600 line-through' : 'text-slate-800'}`}>{pName}</span>
+                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForBlock ? 'text-rose-600 line-through' : 'text-slate-800'}`}>
+                            {pName}
+                            {/* --- NEW: Show Department Badge for Global Proctors --- */}
+                            {p.assigned_dept && p.assigned_dept !== deptCode && (
+                               <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
+                                 {p.assigned_dept}
+                               </span>
+                            )}
+                          </span>
                           <div className={`flex items-center gap-1 mt-1 ${isTeacherForBlock ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
                             {isTeacherForBlock ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                             <span className="text-[7px] font-black uppercase tracking-widest">
