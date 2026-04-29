@@ -34,6 +34,14 @@ const normalizeName = (name) => {
     .sort() // Alphabetizes the words (so "James Chua" matches "Chua James")
     .join(' ');
 };
+// --- NEW: ADVANCED PARTIAL NAME MATCHER ---
+const normalizeNameToArray = (name) => {
+  if (!name) return [];
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word && !['prof', 'dr', 'mr', 'ms', 'mrs'].includes(word));
+};
 // --- NEW: SMART SECTION PARSER ---
 // Reads strings like "Kelly (C,D), Smith (A)" and outputs an array of objects
 const parseSubjectProfs = (profString) => {
@@ -354,63 +362,164 @@ const DepartmentCard = ({
         const sectionLetter = String.fromCharCode(65 + s);
         const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-        // --- NEW: EVALUATE CONFLICTS PER-SECTION ---
-        let availableProctors = [];
-        let teacherConflicts = [];
-        let availabilityConflicts = [];
-        let diversityConflicts = []; // <-- NEW: Tracks rotation conflicts
+      const primaryPool = proctorSource === "Department" ? activeDeptProctors : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
+      const fallbackPool = proctorSource === "Department" ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors;
 
-        baseProctorPool.forEach(p => {
-          const normalizedPName = normalizeName(p.full_name || p.name);
-          
-          // 1. Check Conflict of Interest (SECTION-SPECIFIC)
-          const isTeacher = daySubjects.some(sub => {
-              const profList = parseSubjectProfs(sub.prof);
-              return profList.some(profObj => {
-                  const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                  return appliesToThisSection && normalizeName(profObj.name) === normalizedPName;
-              });
-          });
+      for (let s = 0; s < sectionCount; s++) {
+        const sectionLetter = String.fromCharCode(65 + s);
+        const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-          if (isTeacher) {
-            teacherConflicts.push(p.full_name || p.name);
-            return; // Exclude them
-          }
+        // --- NEW: REUSABLE POOL EVALUATOR ---
+        const evaluatePool = (pool, enforceRules = true) => {
+          let available = [];
+          let tConflicts = [];
+          let aConflicts = [];
+          let dConflicts = [];
 
-          // 2. Check Diversity Rule (Cannot proctor the same section twice on different days)
-          const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
-             assign.proctor === (p.full_name || p.name) && 
-             assign.section === sectionID
-          );
-
-          if (hasProctoredThisSectionBefore) {
-             diversityConflicts.push(p.full_name || p.name);
-             return; // Exclude them
-          }
-
-          // 3. Check Logged Availability
-          const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
-          const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
-            assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
-          );
-
-          const hasValidLog = pLogs.some(log => {
-            const safeLogStart = log.start_time.substring(0, 5);
-            const safeLogEnd = log.end_time.substring(0, 5);
-            const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
-
-            const isBurnt = pAssignments.some(assign => {
-              const assignStart = assign.start_time.substring(0, 5);
-              const assignEnd = assign.end_time.substring(0, 5);
-              return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+          pool.forEach(p => {
+            const pArr = normalizeNameToArray(p.full_name || p.name);
+            
+            // 1. Check Conflict of Interest (ADVANCED PARTIAL MATCHING)
+            const isTeacher = daySubjects.some(sub => {
+                const profList = parseSubjectProfs(sub.prof);
+                return profList.some(profObj => {
+                    const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                    const profArr = normalizeNameToArray(profObj.name);
+                    // TRUE if the admin's typed name is found ANYWHERE inside the proctor's official account name
+                    const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w));
+                    return appliesToThisSection && nameMatch;
+                });
             });
 
-            return coversExam && !isBurnt;
+            if (enforceRules && isTeacher) {
+              tConflicts.push(p.full_name || p.name);
+              return; 
+            }
+
+            // 2. Check Diversity Rule
+            const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
+               assign.proctor === (p.full_name || p.name) && assign.section === sectionID
+            );
+
+            if (enforceRules && hasProctoredThisSectionBefore) {
+               dConflicts.push(p.full_name || p.name);
+               return; 
+            }
+
+            // 3. Check Logged Availability
+            const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
+            const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
+              assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
+            );
+
+            const hasValidLog = pLogs.some(log => {
+              const safeLogStart = log.start_time.substring(0, 5);
+              const safeLogEnd = log.end_time.substring(0, 5);
+              const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
+
+              const isBurnt = pAssignments.some(assign => {
+                const assignStart = assign.start_time.substring(0, 5);
+                const assignEnd = assign.end_time.substring(0, 5);
+                return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+              });
+
+              return coversExam && !isBurnt;
+            });
+
+            if (hasValidLog) available.push(p);
+            else aConflicts.push(p.full_name || p.name);
           });
 
-          if (hasValidLog) availableProctors.push(p);
-          else availabilityConflicts.push(p.full_name || p.name);
-        });
+          return { available, tConflicts, aConflicts, dConflicts };
+        };
+
+        let evalResult = evaluatePool(primaryPool, true);
+
+        // --- NEW: AUTO-POOL SWITCHING & EMERGENCY TEACHER OVERRIDE ---
+        if (evalResult.available.length === 0) {
+           const fallbackResult = evaluatePool(fallbackPool, true);
+           
+           if (fallbackResult.available.length > 0) {
+              evalResult = fallbackResult; // Auto-Switch to Global/Department was successful!
+           } else {
+              // BOTH pools exhausted. Let's see if the Subject Teacher can save the day!
+              const desperatePrimary = evaluatePool(primaryPool, false);
+              const desperateFallback = evaluatePool(fallbackPool, false);
+              const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
+              
+              const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
+              const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
+
+              if (availableTeachers.length > 0) {
+                 const teacherName = availableTeachers[0].full_name || availableTeachers[0].name;
+                 const accept = window.confirm(`Both Internal and Global pools are exhausted for Section ${sectionID} on ${dayDate}.\n\nHowever, the Subject Teacher (${teacherName}) is available and has logged time.\n\nYou may try to have the subject teacher (who has to be a proctor too) as the proctor. Accept?`);
+                 
+                 if (accept) {
+                    evalResult.available = [availableTeachers[0]]; // Emergency Override Accepted!
+                 }
+              }
+           }
+        }
+
+        if (availableRooms.length === 0) {
+          errors.push({ 
+            issue: `Room Shortage (Day ${d+1})`, 
+            resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
+          });
+          generationFailed = true;
+        }
+        
+        if (evalResult.available.length === 0) {
+          let issueTitle = `Proctor Shortage (Day ${d+1})`;
+          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
+
+          if (evalResult.tConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.dConflicts.length === 0) {
+            issueTitle = `Conflict of Interest (Day ${d+1})`;
+            resolutionText = `The only available proctors (${evalResult.tConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
+          } else if (evalResult.dConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.tConflicts.length === 0) {
+            issueTitle = `Section Rotation Rule (Day ${d+1})`;
+            resolutionText = `Available proctors (${evalResult.dConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
+          } else if (evalResult.tConflicts.length > 0 || evalResult.dConflicts.length > 0) {
+            issueTitle = `Resource Blocked (Day ${d+1})`;
+            resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
+          } else {
+            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+          }
+
+          errors.push({ issue: issueTitle, resolution: resolutionText });
+          generationFailed = true;
+        }
+
+        if (!generationFailed) {
+          const selectedRoom = availableRooms.shift();
+          const selectedProctor = evalResult.available.shift();
+
+          daySubjects.forEach((sub, idx) => {
+            finalGeneratedData.push({
+              subject_code: sub.code,
+              subject_name: sub.name,
+              section: sectionID,
+              year_level: selectedYear,
+              dept_code: deptCode,
+              exam_date: dayDate,
+              start_time: addHours(startTime, idx),
+              end_time: addHours(startTime, idx + 1),
+              room: selectedRoom.number,
+              proctor: selectedProctor.full_name || selectedProctor.name,
+              original_proctor: selectedProctor.full_name || selectedProctor.name,
+              original_room: selectedRoom.number,
+              original_subject_code: sub.code,
+              status: 'ACTIVE',
+              flagged: false,
+              flagNote: '',
+              isManualProctor: false
+            });
+          });
+        } else {
+          break; 
+        }
+      }
+    
 
         if (availableRooms.length === 0) {
           errors.push({ 
@@ -986,27 +1095,56 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Assigned Professor(s) & Sections</label>
                  </div>
                  
-                 {tempProfs.map((p, idx) => (
-                    <div key={idx} className="flex flex-col md:flex-row gap-3 items-center bg-slate-50 p-3 rounded-2xl">
-                       <input
-                         placeholder="Prof Name (e.g. Jane Doe)"
-                         value={p.name}
-                         onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
-                         className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
-                       />
-                       <input
-                         placeholder="Sections (e.g. A,B) - Leave blank for ALL"
-                         value={p.sections}
-                         onChange={(e) => { const newP = [...tempProfs]; newP[idx].sections = e.target.value; setTempProfs(newP); }}
-                         className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
-                       />
-                       {tempProfs.length > 1 && (
-                         <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
-                           <Trash2 size={18}/>
-                         </button>
+                {tempProfs.map((p, idx) => {
+                    const typedName = p.name.trim();
+                    let matches = [];
+                    // LIVE SEARCH: Use our Smart Engine to find matches as they type
+                    if (typedName.length > 1) {
+                       matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                    }
+
+                    return (
+                    <div key={idx} className="flex flex-col bg-slate-50 p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
+                       <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                         <input
+                           placeholder="Prof Name (e.g. Jane Doe)"
+                           value={p.name}
+                           onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                         />
+                         <input
+                           placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                           value={p.sections}
+                           onChange={(e) => { const newP = [...tempProfs]; newP[idx].sections = e.target.value; setTempProfs(newP); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                         />
+                         {tempProfs.length > 1 && (
+                           <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                             <Trash2 size={18}/>
+                           </button>
+                         )}
+                       </div>
+                       
+                       {/* --- NEW: LIVE NAME VALIDATOR UI --- */}
+                       {typedName.length > 1 && (
+                         <div className="mt-3 px-2 flex items-center">
+                            {matches.length === 0 ? (
+                               <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                                 <Info size={12}/> External Teacher (No system account found)
+                               </span>
+                            ) : matches.length === 1 ? (
+                               <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                                 <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                               </span>
+                            ) : (
+                               <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                 <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                               </span>
+                            )}
+                         </div>
                        )}
                     </div>
-                 ))}
+                 )})}
                  
                  <button onClick={() => setTempProfs([...tempProfs, { name: '', sections: '' }])} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
                     <Plus size={14}/> Add Co-Teacher
@@ -1561,22 +1699,24 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   </div>
                 )}
 
-                {filteredList.map((p, idx) => {
+               {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
-                  const normalizedPName = normalizeName(pName); 
+                  const pArr = normalizeNameToArray(pName); // <-- UPGRADED!
                   
                   const blockSubs = localSchedule.filter(s => s.section === t.section && s.exam_date === (t.date || t.exam_date));
-                 const isTeacherForBlock = blockSubs.some(s => {
+                  const isTeacherForBlock = blockSubs.some(s => {
                      const yearSubs = subjects[s.year_level] || [];
                      const sub = yearSubs.find(ys => ys.code === s.subject_code);
                      if (!sub) return false;
                      
                      const profList = parseSubjectProfs(sub?.prof);
-                     const sectionLetter = t.section.slice(-1); // Extracts "A" from "CS1A"
+                     const sectionLetter = t.section.slice(-1);
                      
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         return appliesToThisSection && normalizeName(profObj.name) === normalizedPName;
+                         const profArr = normalizeNameToArray(profObj.name); // <-- UPGRADED!
+                         const nameMatch = profArr.length > 0 && profArr.every(w => pArr.includes(w)); // <-- UPGRADED!
+                         return appliesToThisSection && nameMatch;
                      });
                   });
 
