@@ -1438,18 +1438,38 @@ function App() {
   async function handleDepartmentUpdate(actionType, payload) {
     if (['manual_override', 'lock_and_save', 'schedule_sync'].includes(actionType)) {
       if (!Array.isArray(payload) || payload.length === 0) return false;
-      const dataToSync = payload.map(item => {
+      
+      const itemsToUpdate = [];
+      const itemsToInsert = [];
+
+      payload.forEach(item => {
         const { hasConflict, conflictType, ...validData } = item;
         if (validData.id && String(validData.id).includes('temp')) delete validData.id;
         if (validData.tempId) delete validData.tempId;
-        return { ...validData, year_level: String(validData.year_level), flagged: Boolean(validData.flagged ?? false), isManualProctor: Boolean(validData.isManualProctor ?? false), original_proctor: validData.original_proctor || validData.proctor };
+        
+        const cleanItem = { 
+            ...validData, 
+            year_level: String(validData.year_level), 
+            flagged: Boolean(validData.flagged ?? false), 
+            isManualProctor: Boolean(validData.isManualProctor ?? false), 
+            original_proctor: validData.original_proctor || validData.proctor 
+        };
+        
+        // --- NEW: BULLETPROOF ROUTING ---
+        if (cleanItem.id) itemsToUpdate.push(cleanItem);
+        else itemsToInsert.push(cleanItem);
       });
-      await supabase.from('schedules').upsert(dataToSync, { onConflict: 'id' });
+
+      // Safely route to the correct Supabase function to prevent Schema crashes
+      if (itemsToUpdate.length > 0) await supabase.from('schedules').upsert(itemsToUpdate, { onConflict: 'id' });
+      if (itemsToInsert.length > 0) await supabase.from('schedules').insert(itemsToInsert);
+
       const dCode = payload[0]?.dept_code || profile?.assigned_dept || 'Unknown';
       await sendNotification(null, 'HEAD_ADMIN', null, `Master Schedule: ${actionType.replace(/_/g, ' ')}`, `Department ${dCode} applied manual overrides/locks to the timeline.`, 'warning');
       await fetchAllData(false);
       return true;
     }
+    
     if (['proctors', 'rooms', 'subjects'].includes(actionType)) {
       if (!payload?.id) return false;
       await supabase.from('departments').update({ [actionType]: payload[actionType] }).eq('id', payload.id);
