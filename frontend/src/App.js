@@ -1940,11 +1940,17 @@ function App() {
                       allProfiles={allProfiles}
                       allDepartments={departments} onUpdate={handleDepartmentUpdate}
                       onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
-                      onClearSchedule={async (dCode, yLevel) => {
-                        if (window.confirm(`Clear schedules?`)) {
-                          await supabase.from('schedules').delete().eq('dept_code', dCode).eq('year_level', String(yLevel));
-                          await fetchAllData(false);
-                        }
+                     onClearSchedule={(dCode, yLevel) => {
+                        setConfirmModal({
+                          isOpen: true,
+                          title: `Wipe Year ${yLevel} Draft?`,
+                          text: `This will permanently delete all generated schedules for Year ${yLevel}.`,
+                          action: async () => {
+                            await supabase.from('schedules').delete().eq('dept_code', dCode).eq('year_level', String(yLevel));
+                            await fetchAllData(false);
+                            setAppToast({ message: `Year ${yLevel} draft cleared.`, type: "success" });
+                          }
+                        });
                       }}
                       globalSchedule={globalSchedule}
                       onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
