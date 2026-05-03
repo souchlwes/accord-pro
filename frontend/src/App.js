@@ -746,7 +746,7 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile }) => {
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   // --- NEW: SEPARATE PENDING REQUESTS FROM CONFIRMED ASSIGNMENTS ---
@@ -903,9 +903,14 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
         </div>
 
         <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
-          <div className="text-left md:text-right mr-auto md:mr-4">
+         <div className="text-left md:text-right mr-auto md:mr-4">
             <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
-            <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
+            <div className="flex items-center gap-2 justify-start md:justify-end">
+                <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
+                <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1.5 rounded-lg transition-all" title="Edit Profile">
+                   <Edit2 size={12} />
+                </button>
+            </div>
             {profile?.assigned_dept && <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">{profile.assigned_dept} DEPARTMENT</p>}
           </div>
           
@@ -1788,6 +1793,7 @@ function App() {
         globalAvailability={globalAvailability} 
         isViewMode={true}
         onCloseView={() => setViewingProctor(null)}
+        onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
       />
     );
   }
@@ -1810,6 +1816,7 @@ function App() {
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
           onAcceptAssignment={handleAcceptAssignment}
+          onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
           
           // --- NEW PROPS PASSED HERE ---
           allProfiles={allProfiles}
