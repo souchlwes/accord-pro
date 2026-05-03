@@ -87,7 +87,8 @@ const DepartmentCard = ({
   allProfiles = [],
   globalAvailability = [], 
   role,
-  onNotify
+  onNotify,
+  onEditProctor
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
   const [generationErrors, setGenerationErrors] = useState([]);
@@ -1138,12 +1139,21 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       <span className="text-slate-400 font-bold text-[9px] uppercase tracking-widest flex items-center gap-1 mt-1"><Users size={10}/> Prof. {s.prof}</span>
                     </div>
                   </div>
-                  <button onClick={() => {
-                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
-                    showToast(`Removed ${s.code}`);
-                  }}>
-                    <Trash2 size={18} className="text-slate-200 group-hover:text-rose-500 transition-colors" />
-                  </button>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => {
+                        const parsedProfs = parseSubjectProfs(s.prof).map(p => ({ name: p.name, sections: p.sections.join(',') }));
+                        if (parsedProfs.length === 0) parsedProfs.push({name: '', sections: ''});
+                        setEditSubjectModal({ isOpen: true, originalCode: s.code, year: selectedYear, code: s.code, name: s.name, tempProfs: parsedProfs });
+                    }} className="p-2 bg-white border border-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Edit Subject & Teachers">
+                      <Edit3 size={16} />
+                    </button>
+                    <button onClick={() => {
+                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
+                      showToast(`Removed ${s.code}`);
+                    }} className="p-2 bg-white border border-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors shadow-sm" title="Delete Subject">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1163,7 +1173,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                 const logs = globalAvailability.filter(a => a.proctor_id === p.id);
                 return (
                   <div key={p.id} className="p-8 border-2 border-slate-50 rounded-[3rem] bg-white hover:border-emerald-100 shadow-sm transition-all group">
-                    <div className="flex justify-between items-start mb-6">
+                  <div className="flex justify-between items-start mb-6">
                       <div>
                         <p className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">
                           <Users size={16} className="text-emerald-500"/> {p.full_name}
@@ -1171,8 +1181,13 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest mt-1 block">Account Verified</span>
                       </div>
                       
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${logs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
-                        {logs.length > 0 ? `${logs.length} Slots Available` : 'Waiting for Logs'}
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => onEditProctor && onEditProctor(p)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-emerald-100" title="Edit Proctor Details">
+                          <Edit3 size={16}/>
+                        </button>
+                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${logs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                          {logs.length > 0 ? `${logs.length} Slots Available` : 'Waiting for Logs'}
+                        </div>
                       </div>
                     </div>
 
