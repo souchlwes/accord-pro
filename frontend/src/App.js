@@ -1784,19 +1784,58 @@ function App() {
     );
   }
 
-  if (viewingProctor) {
+   if (viewingProctor) {
     return (
-      <ProctorDashboard 
-        profile={viewingProctor} 
-        globalSchedule={globalSchedule} 
-        allExamDates={allExamDates} 
-        globalAvailability={globalAvailability} 
-        isViewMode={true}
-        onCloseView={() => setViewingProctor(null)}
-        onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
-      />
+      <>
+        <ProctorDashboard 
+          profile={viewingProctor} 
+          globalSchedule={globalSchedule} 
+          allExamDates={allExamDates} 
+          globalAvailability={globalAvailability} 
+          isViewMode={true}
+          onCloseView={() => setViewingProctor(null)}
+          onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
+        />
+        
+        {/* --- INJECTED EDIT STAFF MODAL --- */}
+        {editStaffModal.isOpen && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-indigo-600 mb-6">
+                <Edit2 size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Staff</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update profile details</p>
+                </div>
+              </div>
+              <form onSubmit={executeEditStaff} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                  <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
+                </div>
+                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+                  <option value="PROCTOR">Proctor</option>
+                  <option value="DEPT_ADMIN">Department Head</option>
+                  <option value="HEAD_ADMIN">Global Head Admin</option>
+                </select>
+                 {editStaffModal.role !== 'HEAD_ADMIN' && (
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
+                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                  </div>
+                )}
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
+  
 
   if (isProctor) {
     return (
@@ -1817,17 +1856,60 @@ function App() {
           onDeclineAssignment={handleDeclineAssignment}
           onAcceptAssignment={handleAcceptAssignment}
           onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
-          
-          // --- NEW PROPS PASSED HERE ---
           allProfiles={allProfiles}
           onViewProctor={(p) => setViewingProctor(p)}
-          // -----------------------------
         />
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
         {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+        
+        {/* --- INJECTED EDIT STAFF MODAL --- */}
+        {editStaffModal.isOpen && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-indigo-600 mb-6">
+                <Edit2 size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Staff</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update profile details</p>
+                </div>
+              </div>
+              <form onSubmit={executeEditStaff} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                  <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
+                </div>
+                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+                  <option value="PROCTOR">Proctor</option>
+                  <option value="DEPT_ADMIN">Department Head</option>
+                  <option value="HEAD_ADMIN">Global Head Admin</option>
+                </select>
+                 {editStaffModal.role !== 'HEAD_ADMIN' && (
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
+                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                  </div>
+                )}
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- GLOBAL APP TOAST (For Save Confirmation) --- */}
+        {appToast && (
+          <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[600] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+            {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
+            <span>{appToast.message}</span>
+            <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+          </div>
+        )}
       </>
     );
+  }
   }
   
 
@@ -2195,6 +2277,6 @@ function App() {
       </main>
     </div>
   );
-}
+
 
 export default App;
