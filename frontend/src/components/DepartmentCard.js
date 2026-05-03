@@ -1919,25 +1919,56 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Assigned Professor(s) & Sections</label>
-                  {editSubjectModal.tempProfs.map((p, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                         <input
-                           placeholder="Prof Name" value={p.name}
-                           onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
-                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
-                         />
-                         <input
-                           placeholder="Sections (e.g. A,B)" value={p.sections}
-                           onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].sections = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
-                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
-                         />
-                         {editSubjectModal.tempProfs.length > 1 && (
-                           <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:bg-rose-50 rounded-xl transition-all">
-                             <Trash2 size={18}/>
-                           </button>
+                 {editSubjectModal.tempProfs.map((p, idx) => {
+                      const typedName = p.name.trim();
+                      let matches = [];
+                      // LIVE SEARCH: Use our Smart Engine to find matches as they type
+                      if (typedName.length > 1) {
+                         matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                      }
+
+                      return (
+                      <div key={idx} className="flex flex-col bg-white p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
+                         <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                           <input
+                             placeholder="Prof Name (e.g. Jane Doe)"
+                             value={p.name}
+                             onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                             className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                           />
+                           <input
+                             placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                             value={p.sections}
+                             onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].sections = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                             className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                           />
+                           {editSubjectModal.tempProfs.length > 1 && (
+                             <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                               <Trash2 size={18}/>
+                             </button>
+                           )}
+                         </div>
+                         
+                         {/* --- NEW: LIVE NAME VALIDATOR UI FOR EDIT MODAL --- */}
+                         {typedName.length > 1 && (
+                           <div className="mt-3 px-2 flex items-center">
+                              {matches.length === 0 ? (
+                                 <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                                   <Info size={12}/> External Teacher (No system account found)
+                                 </span>
+                              ) : matches.length === 1 ? (
+                                 <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                                   <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                                 </span>
+                              ) : (
+                                 <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                   <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                                 </span>
+                              )}
+                           </div>
                          )}
                       </div>
-                  ))}
+                  )})}
                   <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: [...editSubjectModal.tempProfs, { name: '', sections: '' }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
                       <Plus size={14}/> Add Co-Teacher
                   </button>
