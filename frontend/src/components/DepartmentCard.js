@@ -506,7 +506,17 @@ for (let d = 0; d < examDays; d++) {
           generationFailed = true;
         }
 
-        if (!generationFailed) {
+      if (!generationFailed) {
+          // --- NEW: EQUAL WORKLOAD DISTRIBUTION ALGORITHM ---
+          // Sorts the available proctors so the person with the LEAST assignments gets picked first!
+          evalResult.available.sort((a, b) => {
+             const aName = a.full_name || a.name;
+             const bName = b.full_name || b.name;
+             const aCount = finalGeneratedData.filter(s => s.proctor === aName).length;
+             const bCount = finalGeneratedData.filter(s => s.proctor === bName).length;
+             return aCount - bCount; 
+          });
+
           const selectedRoom = availableRooms.shift();
           const selectedProctor = evalResult.available.shift();
 
