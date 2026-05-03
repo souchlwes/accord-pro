@@ -1956,6 +1956,7 @@ function App() {
                       allDepartments={departments} onUpdate={handleDepartmentUpdate}
                       onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
                       onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
+                      onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
                      onClearSchedule={(dCode, yLevel) => {
                         setConfirmModal({
                           isOpen: true,
