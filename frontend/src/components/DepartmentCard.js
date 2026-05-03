@@ -80,6 +80,7 @@ const DepartmentCard = ({
   onUpdate,
   onGenerate,
   onDeleteDept,
+  onEditDept,
   onClearSchedule,
   globalSchedule = [],
   allDepartments = [],
@@ -116,6 +117,8 @@ const DepartmentCard = ({
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
   const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
   const [emergencyModal, setEmergencyModal] = useState({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
+  const [editSubjectModal, setEditSubjectModal] = useState({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+  const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
    // ENHANCEMENT: Sync initial preview AND respond to external updates safely
@@ -972,8 +975,11 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         <div className="relative z-10">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">      
             <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
+            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+              <Edit3 size={20} />
+            </button>
             <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
               <Trash2 size={20} />
             </button>
@@ -1203,7 +1209,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
           </div>
         )}
 
-        {/* ROOMS TAB */}
+       {/* ROOMS TAB */}
         {activeTab === 'rooms' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
             <div className="flex flex-col md:flex-row gap-4 bg-amber-50/50 p-8 rounded-[3rem] border border-amber-100 shadow-inner">
@@ -1224,15 +1230,24 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                 Add Room
               </button>
             </div>
+            
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {rooms.map(r => (
                 <div key={r.id} className="p-8 bg-white border-2 border-slate-50 rounded-[3rem] text-center relative group shadow-sm hover:border-amber-200 transition-all">
                   <span className="font-black text-2xl text-slate-800 tracking-tighter">{r.number}</span>
                   <span className={`block text-[8px] font-black uppercase mt-2 tracking-widest ${r.type === 'Global' ? 'text-blue-500' : 'text-amber-500'}`}>{r.type} Source</span>
-                  <button className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-rose-500 transition-opacity" onClick={() => {
-                    onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
-                    showToast(`Room ${r.number} removed.`);
-                  }}><Trash2 size={16}/></button>
+                  
+                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                    <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" onClick={() => setEditRoomModal({ isOpen: true, id: r.id, number: r.number, type: r.type })}>
+                      <Edit3 size={14}/>
+                    </button>
+                    <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" onClick={() => {
+                      onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
+                      showToast(`Room ${r.number} removed.`);
+                    }}>
+                      <Trash2 size={14}/>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1838,6 +1853,101 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             }} className="w-full p-5 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 transition-colors">
               Halt Generation
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT ROOM MODAL --- */}
+      {editRoomModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl">
+            <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6 flex items-center gap-3"><DoorOpen className="text-amber-500"/> Edit Room</h3>
+            <div className="space-y-4 mb-6">
+              <input value={editRoomModal.number} onChange={e => setEditRoomModal({...editRoomModal, number: e.target.value})} placeholder="Room Number" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 transition-all uppercase" />
+              <select value={editRoomModal.type} onChange={e => setEditRoomModal({...editRoomModal, type: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-amber-500 transition-all cursor-pointer appearance-none uppercase">
+                <option value="Department">Internal Resource</option>
+                <option value="Global">Global Pool</option>
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                 if (editRoomModal.number) {
+                    const updatedRooms = rooms.map(r => r.id === editRoomModal.id ? { ...r, number: editRoomModal.number.toUpperCase(), type: editRoomModal.type } : r);
+                    onUpdate('rooms', { ...dept, rooms: updatedRooms });
+                    showToast(`Room updated successfully.`);
+                    setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department' });
+                 }
+              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT SUBJECT MODAL --- */}
+      {editSubjectModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-xl p-8 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-2 flex items-center gap-3"><BookOpen className="text-blue-600"/> Edit Subject (Year {editSubjectModal.year})</h3>
+            
+            <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 mb-6 space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Subject Code</label>
+                    <input value={editSubjectModal.code} onChange={e => setEditSubjectModal({...editSubjectModal, code: e.target.value})} placeholder="e.g. CS101" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Description</label>
+                    <input value={editSubjectModal.name} onChange={e => setEditSubjectModal({...editSubjectModal, name: e.target.value})} placeholder="Full Name" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Assigned Professor(s) & Sections</label>
+                  {editSubjectModal.tempProfs.map((p, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                         <input
+                           placeholder="Prof Name" value={p.name}
+                           onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                         />
+                         <input
+                           placeholder="Sections (e.g. A,B)" value={p.sections}
+                           onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].sections = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                         />
+                         {editSubjectModal.tempProfs.length > 1 && (
+                           <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:bg-rose-50 rounded-xl transition-all">
+                             <Trash2 size={18}/>
+                           </button>
+                         )}
+                      </div>
+                  ))}
+                  <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: [...editSubjectModal.tempProfs, { name: '', sections: '' }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
+                      <Plus size={14}/> Add Co-Teacher
+                  </button>
+                </div>
+            </div>
+
+            <div className="flex gap-4 pt-4 border-t-2 border-slate-50">
+              <button onClick={() => setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                  const validProfs = editSubjectModal.tempProfs.filter(p => p.name.trim() !== '');
+                  if (validProfs.length === 0) return showToast("Add at least one professor.", "error");
+                  if (!editSubjectModal.code || !editSubjectModal.name) return showToast("Fill all details.", "error");
+
+                  const compiledProfString = validProfs.map(p => p.sections.trim() ? `${p.name.trim()} (${p.sections.trim().toUpperCase()})` : p.name.trim()).join(', ');
+                  const yearSubs = [...(subjects[editSubjectModal.year] || [])];
+                  const subIndex = yearSubs.findIndex(s => s.code === editSubjectModal.originalCode);
+                  
+                  if (subIndex !== -1) {
+                      yearSubs[subIndex] = { code: editSubjectModal.code.toUpperCase(), name: editSubjectModal.name, prof: compiledProfString };
+                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [editSubjectModal.year]: yearSubs } });
+                      showToast(`Subject updated successfully.`);
+                      setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+                  }
+              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Subject</button>
+            </div>
           </div>
         </div>
       )}
