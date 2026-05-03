@@ -432,7 +432,7 @@ const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
 };
 
 // --- 1. USER REGISTRY COMPONENT ---
-const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onApprove, currentRole, currentUserDept, onView }) => {
+const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onEdit, onApprove, currentRole, currentUserDept, onView }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const isHead = currentRole === 'HEAD_ADMIN';
 
@@ -526,6 +526,9 @@ const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onApprove, curren
                       
                       {(isHead || p.assigned_dept === currentUserDept) && (
                         <>
+                          <button onClick={() => onEdit(p)} className="p-3 bg-white hover:bg-indigo-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="Edit Account Details">
+                            <Edit2 size={16} />
+                          </button>
                           <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title={p.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}>
                             <Lock size={16} />
                           </button>
@@ -1119,6 +1122,8 @@ function App() {
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
   const [appToast, setAppToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
+  const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
+  const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
 
   // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
@@ -1372,6 +1377,26 @@ function App() {
       setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
       fetchProfiles();
     }
+  };
+
+  const executeEditStaff = async (e) => {
+    e.preventDefault();
+    const { id, name, role, dept } = editStaffModal;
+    await supabase.from('profiles').update({ 
+      full_name: name, role, assigned_dept: role === 'HEAD_ADMIN' ? null : dept.toUpperCase() 
+    }).eq('id', id);
+    setAppToast({ message: "Staff profile successfully updated.", type: "success" });
+    setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' });
+    fetchProfiles();
+  };
+
+  const executeEditDept = async (e) => {
+    e.preventDefault();
+    const { id, name, code } = editDeptModal;
+    await supabase.from('departments').update({ name, code: code.toUpperCase() }).eq('id', id);
+    setAppToast({ message: "Department successfully updated.", type: "success" });
+    setEditDeptModal({ isOpen: false, id: '', name: '', code: '' });
+    fetchAllData(false);
   };
 
   const handleBlockUser = async (id, currentStatus) => {
@@ -1738,48 +1763,18 @@ function App() {
     );
   }
 
-  // --- EMERGENCY REPAIR SCREEN ---
+ // --- SECURE ACCESS DENIED SCREEN ---
   if (!profile && !loading) {
-    const forceRepairProfile = async (role, deptCode) => {
-       const { error } = await supabase.from('profiles').upsert([{
-          id: session.user.id,
-          full_name: session.user.email.split('@')[0].toUpperCase(),
-          role: role,
-          assigned_dept: role === 'HEAD_ADMIN' ? null : deptCode?.toUpperCase(),
-          status: 'ACTIVE'
-       }]);
-       
-       if (error) {
-          alert("CRITICAL ERROR: Supabase is blocking this write. Go to Supabase -> Table Editor -> profiles -> Disable RLS.");
-       } else {
-          window.location.reload();
-       }
-    };
-
     return (
-       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 md:p-6 flex-col">
-          <div className="bg-white p-8 md:p-12 rounded-3xl md:rounded-[3rem] max-w-[90%] md:max-w-md w-full shadow-2xl text-center animate-in fade-in zoom-in duration-500">
-             <AlertOctagon className="mx-auto text-rose-500 mb-6" size={48} />
-             <h2 className="text-xl md:text-2xl font-black uppercase text-slate-900 mb-2">Profile Disconnected</h2>
-             <p className="text-[10px] md:text-xs text-slate-500 mb-8 font-bold leading-relaxed">Your database lost the link to your role. Use this emergency override to force your account back into the system.</p>
-             
-             <select id="repairRole" className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl mb-4 text-xs font-black uppercase border-2 border-slate-100 outline-none focus:border-blue-500">
-               <option value="HEAD_ADMIN">Head Admin</option>
-               <option value="DEPT_ADMIN">Department Head</option>
-               <option value="PROCTOR">Proctor</option>
-             </select>
-             
-             <input id="repairDept" placeholder="Dept Code (Leave blank if Head Admin)" className="w-full bg-slate-50 p-4 md:p-5 rounded-2xl mb-6 md:mb-8 text-xs font-black uppercase border-2 border-slate-100 outline-none focus:border-blue-500" />
-             
-             <button onClick={() => {
-                const r = document.getElementById('repairRole').value;
-                const d = document.getElementById('repairDept').value;
-                forceRepairProfile(r, d);
-             }} className="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 md:p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
-               Force Connection
-             </button>
-             <button onClick={handleHardReset} className="w-full mt-4 md:mt-6 text-slate-400 p-2 font-black uppercase text-[9px] hover:text-rose-500 transition-all">Log Out</button>
-          </div>
+       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 text-center animate-in fade-in zoom-in duration-500">
+          <AlertOctagon className="mx-auto text-rose-500 mb-6" size={64} />
+          <h2 className="text-3xl md:text-4xl font-black uppercase text-white tracking-tighter mb-2">Access Denied</h2>
+          <p className="text-[10px] md:text-xs text-slate-400 mb-8 font-bold leading-relaxed max-w-md uppercase tracking-widest">
+            Your account profile could not be found or has been deleted from the system. If you believe this is an error, please contact your Head Administrator.
+          </p>
+          <button onClick={handleHardReset} className="bg-rose-600 hover:bg-rose-500 text-white px-10 py-4 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
+            Return to Login
+          </button>
        </div>
     );
   }
@@ -1960,6 +1955,7 @@ function App() {
                       allProfiles={allProfiles}
                       allDepartments={departments} onUpdate={handleDepartmentUpdate}
                       onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
+                      onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
                      onClearSchedule={(dCode, yLevel) => {
                         setConfirmModal({
                           isOpen: true,
@@ -2014,6 +2010,7 @@ function App() {
                   onBlock={handleBlockUser}
                   onDelete={handleDeleteUser}
                   onApprove={handleApproveUser}
+                  onEdit={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
                   currentRole={safeRole}
                   currentUserDept={profile?.assigned_dept}
                   onView={(proctorData) => setViewingProctor(proctorData)}
@@ -2089,7 +2086,7 @@ function App() {
           </div>
         </div>
       )}
-      {/* --- ADD DEPARTMENT MODAL --- */}
+    {/* --- ADD DEPARTMENT MODAL --- */}
       {deptModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
@@ -2121,10 +2118,75 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* --- EDIT STAFF MODAL --- */}
+      {editStaffModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-indigo-600 mb-6">
+              <Edit2 size={32} />
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Staff</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update profile details</p>
+              </div>
+            </div>
+            <form onSubmit={executeEditStaff} className="space-y-4 mb-2">
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
+              </div>
+              <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+                <option value="PROCTOR">Proctor</option>
+                <option value="DEPT_ADMIN">Department Head</option>
+                <option value="HEAD_ADMIN">Global Head Admin</option>
+              </select>
+               {editStaffModal.role !== 'HEAD_ADMIN' && (
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
+                  <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                </div>
+              )}
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT DEPARTMENT MODAL --- */}
+      {editDeptModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-blue-600 mb-6">
+              <Layers size={32} />
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Workspace</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update department details</p>
+              </div>
+            </div>
+            <form onSubmit={executeEditDept} className="space-y-4 mb-2">
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                <input required type="text" value={editDeptModal.name} onChange={e=>setEditDeptModal({...editDeptModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+              </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                <input required type="text" value={editDeptModal.code} onChange={e=>setEditDeptModal({...editDeptModal, code: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setEditDeptModal({ isOpen: false, id: '', name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );
 }
 
 export default App;
-     
