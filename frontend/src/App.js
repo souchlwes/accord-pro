@@ -397,7 +397,7 @@ const HelpCenter = ({ role, onClose }) => {
 };
 
 // --- NOTIFICATION PANEL (ACCORD STYLED) ---
-const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
+const NotificationPanel = ({ notifications, onClose, onNotificationClick }) => {
   const unread = notifications.filter(n => !n.is_read).length;
   
   return (
@@ -414,7 +414,7 @@ const NotificationPanel = ({ notifications, onClose, onMarkRead }) => {
       <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
         {notifications.length === 0 && <div className="text-center py-20 text-slate-400 font-black uppercase text-xs tracking-widest">System Quiet</div>}
         {notifications.map(n => (
-          <div key={n.id} onClick={() => onMarkRead(n.id)} className={`p-5 md:p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${n.is_read ? 'bg-white border-slate-100 opacity-60' : n.type === 'urgent' ? 'bg-rose-50 border-rose-200 shadow-md hover:border-rose-400 hover:shadow-lg' : 'bg-white border-blue-200 shadow-lg hover:border-blue-400'}`}>
+          <div key={n.id} onClick={() => onNotificationClick(n)} className={`p-5 md:p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${n.is_read ? 'bg-white border-slate-100 opacity-60' : n.type === 'urgent' ? 'bg-rose-50 border-rose-200 shadow-md hover:border-rose-400 hover:shadow-lg' : 'bg-white border-blue-200 shadow-lg hover:border-blue-400 hover:-translate-y-1'}`}>
             <div className="flex justify-between items-start mb-3">
                <h4 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${n.type === 'urgent' ? 'text-rose-600' : 'text-blue-600'}`}>
                  {n.type === 'urgent' && <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"/>}
@@ -1181,6 +1181,41 @@ function App() {
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
+  // --- NEW: SMART NOTIFICATION ROUTER ---
+  const handleNotificationClick = async (notification) => {
+    // 1. Mark as read in the database
+    await markNotificationRead(notification.id);
+    
+    // 2. Update local state immediately so the red dot clears
+    setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
+    
+    // 3. Close the panel
+    setShowNotifications(false);
+
+    const titleStr = (notification.title || "").toLowerCase();
+
+    // ROUTE A: Chat & Communications
+    if (titleStr.includes('dm') || titleStr.includes('reply') || titleStr.includes('announcement')) {
+      setShowChat(true);
+      return;
+    }
+
+    // ROUTE B: User Registry (Approvals & Creations)
+    if (titleStr.includes('account') || (titleStr.includes('request') && (titleStr.includes('admin') || titleStr.includes('proctor') && !titleStr.includes('assignment')))) {
+      setActiveTab('users');
+      return;
+    }
+
+    // ROUTE C: Dashboard & Department Specific 
+    // Covers Assignments, Flags, Generation, Availability
+    setActiveTab('dashboard');
+    if (notification.target_dept) {
+       const targetDept = departments.find(d => d.code === notification.target_dept);
+       if (targetDept) {
+          setActiveDeptId(targetDept.id);
+       }
+    }
+  };
 
   const fetchNotifications = async () => {
     if (!profile) return;
@@ -1892,7 +1927,7 @@ function App() {
           allProfiles={allProfiles}
           onViewProctor={(p) => setViewingProctor(p)}
         />
-        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+{showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
         {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
         
@@ -1950,7 +1985,7 @@ function App() {
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
       
      {/* GLOBAL OVERLAYS */}
-      {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkRead={markNotificationRead} />}
+{showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
       {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
 
