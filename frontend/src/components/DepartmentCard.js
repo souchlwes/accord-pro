@@ -982,39 +982,39 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-   {/* HEADER SECTION */}
-      <div className="bg-white p-8 md:p-10 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center relative">
-        <div className="relative z-10 mb-6 md:mb-0">
+      {/* HEADER SECTION */}
+      <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
+        <div className="relative z-10">
           <div className="flex items-center gap-4">      
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none">{deptName}</h2>
-            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="text-slate-400 hover:bg-slate-100 hover:text-blue-600 p-2 rounded-lg transition-all" title="Edit Workspace">
-              <Edit3 size={18} />
+            <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
+            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+              <Edit3 size={20} />
             </button>
-            <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="text-slate-400 hover:bg-rose-50 hover:text-rose-600 p-2 rounded-lg transition-all">
-              <Trash2 size={18} />
+            <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
+              <Trash2 size={20} />
             </button>
           </div>
-          <p className="text-slate-500 text-xs font-medium mt-2 flex items-center gap-2">
-            <Settings2 size={14}/> Department Workspace
+          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] mt-3 flex items-center gap-2">
+            <Settings2 size={12}/> Departmental Workspace Engine
           </p>
         </div>
-        
         <div className="flex gap-4 relative z-10">
-          <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center min-w-[100px]">
-            <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Proctors</span>
-            <span className="text-xl font-bold text-slate-900">{activeDeptProctors.length}</span>
+          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
+            <span className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Proctor</span>
+            <span className="text-2xl font-black">{activeDeptProctors.length}</span>
           </div>
-          <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center min-w-[100px]">
-            <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Rooms</span>
-            <span className="text-xl font-bold text-slate-900">{rooms.length}</span>
+          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
+            <span className="block text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Rooms</span>
+            <span className="text-2xl font-black">{rooms.length}</span>
           </div>
         </div>
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="flex bg-slate-50/50 p-2 gap-2 border-b border-slate-100">
+      <div className="flex bg-slate-50/50 p-3 gap-2 border-b border-slate-100">
         {['subjects', 'proctors', 'rooms', 'generate', 'preview'].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-xs font-medium capitalize rounded-xl transition-all duration-200 ${activeTab === t ? 'bg-white shadow-sm text-blue-600 border border-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>
+          <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === t ? 'bg-white shadow-xl text-blue-600 scale-[1.02] border border-slate-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>
             {t} {t === 'preview' && consolidatedPreview.length > 0 && `(${consolidatedPreview.length})`}
           </button>
         ))}
@@ -1429,36 +1429,47 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Section Grid Summary</p>
                       </div>
                     </div>
-                    <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-900 text-white">
-                            <th className="p-5 text-[9px] font-black uppercase">Section</th>
-                            <th className="p-5 text-[9px] font-black uppercase">Room</th>
-                            <th className="p-5 text-[9px] font-black uppercase">Subjects & Proctors</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tablesByYearAndDay[year][date].map((row, idx) => (
-                            <tr key={idx} className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors">
-                              <td className="p-5 font-black text-xs text-blue-600">{row.section}</td>
-                              <td className="p-5 font-black text-[10px] text-slate-800 uppercase italic">{row.room}</td>
-                              <td className="p-5">
-                                {row.subs.map((s, si) => (
-                                  <div key={si} className={`mb-2 last:mb-0 flex justify-between items-center bg-slate-50 p-2 rounded-xl ${s.flagged ? 'border border-orange-300 bg-orange-50' : ''}`}>
-                                    <div>
-                                      <span className="text-[10px] font-black text-slate-900 uppercase mr-2">{s.code}</span>
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase italic leading-none">{s.slot}</span>
-                                    </div>
-                                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>{s.proctor}</span>
+             <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                      {/* Desktop Header (Hidden on Mobile) */}
+                      <div className="hidden md:grid grid-cols-[15%_25%_60%] bg-slate-900 text-white">
+                        <div className="p-5 text-[9px] font-black uppercase">Section</div>
+                        <div className="p-5 text-[9px] font-black uppercase">Room</div>
+                        <div className="p-5 text-[9px] font-black uppercase">Subjects & Proctors</div>
+                      </div>
+                      
+                      <div className="flex flex-col">
+                        {tablesByYearAndDay[year][date].map((row, idx) => (
+                          <div key={idx} className="flex flex-col md:grid md:grid-cols-[15%_25%_60%] border-b border-slate-100 hover:bg-blue-50/50 transition-colors p-4 md:p-0">
+                            
+                            {/* Mobile Label & Section */}
+                            <div className="md:p-5 flex justify-between md:block items-center mb-2 md:mb-0">
+                               <span className="md:hidden text-[9px] font-black text-slate-400 uppercase">Section</span>
+                               <span className="font-black text-sm md:text-xs text-blue-600">{row.section}</span>
+                            </div>
+                            
+                            {/* Mobile Label & Room */}
+                            <div className="md:p-5 flex justify-between md:block items-center mb-4 md:mb-0 pb-4 md:pb-0 border-b md:border-none border-slate-100">
+                               <span className="md:hidden text-[9px] font-black text-slate-400 uppercase">Assigned Room</span>
+                               <span className="font-black text-[10px] text-slate-800 uppercase italic bg-slate-100 md:bg-transparent px-3 py-1 md:p-0 rounded-lg">{row.room}</span>
+                            </div>
+                            
+                            {/* Subjects List */}
+                            <div className="md:p-5">
+                              {row.subs.map((s, si) => (
+                                <div key={si} className={`mb-2 last:mb-0 flex justify-between items-center bg-slate-50 p-3 md:p-2 rounded-xl ${s.flagged ? 'border border-orange-300 bg-orange-50' : ''}`}>
+                                  <div>
+                                    <span className="text-[10px] font-black text-slate-900 uppercase mr-2">{s.code}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase italic leading-none block md:inline mt-1 md:mt-0">{s.slot}</span>
                                   </div>
-                                ))}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>{s.proctor}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                          </div>
+                        ))}
+                      </div>
+                    </div>     
                   </div>
                 ))}
               </div>
