@@ -2040,7 +2040,7 @@ function App() {
           </div>
         ) : (
           <>
-            {activeTab === "dashboard" ? (
+           {activeTab === "dashboard" ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-16 md:px-6 gap-4 md:gap-0">
                   <div>
@@ -2179,7 +2179,7 @@ function App() {
               </div>
             ) : (
              <div className="mt-6 md:mt-10">
-                <UserRegistry 
+                <UserRegistry
                   profiles={allProfiles} 
                   onCreate={handleCreateAccount}
                   onBlock={handleBlockUser}
