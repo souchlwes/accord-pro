@@ -9,7 +9,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -1150,6 +1150,15 @@ function App() {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
+  const [activeDeptId, setActiveDeptId] = useState(null);
+  const [showMasterTimeline, setShowMasterTimeline] = useState(false);
+
+
+  useEffect(() => {
+    if (visibleDepartments.length === 1) {
+      setActiveDeptId(visibleDepartments[0].id);
+    }
+  }, [visibleDepartments]);
 
   // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
@@ -1995,7 +2004,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
+    <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
         
        {/* TRUTH REVEALER BADGE */}
         <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0 text-left md:text-right">
@@ -2043,74 +2052,129 @@ function App() {
                   </div>
                   {isHeadAdmin && (
                     <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '' })} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
-  + Add Department
-</button>
+                      + Add Department
+                    </button>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-8 md:gap-12 mb-16 md:mb-20">
                   <ConflictTable schedule={globalSchedule} />
                   <GlobalResourceMonitor 
-  allDepartments={departments} 
-  globalSchedule={globalSchedule} 
-  allProfiles={allProfiles}
-  onViewProctor={(p) => setViewingProctor(p)}
-/>
+                    allDepartments={departments} 
+                    globalSchedule={globalSchedule} 
+                    allProfiles={allProfiles}
+                    onViewProctor={(p) => setViewingProctor(p)}
+                  />
                 </div>
 
-               <div className="space-y-8 md:space-y-12">
-                  {visibleDepartments.map((dept) => (
-                    <DepartmentCard
-                      key={dept.id} dept={dept} role={safeRole} 
-                      allProfiles={allProfiles}
-                      allDepartments={departments} onUpdate={handleDepartmentUpdate}
-                      onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
-                      onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
-                      onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
-                     onClearSchedule={(dCode, yLevel) => {
-                        setConfirmModal({
-                          isOpen: true,
-                          title: `Wipe Year ${yLevel} Draft?`,
-                          text: `This will permanently delete all generated schedules for Year ${yLevel}.`,
-                          action: async () => {
-                            await supabase.from('schedules').delete().eq('dept_code', dCode).eq('year_level', String(yLevel));
-                            await fetchAllData(false);
-                            setAppToast({ message: `Year ${yLevel} draft cleared.`, type: "success" });
-                          }
-                        });
-                      }}
-                      globalSchedule={globalSchedule}
-                      onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
-                      onNotify={sendNotification} 
-                    />
-                  ))}
-                </div>
-
-<div className="mt-10 md:mt-16 pt-8 md:pt-10 border-t-8 border-slate-900/5">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-12 px-2 md:px-10 gap-4 md:gap-0">
-                    <h2 className="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
-                    <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-12 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-4 shadow-2xl hover:bg-blue-600 active:scale-95 transition-all">
-  <Printer size={16} className="md:w-6 md:h-6" /> Export Global PDF
-</button>
+                {/* --- SMART WORKSPACE ROUTER --- */}
+                {!activeDeptId && visibleDepartments.length > 1 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {visibleDepartments.map(dept => (
+                      <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white p-8 rounded-[2rem] border border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col">
+                        <div className="flex justify-between items-start mb-6">
+                          <div>
+                            <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                          </div>
+                          <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                            <LayoutDashboard size={20} />
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-4 mt-auto">
+                          <div className="bg-slate-50 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                            <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
+                            <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
+                          </div>
+                          <div className="bg-slate-50 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                            <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
+                            <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  
-                  {globalSchedule.length > 0 && (
-                    <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 px-2 animate-pulse">
-                      <ArrowRight size={12} /> Swipe calendar to view more
+                ) : (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+                    {/* Only show the Back button for Head Admins who have multiple departments */}
+                    {visibleDepartments.length > 1 && (
+                      <button onClick={() => setActiveDeptId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-200 w-max transition-all active:scale-95">
+                        <ArrowLeft size={14} /> Back to Department Grid
+                      </button>
+                    )}
+                    
+                    {visibleDepartments.filter(d => d.id === activeDeptId).map((dept) => (
+                      <DepartmentCard
+                        key={dept.id} dept={dept} role={safeRole} 
+                        allProfiles={allProfiles}
+                        allDepartments={departments} onUpdate={handleDepartmentUpdate}
+                        onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
+                        onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
+                        onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
+                        onClearSchedule={(dCode, yLevel) => {
+                          setConfirmModal({
+                            isOpen: true,
+                            title: `Wipe Year ${yLevel} Draft?`,
+                            text: `This will permanently delete all generated schedules for Year ${yLevel}.`,
+                            action: async () => {
+                              await supabase.from('schedules').delete().eq('dept_code', dCode).eq('year_level', String(yLevel));
+                              await fetchAllData(false);
+                              setAppToast({ message: `Year ${yLevel} draft cleared.`, type: "success" });
+                            }
+                          });
+                        }}
+                        globalSchedule={globalSchedule}
+                        onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
+                        onNotify={sendNotification} 
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* --- COLLAPSIBLE MASTER TIMELINE --- */}
+                <div className="mt-10 md:mt-16 pt-8 md:pt-10 border-t border-slate-200">
+                  <div 
+                    onClick={() => setShowMasterTimeline(!showMasterTimeline)}
+                    className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-xl transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
+                    <div className="relative z-10">
+                      <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click to {showMasterTimeline ? 'collapse' : 'expand'} university-wide schedule</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors relative z-10">
+                      {showMasterTimeline ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                    </div>
+                  </div>
+
+                  {showMasterTimeline && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 mt-6">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 px-2 md:px-6 gap-4 md:gap-0">
+                        <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 shadow-xl hover:bg-blue-600 active:scale-95 transition-all ml-auto">
+                          <Printer size={16} className="md:w-5 md:h-5" /> Export Global PDF
+                        </button>
+                      </div>
+                      
+                      {globalSchedule.length > 0 && (
+                        <div className="md:hidden flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 px-2 animate-pulse">
+                          <ArrowRight size={12} /> Swipe calendar to view more
+                        </div>
+                      )}
+
+                      <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-200 overflow-x-auto custom-scrollbar">
+                        {globalSchedule.length > 0 ? (
+                          <div className="min-w-[800px] pr-4">
+                            <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
+                          </div>
+                        ) : (
+                          <div className="py-20 md:py-32 text-center text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">
+                            <Zap size={48} className="md:w-16 md:h-16 mx-auto mb-4 md:mb-6 opacity-10" /> Timeline Offline
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-
-                  <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-2xl border border-slate-100 overflow-x-auto relative custom-scrollbar">
-                    {globalSchedule.length > 0 ? (
-                      <div className="min-w-[800px] pr-4">
-                        <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
-                      </div>
-                    ) : (
-                      <div className="py-20 md:py-40 text-center text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">
-                        <Zap size={48} className="md:w-16 md:h-16 mx-auto mb-4 md:mb-6 opacity-10" /> Timeline Offline
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             ) : (
@@ -2132,168 +2196,170 @@ function App() {
         )}
 
         {/* --- STAFF REGISTRATION MODAL --- */}
-      {createModal.isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
-            <div className="flex items-center gap-4 text-blue-600 mb-6">
-              <UserPlus size={32} />
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Register Staff</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                  {isHeadAdmin ? 'Create Dept Head Account' : 'Create Proctor Account'}
-                </p>
-              </div>
-            </div>
-            
-            <form onSubmit={executeCreateAccount} className="space-y-4 mb-2">
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
-                <input required type="text" value={createModal.name} onChange={e=>setCreateModal({...createModal, name: e.target.value})} placeholder="e.g. Jane Doe" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Email Address</label>
-                <input required type="email" value={createModal.email} onChange={e=>setCreateModal({...createModal, email: e.target.value})} placeholder="staff@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Temporary Password</label>
-                <input required type="password" value={createModal.pass} onChange={e=>setCreateModal({...createModal, pass: e.target.value})} placeholder="Min. 6 characters" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-              </div>
-              
-               {isHeadAdmin && (
+        {createModal.isOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-blue-600 mb-6">
+                <UserPlus size={32} />
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Assign Department Code</label>
-                  <input required type="text" value={createModal.dept} onChange={e=>setCreateModal({...createModal, dept: e.target.value.toUpperCase()})} placeholder="e.g. CS (or type 'GLOBAL' for Part-Timers)" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Register Staff</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    {isHeadAdmin ? 'Create Dept Head Account' : 'Create Proctor Account'}
+                  </p>
                 </div>
-              )}
-              
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Account</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {/* --- GLOBAL TOAST NOTIFICATION --- */}
-      {appToast && (
-        <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[400] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
-          {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
-          <span>{appToast.message}</span>
-          <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
-        </div>
-      )}
-
-      {/* --- GLOBAL CONFIRMATION MODAL --- */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
-            <AlertTriangle className="mx-auto text-rose-500 mb-6" size={48} />
-            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">{confirmModal.title}</h3>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">{confirmModal.text}</p>
-            <div className="flex gap-4">
-              <button onClick={() => setConfirmModal({ isOpen: false, title: '', text: '', action: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={() => { confirmModal.action(); setConfirmModal({ isOpen: false, title: '', text: '', action: null }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 shadow-lg transition-colors">Confirm</button>
-            </div>
-          </div>
-        </div>
-      )}
-    {/* --- ADD DEPARTMENT MODAL --- */}
-      {deptModal.isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
-            <div className="flex items-center gap-4 text-blue-600 mb-6">
-              <Layers size={32} />
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Add Department</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                  Initialize a new system workspace
-                </p>
-              </div>
-            </div>
-            
-            <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
-                <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
-                <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
               </div>
               
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- EDIT STAFF MODAL --- */}
-      {editStaffModal.isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
-            <div className="flex items-center gap-4 text-indigo-600 mb-6">
-              <Edit2 size={32} />
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Staff</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update profile details</p>
-              </div>
-            </div>
-            <form onSubmit={executeEditStaff} className="space-y-4 mb-2">
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
-                <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
-              </div>
-              <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
-                <option value="PROCTOR">Proctor</option>
-                <option value="DEPT_ADMIN">Department Head</option>
-                <option value="HEAD_ADMIN">Global Head Admin</option>
-              </select>
-               {editStaffModal.role !== 'HEAD_ADMIN' && (
+              <form onSubmit={executeCreateAccount} className="space-y-4 mb-2">
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
-                  <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                  <input required type="text" value={createModal.name} onChange={e=>setCreateModal({...createModal, name: e.target.value})} placeholder="e.g. Jane Doe" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
                 </div>
-              )}
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
-              </div>
-            </form>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Email Address</label>
+                  <input required type="email" value={createModal.email} onChange={e=>setCreateModal({...createModal, email: e.target.value})} placeholder="staff@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Temporary Password</label>
+                  <input required type="password" value={createModal.pass} onChange={e=>setCreateModal({...createModal, pass: e.target.value})} placeholder="Min. 6 characters" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                </div>
+                
+                 {isHeadAdmin && (
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Assign Department Code</label>
+                    <input required type="text" value={createModal.dept} onChange={e=>setCreateModal({...createModal, dept: e.target.value.toUpperCase()})} placeholder="e.g. CS (or type 'GLOBAL' for Part-Timers)" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                  </div>
+                )}
+                
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Account</button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        
+        {/* --- GLOBAL TOAST NOTIFICATION --- */}
+        {appToast && (
+          <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[400] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
+            {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
+            <span>{appToast.message}</span>
+            <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+          </div>
+        )}
 
-      {/* --- EDIT DEPARTMENT MODAL --- */}
-      {editDeptModal.isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
-            <div className="flex items-center gap-4 text-blue-600 mb-6">
-              <Layers size={32} />
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Workspace</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update department details</p>
+        {/* --- GLOBAL CONFIRMATION MODAL --- */}
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+              <AlertTriangle className="mx-auto text-rose-500 mb-6" size={48} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">{confirmModal.title}</h3>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">{confirmModal.text}</p>
+              <div className="flex gap-4">
+                <button onClick={() => setConfirmModal({ isOpen: false, title: '', text: '', action: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                <button onClick={() => { confirmModal.action(); setConfirmModal({ isOpen: false, title: '', text: '', action: null }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-rose-500 hover:bg-rose-600 shadow-lg transition-colors">Confirm</button>
               </div>
             </div>
-            <form onSubmit={executeEditDept} className="space-y-4 mb-2">
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
-                <input required type="text" value={editDeptModal.name} onChange={e=>setEditDeptModal({...editDeptModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
-                <input required type="text" value={editDeptModal.code} onChange={e=>setEditDeptModal({...editDeptModal, code: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
-              </div>
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setEditDeptModal({ isOpen: false, id: '', name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Changes</button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        )}
+        
+        {/* --- ADD DEPARTMENT MODAL --- */}
+        {deptModal.isOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-blue-600 mb-6">
+                <Layers size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Add Department</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    Initialize a new system workspace
+                  </p>
+                </div>
+              </div>
+              
+              <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                  <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                  <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                </div>
+                
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- EDIT STAFF MODAL --- */}
+        {editStaffModal.isOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-indigo-600 mb-6">
+                <Edit2 size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Staff</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update profile details</p>
+                </div>
+              </div>
+              <form onSubmit={executeEditStaff} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
+                  <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
+                </div>
+                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+                  <option value="PROCTOR">Proctor</option>
+                  <option value="DEPT_ADMIN">Department Head</option>
+                  <option value="HEAD_ADMIN">Global Head Admin</option>
+                </select>
+                 {editStaffModal.role !== 'HEAD_ADMIN' && (
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
+                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                  </div>
+                )}
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- EDIT DEPARTMENT MODAL --- */}
+        {editDeptModal.isOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-blue-600 mb-6">
+                <Layers size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Edit Workspace</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update department details</p>
+                </div>
+              </div>
+              <form onSubmit={executeEditDept} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                  <input required type="text" value={editDeptModal.name} onChange={e=>setEditDeptModal({...editDeptModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                  <input required type="text" value={editDeptModal.code} onChange={e=>setEditDeptModal({...editDeptModal, code: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditDeptModal({ isOpen: false, id: '', name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
