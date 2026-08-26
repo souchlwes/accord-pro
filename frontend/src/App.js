@@ -1154,11 +1154,7 @@ function App() {
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
 
 
-  useEffect(() => {
-    if (visibleDepartments.length === 1) {
-      setActiveDeptId(visibleDepartments[0].id);
-    }
-  }, [visibleDepartments]);
+ 
 
   // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
@@ -1321,6 +1317,13 @@ function App() {
     return departments.filter(d => d.code === profile?.assigned_dept);
   }, [departments, profile, isHeadAdmin]);
 
+  // --- NEW: Auto-route Department Heads straight to their workspace ---
+  useEffect(() => {
+    if (visibleDepartments.length === 1) {
+      setActiveDeptId(visibleDepartments[0].id);
+    }
+  }, [visibleDepartments]);
+  
   const handleAddAvailability = async (newAvail) => {
     const { error } = await supabase.from('proctor_availability').insert([newAvail]);
     if (error) alert(`DATABASE REJECTION: \nMessage: ${error.message}`);
