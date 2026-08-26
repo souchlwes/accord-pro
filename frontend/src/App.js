@@ -432,9 +432,14 @@ const NotificationPanel = ({ notifications, onClose, onNotificationClick }) => {
 };
 
 // --- 1. USER REGISTRY COMPONENT ---
-const UserRegistry = ({ profiles, onBlock, onDelete, onCreate, onEdit, onApprove, currentRole, currentUserDept, onView }) => {
+const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, onEdit, onApprove, currentRole, currentUserDept, onView }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const isHead = currentRole === 'HEAD_ADMIN';
+
+  // Auto-fill the search bar when a notification routes here
+  useEffect(() => {
+    if (highlightTarget) setSearchTerm(highlightTarget);
+  }, [highlightTarget]);
 
   const filteredProfiles = profiles.filter(p => 
     (p.full_name || p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -1152,7 +1157,7 @@ function App() {
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
-
+const [targetHighlight, setTargetHighlight] = useState("");
 
  
 
@@ -1181,39 +1186,38 @@ function App() {
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
-  // --- NEW: SMART NOTIFICATION ROUTER ---
-  const handleNotificationClick = async (notification) => {
-    // 1. Mark as read in the database
+ const handleNotificationClick = async (notification) => {
     await markNotificationRead(notification.id);
-    
-    // 2. Update local state immediately so the red dot clears
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
-    
-    // 3. Close the panel
     setShowNotifications(false);
+    setTargetHighlight(""); // Reset previous highlights
 
-    const titleStr = (notification.title || "").toLowerCase();
+    const title = (notification.title || "").toLowerCase();
+    const msg = notification.message || "";
 
-    // ROUTE A: Chat & Communications
-    if (titleStr.includes('dm') || titleStr.includes('reply') || titleStr.includes('announcement')) {
-      setShowChat(true);
-      return;
+    if (title.includes('dm') || title.includes('reply') || title.includes('announcement')) {
+      setShowChat(true); return;
     }
 
-    // ROUTE B: User Registry (Approvals & Creations)
-    if (titleStr.includes('account') || (titleStr.includes('request') && (titleStr.includes('admin') || titleStr.includes('proctor') && !titleStr.includes('assignment')))) {
+    if (title.includes('account') || title.includes('request')) {
       setActiveTab('users');
+      // Pluck the first and last name from the start of the message
+      const nameMatch = msg.match(/^([^ ]+\s+[^ ]+)/);
+      if (nameMatch) setTargetHighlight(nameMatch[1].trim());
       return;
     }
 
-    // ROUTE C: Dashboard & Department Specific 
-    // Covers Assignments, Flags, Generation, Availability
     setActiveTab('dashboard');
     if (notification.target_dept) {
        const targetDept = departments.find(d => d.code === notification.target_dept);
-       if (targetDept) {
-          setActiveDeptId(targetDept.id);
-       }
+       if (targetDept) setActiveDeptId(targetDept.id);
+    }
+    
+    // Pluck the Subject Code (e.g., CS101) from the message
+    const codeMatch = msg.match(/([A-Z]{2,4}\d{2,4})/i); 
+    if (codeMatch) {
+       setTargetHighlight(codeMatch[1].toUpperCase());
+       setTimeout(() => setTargetHighlight(""), 6000); // Remove pulse after 6 seconds
     }
   };
 
