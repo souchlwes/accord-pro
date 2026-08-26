@@ -982,39 +982,39 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
-        <div className="relative z-10">
+   {/* HEADER SECTION */}
+      <div className="bg-white p-8 md:p-10 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center relative">
+        <div className="relative z-10 mb-6 md:mb-0">
           <div className="flex items-center gap-4">      
-            <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
-            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
-              <Edit3 size={20} />
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-none">{deptName}</h2>
+            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="text-slate-400 hover:bg-slate-100 hover:text-blue-600 p-2 rounded-lg transition-all" title="Edit Workspace">
+              <Edit3 size={18} />
             </button>
-            <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
-              <Trash2 size={20} />
+            <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="text-slate-400 hover:bg-rose-50 hover:text-rose-600 p-2 rounded-lg transition-all">
+              <Trash2 size={18} />
             </button>
           </div>
-          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] mt-3 flex items-center gap-2">
-            <Settings2 size={12}/> Departmental Workspace Engine
+          <p className="text-slate-500 text-xs font-medium mt-2 flex items-center gap-2">
+            <Settings2 size={14}/> Department Workspace
           </p>
         </div>
+        
         <div className="flex gap-4 relative z-10">
-          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
-            <span className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Proctor</span>
-            <span className="text-2xl font-black">{activeDeptProctors.length}</span>
+          <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center min-w-[100px]">
+            <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Proctors</span>
+            <span className="text-xl font-bold text-slate-900">{activeDeptProctors.length}</span>
           </div>
-          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
-            <span className="block text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Rooms</span>
-            <span className="text-2xl font-black">{rooms.length}</span>
+          <div className="bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 text-center min-w-[100px]">
+            <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Rooms</span>
+            <span className="text-xl font-bold text-slate-900">{rooms.length}</span>
           </div>
         </div>
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="flex bg-slate-50/50 p-3 gap-2 border-b border-slate-100">
+      <div className="flex bg-slate-50/50 p-2 gap-2 border-b border-slate-100">
         {['subjects', 'proctors', 'rooms', 'generate', 'preview'].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === t ? 'bg-white shadow-xl text-blue-600 scale-[1.02] border border-slate-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>
+          <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-xs font-medium capitalize rounded-xl transition-all duration-200 ${activeTab === t ? 'bg-white shadow-sm text-blue-600 border border-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>
             {t} {t === 'preview' && consolidatedPreview.length > 0 && `(${consolidatedPreview.length})`}
           </button>
         ))}
