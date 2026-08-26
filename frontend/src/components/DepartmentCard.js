@@ -1504,8 +1504,15 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       {row.subs.map((s, idx) => (
-                        <div key={idx} className={`bg-white p-6 rounded-3xl border-2 transition-all flex flex-col justify-between hover:shadow-md ${s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 group-hover:border-blue-100'}`}>
-                          <div className="flex justify-between items-start">
+<div 
+  key={idx} 
+  id={`block-${s.code}`}
+  className={`bg-white p-6 rounded-3xl border-2 transition-all flex flex-col justify-between hover:shadow-md ${
+    highlightTarget === s.code ? 'ring-4 ring-rose-500 shadow-rose-200 animate-pulse' : 
+    s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 group-hover:border-blue-100'
+  }`}
+>
+<div className="flex justify-between items-start">
                             <div className="flex-1 mr-2">
                               <select 
                                 value={s.code} 
