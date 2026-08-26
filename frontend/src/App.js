@@ -1662,45 +1662,47 @@ function App() {
    // --- AUTHENTICATION SCREEN LOCK ---
   const isRegisteringProcess = session && !profile && (authMode === 'register' || authMode === 'success');
   
-  if (!session || isRegisteringProcess || authMode === 'success') {
+  
+        if (!session || isRegisteringProcess || authMode === 'success') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-        <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
-          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
-          <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-10 md:p-12 rounded-3xl w-full max-w-md shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 text-center animate-in zoom-in-95 duration-500">
+          <img src={accordLogo} alt="Accord Logo" className="w-16 h-16 mx-auto mb-6 object-contain" />
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">Accord</h1>
           
           {authMode === 'success' ? (
             <div className="animate-in fade-in zoom-in duration-300 py-8">
-              <CheckCircle2 size={64} className="mx-auto text-emerald-500 mb-6" />
-              <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Request Sent!</h2>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">
+              <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4" />
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900 mb-2">Request Sent</h2>
+              <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed">
                 Your account has been registered.<br/>Please wait for an Administrator to approve your access.
               </p>
-              <button onClick={() => setAuthMode('login')} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl active:scale-95">
+              <button onClick={() => setAuthMode('login')} className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition-all shadow-sm active:scale-95">
                 Return to Login
               </button>
             </div>
           ) : authMode === 'login' ? (
-            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
-              <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-              <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+            <div className="animate-in fade-in slide-in-from-left-4 duration-300 text-left">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-6 text-center">Secure System Login</p>
+              <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50/50 p-3.5 rounded-xl mb-3 text-sm border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"/>
+              <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50/50 p-3.5 rounded-xl mb-6 text-sm border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"/>
               
               <button onClick={async () => {
                 const {error}=await supabase.auth.signInWithPassword({email,password}); 
                 if(error) setAppToast({ message: error.message, type: "error" });
-              }} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
+              }} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-medium hover:bg-slate-800 transition-all mb-6 shadow-sm active:scale-95">
                 Sign In
               </button>
               
-              <div className="pt-6 border-t-2 border-slate-50">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
-                <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-100 transition-all active:scale-95">
+              <div className="pt-6 border-t border-slate-100">
+                <p className="text-xs text-slate-500 text-center mb-3">No account yet?</p>
+                <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-slate-50 text-blue-600 py-3 rounded-xl font-medium text-sm hover:bg-slate-100 transition-all active:scale-95">
                   Create New Account
                 </button>
               </div>
             </div>
           ) : (
+           
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 text-left">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center">Staff Registration</p>
               
