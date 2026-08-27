@@ -768,8 +768,7 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget }) => {
-  
+  const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, hasUnreadMessages }) => {
   // --- NEW: AUTO-SCROLL EFFECT ---
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -949,7 +948,10 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           <div className="flex gap-2">
             {!isViewMode && (
               <>
-                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative"><MessageSquare size={18} /></button>
+<button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
+                  <MessageSquare size={18} />
+                  {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                </button>
                 <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
                 <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
                   <Bell size={18} />
@@ -1164,6 +1166,7 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
   const [appToast, setAppToast] = useState(null);
@@ -1378,7 +1381,16 @@ const [targetHighlight, setTargetHighlight] = useState("");
       .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, triggerSmartSync)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles) // Profiles are light, instant is fine
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+         // If someone else sends a message (either to you directly, or a global announcement)
+         if (payload.new.sender_id !== profile?.id) {
+           if (payload.new.receiver_id === profile?.id || !payload.new.receiver_id) {
+             setHasUnreadMessages(true);
+             setAppToast({ message: `New message from ${payload.new.sender_name}`, type: 'success' });
+           }
+         }
+      })
       .subscribe();
       
     return () => { 
@@ -1961,7 +1973,8 @@ const [targetHighlight, setTargetHighlight] = useState("");
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
           onShowHelp={() => setShowHelp(true)}
-          onShowChat={() => setShowChat(true)}
+onShowChat={() => { setShowChat(true); setHasUnreadMessages(false); }}
+          hasUnreadMessages={hasUnreadMessages}
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
           onAcceptAssignment={handleAcceptAssignment}
@@ -2053,12 +2066,13 @@ const [targetHighlight, setTargetHighlight] = useState("");
           <Users size={24} className="md:w-7 md:h-7" />
         </button>
 
-        {/* GLOBAL CHAT ICON */}
+       {/* GLOBAL CHAT ICON */}
         <button 
-          onClick={() => setShowChat(true)}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          onClick={() => { setShowChat(true); setHasUnreadMessages(false); }}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <MessageSquare size={24} className="md:w-7 md:h-7" />
+          {hasUnreadMessages && <span className="absolute top-2 right-2 md:top-4 md:right-4 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
         </button>
 
         {/* ADMIN NOTIFICATION BELL */}
