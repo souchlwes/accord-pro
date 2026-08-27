@@ -59,8 +59,23 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       const { data: msgData } = await supabase.from('messages')
         .select('*')
         .or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`)
-        .order('created_at', { ascending: true }); // Newest at bottom
-      if (msgData) setMessages(msgData);
+        .order('created_at', { ascending: true }); 
+      
+      if (msgData) {
+        setMessages(msgData);
+        
+        // --- NEW: CALCULATE PERSISTENT UNREAD BADGES ---
+        const initialUnread = {};
+        msgData.forEach(m => {
+          if (m.receiver_id === profile.id) {
+             const lastRead = localStorage.getItem(`last_read_dm_${profile.id}_${m.sender_id}`) || '1970-01-01T00:00:00.000Z';
+             if (new Date(m.created_at) > new Date(lastRead)) {
+                initialUnread[m.sender_id] = (initialUnread[m.sender_id] || 0) + 1;
+             }
+          }
+        });
+        setUnreadDMs(initialUnread);
+      }
 
       const { data: userData } = await supabase.from('profiles')
         .select('id, full_name, role, assigned_dept')
@@ -75,20 +90,21 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         if (payload.eventType === 'INSERT') {
           const m = payload.new;
           if (!m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id) {
-            setMessages(prev => [...prev, m]); // Append to bottom
+            setMessages(prev => [...prev, m]); 
             
-            // Notify if it's not from me
             if (m.sender_id !== profile.id) {
               setLocalToast(`New message from ${m.sender_name}`);
               setTimeout(() => setLocalToast(null), 4000);
 
-              // Track unread DMs if we aren't currently chatting with them
               if (m.receiver_id === profile.id) {
                  setUnreadDMs(prev => {
                     if (chatMode !== 'dm' || dmTarget?.id !== m.sender_id) {
                        return { ...prev, [m.sender_id]: (prev[m.sender_id] || 0) + 1 };
+                    } else {
+                       // Update memory if we are actively chatting with them!
+                       localStorage.setItem(`last_read_dm_${profile.id}_${m.sender_id}`, new Date().toISOString());
+                       return prev;
                     }
-                    return prev;
                  });
               }
             }
@@ -102,6 +118,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [profile.id, chatMode, dmTarget]);
+ 
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -185,7 +202,11 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
           <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Campus</button>
           <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 relative ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>
              Direct
-             {Object.values(unreadDMs).some(count => count > 0) && <span className="absolute top-3 right-8 w-2 h-2 bg-rose-500 rounded-full animate-pulse"/>}
+             {Object.values(unreadDMs).some(count => count > 0) && (
+               <span className="absolute top-2 right-8 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black text-white shadow-md animate-pulse">
+                 {Object.values(unreadDMs).reduce((a, b) => a + b, 0)}
+               </span>
+             )}
           </button>
         </div>
       )}
@@ -273,13 +294,14 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
                    </span>
                  )}
                  <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
-                 <button onClick={() => { 
+               <button onClick={() => { 
                     setDmTarget(u); 
                     setChatMode('dm'); 
                     setUnreadDMs(prev => ({...prev, [u.id]: 0})); 
+                    localStorage.setItem(`last_read_dm_${profile.id}_${u.id}`, new Date().toISOString());
                  }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message">
                     <MessageSquare size={16}/>
-                 </button>
+                 </button>  
               </div>
             </div>
           ))}
