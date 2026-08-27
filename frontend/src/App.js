@@ -1072,9 +1072,9 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
             </div>
           </div>
           
-       <div 
+      <div 
             id="availability-log-section" 
-            className={`lg:col-span-2 transition-all duration-700 ${highlightTarget === 'availability-log' ? 'ring-8 ring-blue-500/30 rounded-[3rem] animate-pulse shadow-2xl scale-[1.02]' : ''}`}
+            className={`lg:col-span-2 transition-all duration-500 ${highlightTarget === 'availability-log' ? 'ring-[6px] ring-blue-500 shadow-[0_0_50px_rgba(37,99,235,0.5)] rounded-[3rem] scale-[1.02] bg-blue-50/50' : ''}`}
           >
              <AvailabilityLogBook profile={profile} globalAvailability={globalAvailability} onAdd={onAddAvailability} onBulkAdd={onBulkAddAvailability} onDelete={onDeleteAvailability} readOnly={isViewMode} showToast={showToast} />
           </div>
