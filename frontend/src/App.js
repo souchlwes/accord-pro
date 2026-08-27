@@ -1177,6 +1177,13 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
 const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+const handleOpenChat = () => {
+    setShowChat(true);
+    setUnreadMessageCount(0);
+    if (profile) localStorage.setItem(`last_read_chat_${profile.id}`, new Date().toISOString());
+  };
+
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
   const [appToast, setAppToast] = useState(null);
@@ -1372,7 +1379,24 @@ const [targetHighlight, setTargetHighlight] = useState("");
     return () => { isMounted = false; subscription.unsubscribe(); };
   }, []);
 
-  useEffect(() => { if (profile) fetchProfiles(); fetchNotifications(); }, [profile]);
+useEffect(() => { 
+    if (profile) {
+      fetchProfiles(); 
+      fetchNotifications(); 
+      
+      // --- NEW: FETCH UNREAD MESSAGES ON LOAD ---
+      const fetchUnreadCount = async () => {
+        const lastRead = localStorage.getItem(`last_read_chat_${profile.id}`) || '1970-01-01T00:00:00.000Z';
+        const { count } = await supabase.from('messages')
+          .select('*', { count: 'exact', head: true })
+          .gt('created_at', lastRead)
+          .neq('sender_id', profile.id)
+          .or(`receiver_id.is.null,receiver_id.eq.${profile.id}`);
+        if (count) setUnreadMessageCount(count);
+      };
+      fetchUnreadCount();
+    }
+  }, [profile]);
 
  // --- FIX 2: THE DEBOUNCER (Prevents the "Sledgehammer" Lag) ---
   const syncTimeoutRef = useRef(null);
@@ -1393,13 +1417,12 @@ const [targetHighlight, setTargetHighlight] = useState("");
       .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-         // If someone else sends a message (either to you directly, or a global announcement)
-       if (payload.new.sender_id !== profile?.id) {
+         if (payload.new.sender_id !== profile?.id) {
            if (payload.new.receiver_id === profile?.id || !payload.new.receiver_id) {
              setUnreadMessageCount(prev => prev + 1);
              setAppToast({ message: `New message from ${payload.new.sender_name}`, type: 'success' });
            }
-         } 
+         }
       })
       .subscribe();
       
@@ -1983,7 +2006,7 @@ const [targetHighlight, setTargetHighlight] = useState("");
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
           onShowHelp={() => setShowHelp(true)}
-onShowChat={() => { setShowChat(true); setUnreadMessageCount(0); }}
+onShowChat={handleOpenChat}
           unreadMessageCount={unreadMessageCount}
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
@@ -2076,15 +2099,15 @@ onShowChat={() => { setShowChat(true); setUnreadMessageCount(0); }}
           <Users size={24} className="md:w-7 md:h-7" />
         </button>
 
-       {/* GLOBAL CHAT ICON */}
+      {/* GLOBAL CHAT ICON */}
         <button 
-          onClick={() => { setShowChat(true); setUnreadMessageCount(0); }}
+          onClick={handleOpenChat}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <MessageSquare size={24} className="md:w-7 md:h-7" />
           {unreadMessageCount > 0 && (
             <span className="absolute top-1 right-1 md:top-3 md:right-3 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] md:text-[10px] font-black text-white shadow-lg animate-bounce">
-              {unreadMessageCount}
+              {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
             </span>
           )}
         </button>
