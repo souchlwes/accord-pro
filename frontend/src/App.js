@@ -701,8 +701,8 @@ const [date, setDate] = useState("");
     e.target.value = null; 
   };
 
- return (
-    <div className={`rounded-3xl md:rounded-[3rem] p-6 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-[4px] border-blue-500 bg-blue-50 scale-[1.02] z-10 relative' : 'bg-white border-2 border-slate-100'}`}>
+return (
+    <div className={`rounded-3xl md:rounded-[3rem] p-6 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-4 border-blue-500 bg-blue-100 scale-105 z-10 relative shadow-blue-300' : 'bg-white border-2 border-slate-100'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
           <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
@@ -1904,6 +1904,7 @@ const [targetHighlight, setTargetHighlight] = useState("");
           isViewMode={true}
           onCloseView={() => setViewingProctor(null)}
           onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
+          highlightTarget={targetHighlight}
         />
         
         {/* --- INJECTED EDIT STAFF MODAL --- */}
