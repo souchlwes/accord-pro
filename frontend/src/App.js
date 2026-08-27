@@ -121,19 +121,15 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         const payloads = [];
         const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
 
-        const createPayload = (u, titleMsg, customMessage = text) => {
-          if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: customMessage, type: 'info' };
-          if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: customMessage, type: 'info' };
-          return { target_user_id: u.id, title: titleMsg, message: customMessage, type: 'info' };
-        };
+        // ONLY send system bell notifications for Global Campus Announcements
+        // DMs and Replies will now only show the red badge inside the chat panel!
+        if (chatMode === 'global' && isAdmin && !activeThread) {
+          const createPayload = (u, titleMsg, customMessage = text) => {
+            if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: customMessage, type: 'info' };
+            if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: customMessage, type: 'info' };
+            return { target_user_id: u.id, title: titleMsg, message: customMessage, type: 'info' };
+          };
 
-        if (chatMode === 'dm' && dmTarget) {
-          payloads.push({ target_user_id: dmTarget.id, title: `New DM from ${profile.full_name}`, message: "You have a new private message.", type: 'info' });
-        } else if (activeThread) {
-          if (activeThread.sender_id !== profile.id) {
-            payloads.push({ target_user_id: activeThread.sender_id, title: `New Reply from ${profile.full_name}`, message: text, type: 'info' });
-          }
-        } else if (chatMode === 'global' && isAdmin && !activeThread) {
           const uniqueTargets = new Set();
           systemUsers.forEach(u => {
             const p = createPayload(u, `Campus Announcement: ${profile.full_name}`);
@@ -1066,7 +1062,10 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
             </div>
           </div>
           
-          <div className="lg:col-span-2">
+       <div 
+            id="availability-log-section" 
+            className={`lg:col-span-2 transition-all duration-700 ${highlightTarget === 'availability-log' ? 'ring-8 ring-blue-500/30 rounded-[3rem] animate-pulse shadow-2xl scale-[1.02]' : ''}`}
+          >
              <AvailabilityLogBook profile={profile} globalAvailability={globalAvailability} onAdd={onAddAvailability} onBulkAdd={onBulkAddAvailability} onDelete={onDeleteAvailability} readOnly={isViewMode} showToast={showToast} />
           </div>
         </div>
@@ -1186,38 +1185,60 @@ const [targetHighlight, setTargetHighlight] = useState("");
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
- const handleNotificationClick = async (notification) => {
+ // --- UPGRADED: CONTEXT-AWARE ROUTER ---
+  const handleNotificationClick = async (notification) => {
     await markNotificationRead(notification.id);
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
     setShowNotifications(false);
-    setTargetHighlight(""); // Reset previous highlights
+    setTargetHighlight(""); 
 
     const title = (notification.title || "").toLowerCase();
     const msg = notification.message || "";
 
-    if (title.includes('dm') || title.includes('reply') || title.includes('announcement')) {
+    // 1. CHAT & ANNOUNCEMENTS
+    if (title.includes('announcement')) {
       setShowChat(true); return;
     }
 
-    if (title.includes('account') || title.includes('request')) {
-      setActiveTab('users');
-      // Pluck the first and last name from the start of the message
-      const nameMatch = msg.match(/^([^ ]+\s+[^ ]+)/);
-      if (nameMatch) setTargetHighlight(nameMatch[1].trim());
+    // 2. AVAILABILITY LOGS (Routes to the Proctor's Read-Only Dashboard)
+    if (title.includes('availability')) {
+      // Extracts the name before "updated" or "uploaded"
+      const nameMatch = msg.match(/^(.*?)\s+(updated|uploaded)/i);
+      if (nameMatch) {
+        const proctorName = nameMatch[1].trim();
+        const targetUser = allProfiles.find(p => p.full_name === proctorName || p.name === proctorName);
+        if (targetUser) {
+           setViewingProctor(targetUser); 
+           setTargetHighlight("availability-log"); 
+        }
+      }
       return;
     }
 
+    // 3. REGISTRY ROUTING (Account Approvals)
+    if (title.includes('account') || (title.includes('request') && !title.includes('assignment'))) {
+      setActiveTab('users');
+      const nameMatch = msg.match(/^(.*?)\s+(requested|created)/i) || msg.match(/account for\s+(.*?)\./i);
+      if (nameMatch) {
+         let extractedName = nameMatch[1].trim();
+         if(extractedName.startsWith("Created account for ")) extractedName = extractedName.replace("Created account for ", "");
+         setTargetHighlight(extractedName); 
+      }
+      return;
+    }
+
+    // 4. TIMELINE ROUTING (Flags, Declines, Subject Overrides)
     setActiveTab('dashboard');
     if (notification.target_dept) {
        const targetDept = departments.find(d => d.code === notification.target_dept);
        if (targetDept) setActiveDeptId(targetDept.id);
     }
     
-    // Pluck the Subject Code (e.g., CS101) from the message
+    // Extracts the Subject Code (e.g., CS101) to pulse the specific block
     const codeMatch = msg.match(/([A-Z]{2,4}\d{2,4})/i); 
     if (codeMatch) {
-       setTargetHighlight(codeMatch[1].toUpperCase());
-       setTimeout(() => setTargetHighlight(""), 6000); // Remove pulse after 6 seconds
+       setTargetHighlight(codeMatch[1].toUpperCase()); 
+       setTimeout(() => setTargetHighlight(""), 6000); 
     }
   };
 
@@ -1930,6 +1951,7 @@ const [targetHighlight, setTargetHighlight] = useState("");
           onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
           allProfiles={allProfiles}
           onViewProctor={(p) => setViewingProctor(p)}
+          highlightTarget={targetHighlight}
         />
 {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
