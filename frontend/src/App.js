@@ -768,7 +768,17 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget }) => {
+  
+  // --- NEW: AUTO-SCROLL EFFECT ---
+  useEffect(() => {
+    if (highlightTarget === 'availability-log') {
+      setTimeout(() => {
+        document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 400);
+    }
+  }, [highlightTarget]);
+
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
   // --- NEW: SEPARATE PENDING REQUESTS FROM CONFIRMED ASSIGNMENTS ---
