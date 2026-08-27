@@ -1504,12 +1504,12 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       {row.subs.map((s, idx) => (
+
 <div 
-  key={idx} 
   id={`block-${s.code}`}
-  className={`bg-white p-6 rounded-3xl border-2 transition-all flex flex-col justify-between hover:shadow-md ${
-    highlightTarget === s.code ? 'ring-4 ring-rose-500 shadow-rose-200 animate-pulse' : 
-    s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 group-hover:border-blue-100'
+  className={`bg-white p-6 rounded-3xl border-2 transition-all duration-300 flex flex-col justify-between ${
+    highlightTarget === s.code ? 'ring-[4px] ring-rose-500 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] scale-105 z-10' : 
+    s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 hover:border-blue-100 hover:shadow-md'
   }`}
 >
 <div className="flex justify-between items-start">
