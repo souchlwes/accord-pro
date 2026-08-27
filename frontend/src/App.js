@@ -573,8 +573,8 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
 
       
 // --- 2. AVAILABILITY LOG BOOK COMPONENT ---
-const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, onDelete, readOnly = false, showToast }) => {
-  const [date, setDate] = useState("");
+const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, onDelete, readOnly = false, showToast, isHighlighted }) => {
+const [date, setDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const fileInputRef = useRef(null);
@@ -701,8 +701,8 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
     e.target.value = null; 
   };
 
-  return (
-    <div className="bg-white rounded-3xl md:rounded-[3rem] p-6 md:p-8 border-2 border-slate-100 shadow-xl">
+ return (
+    <div className={`rounded-3xl md:rounded-[3rem] p-6 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-[4px] border-blue-500 bg-blue-50 scale-[1.02] z-10 relative' : 'bg-white border-2 border-slate-100'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
           <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
@@ -1072,11 +1072,17 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
             </div>
           </div>
           
-      <div 
-            id="availability-log-section" 
-            className={`lg:col-span-2 transition-all duration-500 ${highlightTarget === 'availability-log' ? 'ring-[6px] ring-blue-500 shadow-[0_0_50px_rgba(37,99,235,0.5)] rounded-[3rem] scale-[1.02] bg-blue-50/50' : ''}`}
-          >
-             <AvailabilityLogBook profile={profile} globalAvailability={globalAvailability} onAdd={onAddAvailability} onBulkAdd={onBulkAddAvailability} onDelete={onDeleteAvailability} readOnly={isViewMode} showToast={showToast} />
+      <div id="availability-log-section" className="lg:col-span-2">
+             <AvailabilityLogBook 
+               profile={profile} 
+               globalAvailability={globalAvailability} 
+               onAdd={onAddAvailability} 
+               onBulkAdd={onBulkAddAvailability} 
+               onDelete={onDeleteAvailability} 
+               readOnly={isViewMode} 
+               showToast={showToast} 
+               isHighlighted={highlightTarget === 'availability-log'}
+             />
           </div>
         </div>
 
@@ -1210,13 +1216,13 @@ const [targetHighlight, setTargetHighlight] = useState("");
       setShowChat(true); return;
     }
 
-    // 2. AVAILABILITY LOGS (Routes to the Proctor's Read-Only Dashboard)
+   // 2. AVAILABILITY LOGS (Routes to the Proctor's Read-Only Dashboard)
     if (title.includes('availability')) {
       // Extracts the name before "updated" or "uploaded"
       const nameMatch = msg.match(/^(.*?)\s+(updated|uploaded)/i);
       if (nameMatch) {
-        const proctorName = nameMatch[1].trim();
-        const targetUser = allProfiles.find(p => p.full_name === proctorName || p.name === proctorName);
+        const proctorName = nameMatch[1].trim().toLowerCase();
+        const targetUser = allProfiles.find(p => (p.full_name || "").toLowerCase() === proctorName || (p.name || "").toLowerCase() === proctorName);
         if (targetUser) {
            setViewingProctor(targetUser); 
            setTargetHighlight("availability-log"); 
@@ -2201,6 +2207,7 @@ const [targetHighlight, setTargetHighlight] = useState("");
                         globalSchedule={globalSchedule}
                         onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
                         onNotify={sendNotification} 
+                        highlightTarget={targetHighlight}
                       />
                     ))}
                   </div>
