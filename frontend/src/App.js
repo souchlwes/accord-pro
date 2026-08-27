@@ -254,10 +254,16 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         </div>
       )}
 
-      {chatMode === 'directory' && !activeThread && (
+    {chatMode === 'directory' && !activeThread && (
         <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar flex flex-col">
           <div className="p-4 border-b bg-white sticky top-0"><input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 outline-none focus:border-indigo-500 transition-all"/></div>
-          {systemUsers.filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+          {[...systemUsers].sort((a, b) => {
+            const aMsgs = messages.filter(m => (m.sender_id === a.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === a.id));
+            const bMsgs = messages.filter(m => (m.sender_id === b.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === b.id));
+            const aLatest = aMsgs.length > 0 ? new Date(aMsgs[aMsgs.length - 1].created_at).getTime() : 0;
+            const bLatest = bMsgs.length > 0 ? new Date(bMsgs[bMsgs.length - 1].created_at).getTime() : 0;
+            return bLatest - aLatest || (a.full_name || "").localeCompare(b.full_name || "");
+          }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => ( 
             <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b flex justify-between items-center group transition-all">
               <div><h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4><span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span></div>
               <div className="flex gap-2 items-center">
@@ -768,8 +774,8 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-  const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, hasUnreadMessages }) => {
-  // --- NEW: AUTO-SCROLL EFFECT ---
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount }) => {
+// --- NEW: AUTO-SCROLL EFFECT ---
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
       setTimeout(() => {
@@ -950,7 +956,11 @@ return (
               <>
 <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
                   <MessageSquare size={18} />
-                  {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                  {unreadMessageCount > 0 && (
+                    <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] font-black text-white shadow-lg animate-bounce">
+                      {unreadMessageCount}
+                    </span>
+                  )}
                 </button>
                 <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
                 <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
@@ -1166,7 +1176,7 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
   const [appToast, setAppToast] = useState(null);
@@ -1384,12 +1394,12 @@ const [targetHighlight, setTargetHighlight] = useState("");
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
          // If someone else sends a message (either to you directly, or a global announcement)
-         if (payload.new.sender_id !== profile?.id) {
+       if (payload.new.sender_id !== profile?.id) {
            if (payload.new.receiver_id === profile?.id || !payload.new.receiver_id) {
-             setHasUnreadMessages(true);
+             setUnreadMessageCount(prev => prev + 1);
              setAppToast({ message: `New message from ${payload.new.sender_name}`, type: 'success' });
            }
-         }
+         } 
       })
       .subscribe();
       
@@ -1973,8 +1983,8 @@ const [targetHighlight, setTargetHighlight] = useState("");
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
           onShowHelp={() => setShowHelp(true)}
-onShowChat={() => { setShowChat(true); setHasUnreadMessages(false); }}
-          hasUnreadMessages={hasUnreadMessages}
+onShowChat={() => { setShowChat(true); setUnreadMessageCount(0); }}
+          unreadMessageCount={unreadMessageCount}
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
           onAcceptAssignment={handleAcceptAssignment}
@@ -2068,11 +2078,15 @@ onShowChat={() => { setShowChat(true); setHasUnreadMessages(false); }}
 
        {/* GLOBAL CHAT ICON */}
         <button 
-          onClick={() => { setShowChat(true); setHasUnreadMessages(false); }}
+          onClick={() => { setShowChat(true); setUnreadMessageCount(0); }}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <MessageSquare size={24} className="md:w-7 md:h-7" />
-          {hasUnreadMessages && <span className="absolute top-2 right-2 md:top-4 md:right-4 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+          {unreadMessageCount > 0 && (
+            <span className="absolute top-1 right-1 md:top-3 md:right-3 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] md:text-[10px] font-black text-white shadow-lg animate-bounce">
+              {unreadMessageCount}
+            </span>
+          )}
         </button>
 
         {/* ADMIN NOTIFICATION BELL */}
