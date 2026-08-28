@@ -315,7 +315,17 @@ const DepartmentCard = ({
   const [roomNum, setRoomNum] = useState("");
   const [roomType, setRoomType] = useState("Department");
   const [roomCap, setRoomCap] = useState("");
-  const todayString = new Date().toISOString().split('T')[0];
+  
+  const now = new Date();
+  const todayString = now.toISOString().split('T')[0];
+  const currentTimeStr = now.toTimeString().substring(0, 5);
+
+  const isPast = (d, eTime) => {
+    if (!d) return false;
+    if (d < todayString) return true;
+    if (d === todayString && eTime < currentTimeStr) return true;
+    return false;
+  };
   const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
 
@@ -1265,9 +1275,12 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                <p className="text-[9px] text-slate-500 leading-relaxed font-bold">Proctors appear here automatically when they link their account to "{deptCode}". They must manually log availability on their own dashboard to be used in the generator.</p>
             </div>
             
-            <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+            
+         <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {activeDeptProctors.map(p => {
                 const logs = globalAvailability.filter(a => a.proctor_id === p.id);
+                const activeLogs = logs.filter(a => !isPast(a.exam_date, a.end_time));
+
                 return (
                   <div key={p.id} className="p-8 border-2 border-slate-50 rounded-[3rem] bg-white hover:border-emerald-100 shadow-sm transition-all group">
                   <div className="flex justify-between items-start mb-6">
@@ -1282,14 +1295,14 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <button onClick={() => onEditProctor && onEditProctor(p)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-emerald-100" title="Edit Proctor Details">
                           <Edit3 size={16}/>
                         </button>
-                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${logs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
-                          {logs.length > 0 ? `${logs.length} Slots Available` : 'Waiting for Logs'}
+                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${activeLogs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                          {activeLogs.length > 0 ? `${activeLogs.length} Slots Available` : 'Waiting for Logs'}
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      {logs.length > 0 ? logs.map((log, idx) => (
+                      {activeLogs.length > 0 ? activeLogs.map((log, idx) => (
                         <div key={idx} className="bg-slate-50/50 p-4 rounded-2xl flex justify-between items-center border border-slate-100 hover:bg-white transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="bg-white p-2 rounded-xl shadow-sm text-emerald-600">
@@ -1309,7 +1322,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       )) : (
                         <div className="py-4 text-center border-2 border-dashed border-slate-50 rounded-2xl">
                           <p className="text-[10px] font-black text-slate-300 uppercase italic tracking-widest">
-                            No specific hours logged yet
+                            No active hours logged
                           </p>
                         </div>
                       )}
@@ -1317,7 +1330,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                   </div>
                 );
               })}
-            </div>
+            </div>         
           </div>
         )}
 
