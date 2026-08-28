@@ -124,22 +124,24 @@ const DepartmentCard = ({
   const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
-   // ENHANCEMENT: Sync initial preview AND respond to external updates safely
+  // ENHANCEMENT: Sync initial preview AND respond to external updates safely
   useEffect(() => {
     const serverData = globalSchedule.filter(s => s.dept_code === deptCode);
     
-    // SAFETY LOCK: Only auto-update the screen if the local draft is empty, 
-    // OR if the number of blocks strictly matches. This prevents the cloud from
-    // overwriting the Admin's unsaved manual edits!
-    if (localSchedule.length === 0 || serverData.length !== localSchedule.length) {
-      const synced = serverData.map(item => ({
-        ...item,
-        flagged: Boolean(item.flagged ?? false),
-        flagNote: item.flagNote ?? "",
-        isManualProctor: Boolean(item.isManualProctor ?? false)
-      }));
-      setLocalSchedule(synced);
-    }
+    setLocalSchedule(prevLocal => {
+      // SAFETY LOCK: Check if local items are missing DB IDs, but the server data has them
+      const needsIdSync = prevLocal.length > 0 && !prevLocal[0].id && serverData.length > 0 && serverData[0].id;
+      
+      if (prevLocal.length === 0 || serverData.length !== prevLocal.length || needsIdSync) {
+        return serverData.map(item => ({
+          ...item,
+          flagged: Boolean(item.flagged ?? false),
+          flagNote: item.flagNote ?? "",
+          isManualProctor: Boolean(item.isManualProctor ?? false)
+        }));
+      }
+      return prevLocal;
+    });
   }, [globalSchedule, deptCode]);
 
   const showToast = (message, type = 'success', undoable = false) => {
