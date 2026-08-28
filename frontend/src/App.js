@@ -602,13 +602,27 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
       
 // --- 2. AVAILABILITY LOG BOOK COMPONENT ---
 const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, onDelete, readOnly = false, showToast, isHighlighted }) => {
-const [date, setDate] = useState("");
+  const [date, setDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [logView, setLogView] = useState('upcoming');
   const fileInputRef = useRef(null);
 
+  const now = new Date();
+  const todayString = now.toISOString().split('T')[0];
+  const currentTimeStr = now.toTimeString().substring(0, 5);
+
+  const isPast = (d, eTime) => {
+    if (!d) return false;
+    if (d < todayString) return true;
+    if (d === todayString && eTime < currentTimeStr) return true;
+    return false;
+  };
+
   const myAvails = globalAvailability.filter(a => a.proctor_id === profile.id);
-  const todayString = new Date().toISOString().split('T')[0];
+  const displayedAvails = logView === 'upcoming' 
+    ? myAvails.filter(a => !isPast(a.exam_date, a.end_time)) 
+    : myAvails.filter(a => isPast(a.exam_date, a.end_time));
   const handleSubmit = () => {
     if (!date || !start || !end) return showToast ? showToast("Please fill in all fields.", "error") : alert("Please fill in all fields.");
     const formattedStart = start.length === 5 ? `${start}:00` : start;
@@ -732,11 +746,17 @@ const [date, setDate] = useState("");
 return (
     <div className={`rounded-3xl md:rounded-[3rem] p-6 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-4 border-blue-500 bg-blue-100 scale-105 z-10 relative shadow-blue-300' : 'bg-white border-2 border-slate-100'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-          <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
-        </h2>
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
+          </h2>
+          <div className="flex bg-slate-100/50 border border-slate-200 p-1 rounded-lg">
+              <button onClick={() => setLogView('upcoming')} className={`px-3 py-1 text-[8px] font-black uppercase rounded transition-all ${logView === 'upcoming' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Active</button>
+              <button onClick={() => setLogView('history')} className={`px-3 py-1 text-[8px] font-black uppercase rounded transition-all ${logView === 'history' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
+          </div>
+        </div>
         
-        {!readOnly && (
+        {!readOnly && logView === 'upcoming' && (
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-4 py-2.5 rounded-xl hover:bg-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-emerald-200">
               <Download size={14}/> Excel Template
@@ -769,12 +789,12 @@ return (
         </div>
       )}
 
-      <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-        {myAvails.length === 0 ? (
+     <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+        {displayedAvails.length === 0 ? (
            <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-3xl">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Availability Logged</p>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{logView === 'history' ? 'No Past Records' : 'No Active Availability'}</p>
            </div>
-        ) : myAvails.map(avail => (
+        ) : displayedAvails.map(avail => (
           <div key={avail.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm group">
             <div className="flex items-center gap-4">
               <div className="bg-blue-50 text-blue-600 p-3 rounded-xl"><Calendar size={18} /></div>
@@ -797,27 +817,42 @@ return (
 
 // --- 3. PROCTOR DASHBOARD ---
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount }) => {
-// --- NEW: AUTO-SCROLL EFFECT ---
+  const [dashboardView, setDashboardView] = useState('upcoming');
+
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
-      setTimeout(() => {
-        document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 400);
+      setTimeout(() => document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
     }
   }, [highlightTarget]);
 
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const currentTimeStr = now.toTimeString().substring(0, 5);
+
+  const isPast = (date, endTime) => {
+     if (!date) return false;
+     if (date < todayStr) return true;
+     if (date === todayStr && endTime < currentTimeStr) return true;
+     return false;
+  };
+
   const mySchedule = globalSchedule.filter(s => s.proctor === profile.full_name);
   
-  // --- NEW: SEPARATE PENDING REQUESTS FROM CONFIRMED ASSIGNMENTS ---
   const pendingRequests = [];
   const confirmedAssignments = [];
+  const historyAssignments = [];
 
   mySchedule.forEach(s => {
     const isVerified = globalAvailability.some(a => a.proctor_id === profile.id && a.exam_date === s.exam_date && (s.start_time < a.end_time && s.end_time > a.start_time));
-    if (!isVerified && !s.flagged && !isViewMode) {
-      pendingRequests.push(s);
+    
+    if (isPast(s.exam_date, s.end_time)) {
+      historyAssignments.push(s);
     } else {
-      confirmedAssignments.push(s);
+      if (!isVerified && !s.flagged && !isViewMode) {
+        pendingRequests.push(s);
+      } else {
+        confirmedAssignments.push(s);
+      }
     }
   });
   
@@ -1071,17 +1106,23 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
               </div>
             )}
 
-            {/* CONFIRMED ASSIGNMENTS SECTION */}
+          {/* CONFIRMED ASSIGNMENTS SECTION */}
             <div className="bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col flex-1 max-h-[600px]">
-              <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {isViewMode ? "Their Schedule" : "Confirmed Schedule"}</h2>
-                <span className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black">{confirmedAssignments.length}</span>
+              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {dashboardView === 'history' ? 'Past History' : (isViewMode ? "Their Schedule" : "Confirmed Schedule")}</h2>
+                  <span className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black">{dashboardView === 'history' ? historyAssignments.length : confirmedAssignments.length}</span>
+                </div>
+                <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
+                   <button onClick={() => setDashboardView('upcoming')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${dashboardView === 'upcoming' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>Upcoming</button>
+                   <button onClick={() => setDashboardView('history')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${dashboardView === 'history' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>History</button>
+                </div>
               </div>
               
               <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
-                {confirmedAssignments.length === 0 ? (
-                  <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">No confirmed assignments.</p>
-                ) : confirmedAssignments.map((s, i) => (
+                {(dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).length === 0 ? (
+                  <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">{dashboardView === 'history' ? 'No past assignments.' : 'No confirmed assignments.'}</p>
+                ) : (dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).map((s, i) => (
                     <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
                       <div className="flex justify-between items-start mb-3">
                          <div><p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p><p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p></div>
