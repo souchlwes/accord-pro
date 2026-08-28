@@ -119,6 +119,7 @@ const DepartmentCard = ({
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
   const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
   const [emergencyModal, setEmergencyModal] = useState({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
+  const [roomWarningModal, setRoomWarningModal] = useState({ isOpen: false, resolve: null, sectionID: '', targetHeadcount: 0, nextRoom: null, nextCap: 0, fallbackRoom: null, fallbackCap: 0, fitsAnywhere: false });
   const [editSubjectModal, setEditSubjectModal] = useState({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
   const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
@@ -482,38 +483,88 @@ for (let d = 0; d < examDays; d++) {
            }
         }
 
-        // --- NEW: CHRONOLOGICAL & CAPACITY ROOM ASSIGNMENT ---
+      // --- NEW: CHRONOLOGICAL & CAPACITY ROOM ASSIGNMENT ---
         availableRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
 
-       // Read directly from the dynamic box for this specific letter
+        // Read directly from the dynamic box for this specific letter
         let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
 
         let selectedRoomIndex = -1;
         for (let i = 0; i < availableRooms.length; i++) {
-           let maxCap = 999;
-           if (availableRooms[i].capacity) {
-              maxCap = parseInt(String(availableRooms[i].capacity).split('-').pop().trim()) || 999;
-           }
-           if (maxCap >= targetHeadcount) {
+           // N/A or empty now defaults to 0, forcing you to define room capacities properly!
+           let maxCap = parseInt(String(availableRooms[i].capacity || '0').split('-').pop().trim()) || 0;
+           if (targetHeadcount === 0 || maxCap >= targetHeadcount) {
               selectedRoomIndex = i;
               break;
            }
         }
 
-        if (selectedRoomIndex === -1) {
-          let maxAvailCap = availableRooms.length > 0 ? Math.max(...availableRooms.map(r => parseInt(String(r.capacity||'0').split('-').pop().trim()) || 0)) : 0;
+        let finalSelectedRoom = null;
+
+        if (availableRooms.length === 0) {
           errors.push({ 
-            issue: `Room Capacity/Shortage (Day ${d+1})`, 
-            resolution: availableRooms.length === 0 
-                ? `No available rooms for Section ${sectionID} on ${dayDate}.`
-                : `Section ${sectionID} requires ${targetHeadcount} seats, but the largest available room only holds ${maxAvailCap}. Suggestion: Force manual assignment, change the schedule time, or expand the Global Pool.`
+            issue: `Room Shortage (Day ${d+1})`, 
+            resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
           });
           generationFailed = true;
-        } else if (selectedRoomIndex > 0) {
-           // We skipped a room chronologically! Trigger warning payload.
-           warningLogs.push(`Section ${sectionLetter} on Day ${d+1} skipped chronological sequence to fit ${targetHeadcount} capacity.`);
+        } else if (selectedRoomIndex === 0 || targetHeadcount === 0) {
+            // Perfect fit chronologically, or user chose to bypass capacity checks
+            finalSelectedRoom = availableRooms.splice(0, 1)[0];
+        } else {
+            // Conflict! We either skipped rooms or no room fits at all.
+            let nextChronologicalRoom = availableRooms[0];
+            let nextChronologicalCap = parseInt(String(nextChronologicalRoom?.capacity || '0').split('-').pop().trim()) || 0;
+            
+            let fallbackRoom = selectedRoomIndex > 0 ? availableRooms[selectedRoomIndex] : null;
+            let fallbackCap = fallbackRoom ? parseInt(String(fallbackRoom.capacity || '0').split('-').pop().trim()) || 0 : 0;
+            let fitsAnywhere = true;
+
+            if (!fallbackRoom) {
+                fitsAnywhere = false;
+                // Find the LARGEST room if none fit perfectly
+                let maxFound = -1;
+                let maxIdx = 0;
+                availableRooms.forEach((r, i) => {
+                   let c = parseInt(String(r.capacity || '0').split('-').pop().trim()) || 0;
+                   if(c > maxFound) { maxFound = c; maxIdx = i; }
+                });
+                fallbackRoom = availableRooms[maxIdx];
+                fallbackCap = maxFound;
+                selectedRoomIndex = maxIdx;
+            }
+
+            // --- PAUSE ALGORITHM & ASK ADMIN ---
+            const userChoice = await new Promise((resolve) => {
+                setRoomWarningModal({
+                    isOpen: true,
+                    resolve: resolve,
+                    sectionID: sectionID,
+                    targetHeadcount: targetHeadcount,
+                    nextRoom: nextChronologicalRoom,
+                    nextCap: nextChronologicalCap,
+                    fallbackRoom: fallbackRoom,
+                    fallbackCap: fallbackCap,
+                    fitsAnywhere: fitsAnywhere
+                });
+            });
+
+            if (!userChoice || userChoice === 'halt') {
+                generationFailed = true;
+                errors.push({
+                   issue: `Capacity Halted (Day ${d+1})`,
+                   resolution: `Generation aborted due to strict capacity constraints for Section ${sectionID} (${targetHeadcount} students).`
+                });
+            } else if (userChoice === 'force') {
+                finalSelectedRoom = availableRooms.splice(0, 1)[0];
+                warningLogs.push(`Section ${sectionLetter} forced into Room ${finalSelectedRoom.number} (${nextChronologicalCap} cap) despite having ${targetHeadcount} students.`);
+            } else if (userChoice === 'skip') {
+                finalSelectedRoom = availableRooms.splice(selectedRoomIndex, 1)[0];
+                warningLogs.push(`Section ${sectionLetter} skipped to Room ${finalSelectedRoom.number} to accommodate ${targetHeadcount} students.`);
+            }
         }
-        
+
+        if (generationFailed) break;
+
         if (evalResult.available.length === 0 && !generationFailed) {
           let issueTitle = `Proctor Shortage (Day ${d+1})`;
           let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
@@ -546,7 +597,7 @@ for (let d = 0; d < examDays; d++) {
              return aCount - bCount; 
           });
 
-          const selectedRoom = availableRooms.splice(selectedRoomIndex, 1)[0];
+const selectedRoom = finalSelectedRoom;
           const selectedProctor = evalResult.available.shift();
 
           daySubjects.forEach((sub, idx) => {
@@ -1920,7 +1971,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
           </div>
         </div>
       )}
-      {/* --- NEW: EMERGENCY GENERATOR MODAL --- */}
+     
+     {/* --- NEW: EMERGENCY GENERATOR MODAL --- */}
       {emergencyModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
@@ -1964,7 +2016,55 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
 
-    {/* --- EDIT ROOM MODAL --- */}
+      {/* --- NEW: ROOM CAPACITY WARNING MODAL --- */}
+      {roomWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+              <AlertTriangle size={32} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Capacity Conflict</h3>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
+              <strong className="text-slate-800">Section {roomWarningModal.sectionID}</strong> has <strong className="text-rose-500">{roomWarningModal.targetHeadcount} students</strong>, but the next room in alphanumeric sequence (<strong className="text-slate-800">Room {roomWarningModal.nextRoom?.number}</strong>) only holds <strong className="text-rose-500">{roomWarningModal.nextCap}</strong>.
+            </p>
+
+            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-6 shadow-inner">
+               <p className="text-amber-800 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
+                 {roomWarningModal.fitsAnywhere 
+                   ? `Room ${roomWarningModal.fallbackRoom?.number} can hold ${roomWarningModal.fallbackCap} students. Do you want to skip sequence and use this room, or force them into Room ${roomWarningModal.nextRoom?.number}?`
+                   : `No available rooms can hold ${roomWarningModal.targetHeadcount} students. The largest available is Room ${roomWarningModal.fallbackRoom?.number} (${roomWarningModal.fallbackCap} cap). Do you want to force them into a smaller room or halt generation?`
+                 }
+               </p>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              {roomWarningModal.fitsAnywhere && (
+                <button onClick={() => {
+                   roomWarningModal.resolve('skip');
+                   setRoomWarningModal({ ...roomWarningModal, isOpen: false });
+                }} className="w-full bg-emerald-100 text-emerald-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-500 hover:text-white transition-all shadow-sm">
+                  Skip to Room {roomWarningModal.fallbackRoom?.number} (Meets Capacity)
+                </button>
+              )}
+              <button onClick={() => {
+                 roomWarningModal.resolve('force');
+                 setRoomWarningModal({ ...roomWarningModal, isOpen: false });
+              }} className="w-full bg-amber-100 text-amber-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-amber-500 hover:text-white transition-all shadow-sm">
+                 Force into Room {roomWarningModal.nextRoom?.number} (Ignore Limit)
+              </button>
+              <button onClick={() => {
+                 roomWarningModal.resolve('halt');
+                 setRoomWarningModal({ ...roomWarningModal, isOpen: false });
+              }} className="w-full px-4 py-3 rounded-xl text-[10px] font-black uppercase text-slate-500 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 transition-colors shadow-sm">
+                 Halt Generation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl">
