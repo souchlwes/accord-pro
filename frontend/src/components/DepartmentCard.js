@@ -124,6 +124,65 @@ const DepartmentCard = ({
   const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
+  // --- NEW: DECISION ENGINE MODAL ---
+  const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
+
+  const confirmProctorSwitch = (pName, scope) => {
+     const isGlobal = !activeDeptProctors.some(p => (p.full_name || p.name) === pName);
+     if (isGlobal) {
+        setDecisionModal({
+           isOpen: true,
+           title: "Cross-Department Assignment",
+           message: `You are about to assign ${pName}, who belongs to a different department (Global Pool). This will lock their schedule university-wide. Proceed?`,
+           type: 'amber',
+           action: () => { handleProctorSwitch(pName, scope); setDecisionModal({ isOpen: false }); }
+        });
+     } else {
+        handleProctorSwitch(pName, scope);
+     }
+  };
+
+  const confirmRoomSwitch = (rNum) => {
+     const isGlobal = !rooms.some(r => r.number === rNum);
+     if (isGlobal) {
+        setDecisionModal({
+           isOpen: true,
+           title: "Global Room Assignment",
+           message: `You are about to assign Room ${rNum} from the Global Pool. This will claim a shared university resource for this time block. Proceed?`,
+           type: 'amber',
+           action: () => { handleRoomSwitch(rNum); setDecisionModal({ isOpen: false }); }
+        });
+     } else {
+        handleRoomSwitch(rNum);
+     }
+  };
+
+  const toggleProctorSource = () => {
+    const nextSource = proctorSource === "Department" ? "Global" : "Department";
+    setDecisionModal({
+      isOpen: true,
+      title: `Switch to ${nextSource} Proctors?`,
+      message: nextSource === 'Global' 
+        ? "You are about to allow the generator to pull available proctors from other departments. Proceed?"
+        : "You are restricting the generator to ONLY use your internal department proctors. Proceed?",
+      type: 'blue',
+      action: () => { setProctorSource(nextSource); setDecisionModal({ isOpen: false }); showToast(`Proctor Source set to ${nextSource}`); }
+    });
+  };
+
+  const toggleRoomSource = () => {
+    const nextSource = roomSource === "Department" ? "Global" : "Department";
+    setDecisionModal({
+      isOpen: true,
+      title: `Switch to ${nextSource} Rooms?`,
+      message: nextSource === 'Global' 
+        ? "You are about to allow the generator to pull unassigned rooms from the entire university pool. This helps resolve shortages but uses shared resources. Proceed?"
+        : "You are restricting the generator to ONLY use your department's internal rooms. Proceed?",
+      type: 'blue',
+      action: () => { setRoomSource(nextSource); setDecisionModal({ isOpen: false }); showToast(`Room Source set to ${nextSource}`); }
+    });
+  };
+
   // ENHANCEMENT: Sync initial preview AND respond to external updates safely
   useEffect(() => {
     const serverData = globalSchedule.filter(s => s.dept_code === deptCode);
@@ -1479,16 +1538,15 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-3 pt-4">
-                   
-                      <button onClick={() => setProctorSource(proctorSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
+                   <div className="grid grid-cols-1 gap-3 pt-4">
+                      <button onClick={toggleProctorSource} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
                         <span className="flex items-center gap-3">
                           {proctorSource === "Department" ? <Home size={16} className="text-blue-500"/> : <Globe size={16} className="text-blue-500"/>}
                           Staff Source: {proctorSource}
                         </span>
                         <ChevronRight size={14}/>
                       </button>
-                      <button onClick={() => setRoomSource(roomSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
+                      <button onClick={toggleRoomSource} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
                         <span className="flex items-center gap-3">
                           {roomSource === "Department" ? <Home size={16} className="text-emerald-500"/> : <Globe size={16} className="text-emerald-500"/>}
                           Room Source: {roomSource}
@@ -1878,8 +1936,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                       <div className="flex gap-2">
                         {/* REMOVED disabled={isTeacherForBlock} so admins can force the assignment! */}
-                        <button onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
-                        <button onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
+                       <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
+                        <button onClick={() => confirmProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
                       </div>
                     </div>
                   );
@@ -1916,7 +1974,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                 {availableList.length === 0 && <p className="col-span-3 text-center text-[10px] font-bold text-slate-400 py-8 uppercase">No rooms available in this pool.</p>}
                 {availableList.map((rNum, idx) => (
-                  <div key={idx} onClick={() => handleRoomSwitch(rNum)} className={`text-center p-4 rounded-2xl border-2 transition-all font-black text-lg cursor-pointer ${rNum === tb.room ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-50 hover:border-blue-500 hover:bg-slate-50 text-slate-800'}`}>{rNum}</div>
+                  <div key={idx} onClick={() => confirmRoomSwitch(rNum)} className={`text-center p-4 rounded-2xl border-2 transition-all font-black text-lg cursor-pointer ${rNum === tb.room ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-50 hover:border-blue-500 hover:bg-slate-50 text-slate-800'}`}>{rNum}</div>
                 ))}
               </div>
               <div className="mt-6 pt-6 border-t-2 border-slate-50">
@@ -2203,6 +2261,20 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                       setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
                   }
               }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Subject</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- NEW: DECISION ENGINE MODAL --- */}
+      {decisionModal.isOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+            <Info className={`mx-auto mb-6 ${decisionModal.type === 'amber' ? 'text-amber-500' : 'text-blue-500'}`} size={48} />
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">{decisionModal.title}</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">{decisionModal.message}</p>
+            <div className="flex gap-4">
+              <button onClick={() => setDecisionModal({ isOpen: false, title: '', message: '', type: 'info', action: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={decisionModal.action} className={`flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors ${decisionModal.type === 'amber' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-500'}`}>Confirm</button>
             </div>
           </div>
         </div>
