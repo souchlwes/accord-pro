@@ -1275,10 +1275,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                <p className="text-[9px] text-slate-500 leading-relaxed font-bold">Proctors appear here automatically when they link their account to "{deptCode}". They must manually log availability on their own dashboard to be used in the generator.</p>
             </div>
             
-            
-         <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+            <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {activeDeptProctors.map(p => {
                 const logs = globalAvailability.filter(a => a.proctor_id === p.id);
+                // --- NEW: Filters out logs that are in the past ---
                 const activeLogs = logs.filter(a => !isPast(a.exam_date, a.end_time));
 
                 return (
@@ -1330,7 +1330,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                   </div>
                 );
               })}
-            </div>         
+            </div>
           </div>
         )}
 
