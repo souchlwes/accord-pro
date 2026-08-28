@@ -296,11 +296,13 @@ const DepartmentCard = ({
   const [examDates, setExamDates] = useState([]);
   const [startTime, setStartTime] = useState("08:00");
   const [selectedYear, setSelectedYear] = useState("1");
-  const [sectionCount, setSectionCount] = useState(0);
+ const [sectionCount, setSectionCount] = useState(0);
+  const [sectionSizes, setSectionSizes] = useState("");
   const [proctorSource, setProctorSource] = useState("Department");
   const [roomSource, setRoomSource] = useState("Department");
 
   const [pName, setPName] = useState("");
+
   const [pDayStart, setPDayStart] = useState("");
   const [pDayEnd, setPDayEnd] = useState("");
   const [pTimeStart, setPTimeStart] = useState("08:00");
@@ -308,6 +310,7 @@ const DepartmentCard = ({
 
   const [roomNum, setRoomNum] = useState("");
   const [roomType, setRoomType] = useState("Department");
+  const [roomCap, setRoomCap] = useState("");
   const todayString = new Date().toISOString().split('T')[0];
   const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
@@ -322,6 +325,7 @@ const DepartmentCard = ({
   const handleGenerateClick = async () => {
     setGenerationErrors([]);
     const errors = [];
+    const warningLogs = [];
     const yearSubs = subjects[selectedYear] || [];
 
     if (yearSubs.length === 0) errors.push({ 
@@ -477,15 +481,42 @@ for (let d = 0; d < examDays; d++) {
            }
         }
 
-        if (availableRooms.length === 0) {
+        // --- NEW: CHRONOLOGICAL & CAPACITY ROOM ASSIGNMENT ---
+        availableRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+
+        let targetHeadcount = 0;
+        if (sectionSizes) {
+           const sizeMatch = sectionSizes.match(new RegExp(`${sectionLetter}:\\s*(\\d+)`, 'i'));
+           if (sizeMatch) targetHeadcount = parseInt(sizeMatch[1]);
+        }
+
+        let selectedRoomIndex = -1;
+        for (let i = 0; i < availableRooms.length; i++) {
+           let maxCap = 999;
+           if (availableRooms[i].capacity) {
+              maxCap = parseInt(String(availableRooms[i].capacity).split('-').pop().trim()) || 999;
+           }
+           if (maxCap >= targetHeadcount) {
+              selectedRoomIndex = i;
+              break;
+           }
+        }
+
+        if (selectedRoomIndex === -1) {
+          let maxAvailCap = availableRooms.length > 0 ? Math.max(...availableRooms.map(r => parseInt(String(r.capacity||'0').split('-').pop().trim()) || 0)) : 0;
           errors.push({ 
-            issue: `Room Shortage (Day ${d+1})`, 
-            resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
+            issue: `Room Capacity/Shortage (Day ${d+1})`, 
+            resolution: availableRooms.length === 0 
+                ? `No available rooms for Section ${sectionID} on ${dayDate}.`
+                : `Section ${sectionID} requires ${targetHeadcount} seats, but the largest available room only holds ${maxAvailCap}. Suggestion: Force manual assignment, change the schedule time, or expand the Global Pool.`
           });
           generationFailed = true;
+        } else if (selectedRoomIndex > 0) {
+           // We skipped a room chronologically! Trigger warning payload.
+           warningLogs.push(`Section ${sectionLetter} on Day ${d+1} skipped chronological sequence to fit ${targetHeadcount} capacity.`);
         }
         
-        if (evalResult.available.length === 0) {
+        if (evalResult.available.length === 0 && !generationFailed) {
           let issueTitle = `Proctor Shortage (Day ${d+1})`;
           let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
 
@@ -517,7 +548,7 @@ for (let d = 0; d < examDays; d++) {
              return aCount - bCount; 
           });
 
-          const selectedRoom = availableRooms.shift();
+          const selectedRoom = availableRooms.splice(selectedRoomIndex, 1)[0];
           const selectedProctor = evalResult.available.shift();
 
           daySubjects.forEach((sub, idx) => {
@@ -560,9 +591,14 @@ for (let d = 0; d < examDays; d++) {
     }
 
     setLocalSchedule(finalGeneratedData);
-    setAuditLog(["Automated Generation Completed."]);
+    if (warningLogs.length > 0) {
+       setAuditLog([...warningLogs.map(w => `[SYSTEM WARNING] ${w}`), "Automated Generation Completed."]);
+       showToast("Schedule Generated with Sequence Warnings!", "error");
+    } else {
+       setAuditLog(["Automated Generation Completed."]);
+       showToast("Schedule Generated Successfully!");
+    }
     setActiveTab("preview");
-    showToast("Schedule Generated Successfully!");
   };
 
 
@@ -1234,22 +1270,24 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
           </div>
         )}
 
-       {/* ROOMS TAB */}
+     {/* ROOMS TAB */}
         {activeTab === 'rooms' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
             <div className="flex flex-col md:flex-row gap-4 bg-amber-50/50 p-8 rounded-[3rem] border border-amber-100 shadow-inner">
-              <input value={roomNum} onChange={e => setRoomNum(e.target.value)} placeholder="ROOM NO. OR HALL NAME" className="flex-1 p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
+              <input value={roomNum} onChange={e => setRoomNum(e.target.value)} placeholder="ROOM NO. OR HALL" className="flex-[2] p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
+              <input value={roomCap} onChange={e => setRoomCap(e.target.value)} placeholder="CAPACITY (e.g. 40-50)" className="flex-1 p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
               <select value={roomType} onChange={e => setRoomType(e.target.value)} className="bg-white px-8 rounded-3xl font-black text-[10px] uppercase outline-none shadow-sm border-2 border-amber-50 appearance-none">
                 <option value="Department">Internal Resource</option>
                 <option value="Global">Global Pool</option>
               </select>
               <button onClick={() => {
-                if (roomNum) {
-                  onUpdate('rooms', { ...dept, rooms: [...rooms, { id: Date.now(), number: roomNum.toUpperCase(), type: roomType }] });
+                if (roomNum && roomCap) {
+                  onUpdate('rooms', { ...dept, rooms: [...rooms, { id: Date.now(), number: roomNum.toUpperCase(), type: roomType, capacity: roomCap }] });
                   showToast(`Room ${roomNum.toUpperCase()} added.`);
                   setRoomNum("");
+                  setRoomCap("");
                 } else {
-                  showToast("Room number required.", "error");
+                  showToast("Room number and capacity are required.", "error");
                 }
               }} className="bg-amber-600 text-white px-10 py-5 rounded-3xl font-black uppercase text-[10px] shadow-lg active:scale-95">
                 Add Room
@@ -1261,9 +1299,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                 <div key={r.id} className="p-8 bg-white border-2 border-slate-50 rounded-[3rem] text-center relative group shadow-sm hover:border-amber-200 transition-all">
                   <span className="font-black text-2xl text-slate-800 tracking-tighter">{r.number}</span>
                   <span className={`block text-[8px] font-black uppercase mt-2 tracking-widest ${r.type === 'Global' ? 'text-blue-500' : 'text-amber-500'}`}>{r.type} Source</span>
+                  <span className="block text-[9px] font-bold text-slate-400 uppercase mt-1">Cap: {r.capacity || 'N/A'}</span>
                   
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                    <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" onClick={() => setEditRoomModal({ isOpen: true, id: r.id, number: r.number, type: r.type })}>
+                    <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" onClick={() => setEditRoomModal({ isOpen: true, id: r.id, number: r.number, type: r.type, capacity: r.capacity || '' })}>
                       <Edit3 size={14}/>
                     </button>
                     <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" onClick={() => {
@@ -1349,6 +1388,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Total Sections</label>
                         <input type="number" value={sectionCount || ''} onChange={e => setSectionCount(parseInt(e.target.value) || 0)} placeholder="0" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none" />
                       </div>
+                    </div>
+                    <div className="space-y-2 pt-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Section Enrollments (e.g. A:40, B:45)</label>
+                      <input type="text" value={sectionSizes} onChange={e => setSectionSizes(e.target.value)} placeholder="Leave blank to bypass check" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none" />
                     </div>
                     <div className="grid grid-cols-1 gap-3 pt-4">
                       <button onClick={() => setProctorSource(proctorSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
@@ -1905,23 +1948,26 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl">
             <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6 flex items-center gap-3"><DoorOpen className="text-amber-500"/> Edit Room</h3>
-            <div className="space-y-4 mb-6">
+           <div className="space-y-4 mb-6">
               <input value={editRoomModal.number} onChange={e => setEditRoomModal({...editRoomModal, number: e.target.value})} placeholder="Room Number" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 transition-all uppercase" />
+              <input value={editRoomModal.capacity || ''} onChange={e => setEditRoomModal({...editRoomModal, capacity: e.target.value})} placeholder="Capacity (e.g. 40-50)" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 transition-all" />
               <select value={editRoomModal.type} onChange={e => setEditRoomModal({...editRoomModal, type: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-amber-500 transition-all cursor-pointer appearance-none uppercase">
                 <option value="Department">Internal Resource</option>
                 <option value="Global">Global Pool</option>
               </select>
             </div>
             <div className="flex gap-4">
-              <button onClick={() => setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department', capacity: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
               <button onClick={() => {
-                 if (editRoomModal.number) {
-                    const updatedRooms = rooms.map(r => r.id === editRoomModal.id ? { ...r, number: editRoomModal.number.toUpperCase(), type: editRoomModal.type } : r);
+                 if (editRoomModal.number && editRoomModal.capacity) {
+                    const updatedRooms = rooms.map(r => r.id === editRoomModal.id ? { ...r, number: editRoomModal.number.toUpperCase(), type: editRoomModal.type, capacity: editRoomModal.capacity } : r);
                     onUpdate('rooms', { ...dept, rooms: updatedRooms });
                     showToast(`Room updated successfully.`);
-                    setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department' });
+                    setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department', capacity: '' });
+                 } else {
+                    showToast(`Room number and capacity required.`, "error");
                  }
-              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Save Changes</button>
+              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Save Changes</button> 
             </div>
           </div>
         </div>
