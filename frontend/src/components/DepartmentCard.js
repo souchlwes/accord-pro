@@ -6,7 +6,7 @@ import {
   Trash2, Plus, Play, Clock, Calendar, Download,
   ShieldCheck, Globe, Home, BookOpen, ChevronRight,
   Settings2, Users, RefreshCw, CheckCircle2, AlertCircle,
-  LayoutGrid, AlertTriangle, Edit3, ArrowUp, ArrowDown, Lock, X, Info, Layers
+  LayoutGrid, AlertTriangle, Edit3, ArrowUp, ArrowDown, Lock, X, Info, Layers, DoorOpen
 } from 'lucide-react';
 
 // --- HELPER FUNCTIONS ---
@@ -88,7 +88,8 @@ const DepartmentCard = ({
   globalAvailability = [], 
   role,
   onNotify,
-  onEditProctor
+  onEditProctor,
+  highlightTarget
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
   const [generationErrors, setGenerationErrors] = useState([]);
@@ -297,7 +298,7 @@ const DepartmentCard = ({
   const [startTime, setStartTime] = useState("08:00");
   const [selectedYear, setSelectedYear] = useState("1");
  const [sectionCount, setSectionCount] = useState(0);
-  const [sectionSizes, setSectionSizes] = useState("");
+  const [sectionSizes, setSectionSizes] = useState({}); // Upgraded to an object for dynamic boxes
   const [proctorSource, setProctorSource] = useState("Department");
   const [roomSource, setRoomSource] = useState("Department");
 
@@ -484,11 +485,8 @@ for (let d = 0; d < examDays; d++) {
         // --- NEW: CHRONOLOGICAL & CAPACITY ROOM ASSIGNMENT ---
         availableRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
 
-        let targetHeadcount = 0;
-        if (sectionSizes) {
-           const sizeMatch = sectionSizes.match(new RegExp(`${sectionLetter}:\\s*(\\d+)`, 'i'));
-           if (sizeMatch) targetHeadcount = parseInt(sizeMatch[1]);
-        }
+       // Read directly from the dynamic box for this specific letter
+        let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
 
         let selectedRoomIndex = -1;
         for (let i = 0; i < availableRooms.length; i++) {
@@ -1384,16 +1382,39 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                           {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-2">
+                     
+<div className="space-y-2">
                         <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Total Sections</label>
-                        <input type="number" value={sectionCount || ''} onChange={e => setSectionCount(parseInt(e.target.value) || 0)} placeholder="0" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none" />
+                        <input type="number" min="0" max="26" value={sectionCount || ''} onChange={e => setSectionCount(parseInt(e.target.value) || 0)} placeholder="0" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none focus:border-emerald-500 transition-colors" />
                       </div>
                     </div>
-                    <div className="space-y-2 pt-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Section Enrollments (e.g. A:40, B:45)</label>
-                      <input type="text" value={sectionSizes} onChange={e => setSectionSizes(e.target.value)} placeholder="Leave blank to bypass check" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none" />
-                    </div>
+                    
+                    {/* --- DYNAMIC SECTION HEADCOUNT BOXES --- */}
+                    {sectionCount > 0 && (
+                      <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Enrolled Students Per Section</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {Array.from({ length: Math.min(sectionCount, 26) }).map((_, idx) => {
+                            const letter = String.fromCharCode(65 + idx);
+                            return (
+                              <div key={letter} className="flex items-center bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden focus-within:border-emerald-500 transition-colors shadow-inner">
+                                <span className="bg-slate-700 text-emerald-400 font-black text-[10px] px-3 py-4 w-10 text-center">{letter}</span>
+                                <input 
+                                  type="number" 
+                                  value={sectionSizes[letter] || ''} 
+                                  onChange={e => setSectionSizes({...sectionSizes, [letter]: e.target.value})} 
+                                  placeholder="Capacity" 
+                                  className="w-full bg-transparent p-3 text-xs font-black text-emerald-400 outline-none" 
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 gap-3 pt-4">
+                   
                       <button onClick={() => setProctorSource(proctorSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
                         <span className="flex items-center gap-3">
                           {proctorSource === "Department" ? <Home size={16} className="text-blue-500"/> : <Globe size={16} className="text-blue-500"/>}
@@ -1943,7 +1964,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
 
-      {/* --- EDIT ROOM MODAL --- */}
+    {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl">
