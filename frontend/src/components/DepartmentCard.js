@@ -2108,7 +2108,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               <button onClick={() => {
                  proctorWarningModal.resolve({ type: 'halt' });
                  setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-              }} className="p-2 hover:bg-slate-100 rounded-full">
+              }} className="p-2 hover:bg-slate-100 rounded-full cursor-pointer">
                 <X size={20} className="text-slate-400" />
               </button>
             </div>
@@ -2117,7 +2117,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               All eligible <strong className="text-slate-800">{proctorWarningModal.source}</strong> proctors are exhausted. Search the system pool or assign a guest proctor below:
             </p>
 
-            {/* SEARCH INPUT */}
+            {/* SEARCH INPUT WITH ENTER KEY SUPPORT */}
             <div className="relative mb-4">
               <input 
                 autoFocus 
@@ -2125,6 +2125,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 placeholder="Search Proctor Name or Type New..." 
                 value={manualProctorInput} 
                 onChange={(e) => setManualProctorInput(e.target.value)} 
+                onKeyDown={(e) => {
+                   if (e.key === 'Enter' && manualProctorInput.trim()) {
+                      proctorWarningModal.resolve({ type: 'manual', name: manualProctorInput.trim() });
+                      setManualProctorInput("");
+                      setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                   }
+                }}
                 className="w-full p-5 pl-12 rounded-3xl text-xs font-black border-2 border-slate-100 focus:border-blue-500 outline-none transition-all" 
               />
               <Users className="absolute left-5 top-5 text-slate-400" size={16} />
@@ -2132,14 +2139,14 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
             {/* FULLY FUNCTIONAL POOL TOGGLES */}
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-              <button onClick={() => setProctorSource('Department')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${proctorSource === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Internal Dept</button>
-              <button onClick={() => setProctorSource('Global')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${proctorSource === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Global System</button>
+              <button onClick={() => setProctorSource('Department')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${proctorSource === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Internal Dept</button>
+              <button onClick={() => setProctorSource('Global')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${proctorSource === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Global System</button>
             </div>
 
             <div className="max-h-60 overflow-y-auto space-y-3 pr-2 custom-scrollbar mb-6">
                {(() => {
                   const searchTerm = manualProctorInput.trim();
-                  // Fixed: Dynamically changes pool array based on the toggle state!
+                  // Dynamically changes pool array based on the toggle state!
                   const poolToSearch = proctorSource === 'Global' ? globalProctorPool : activeDeptProctors;
                   
                   const filteredWarningList = poolToSearch.filter(p => {
@@ -2222,8 +2229,10 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </button>
           </div>
         </div>
-      )} 
-      
+      )}
+
+            
+  
       {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
