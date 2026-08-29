@@ -2095,7 +2095,7 @@ useEffect(() => {
   if (isProctor) {
     return (
       <>
-        <ProctorDashboard 
+      <ProctorDashboard 
           profile={profile} 
           globalSchedule={globalSchedule} 
           allExamDates={allExamDates} 
@@ -2106,7 +2106,7 @@ useEffect(() => {
           notifications={notifications}
           onShowNotify={() => setShowNotifications(true)}
           onShowHelp={() => setShowHelp(true)}
-onShowChat={handleOpenChat}
+          onShowChat={handleOpenChat}
           unreadMessageCount={unreadMessageCount}
           onFlagIssue={handleFlagIssue}
           onDeclineAssignment={handleDeclineAssignment}
