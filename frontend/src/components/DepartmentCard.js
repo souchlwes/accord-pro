@@ -118,7 +118,8 @@ const DepartmentCard = ({
   const [roomModal, setRoomModal] = useState({ isOpen: false, targetBlock: null, pool: 'Department' });
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
   const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
-  const [emergencyModal, setEmergencyModal] = useState({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
+  const [proctorWarningModal, setProctorWarningModal] = useState({ isOpen: false, resolve: null, sectionID: '', dayDate: '', source: '', hasFallback: false, fallbackPoolName: '', teachers: [] });
+  const [manualProctorInput, setManualProctorInput] = useState("");
   const [roomWarningModal, setRoomWarningModal] = useState({ isOpen: false, resolve: null, sectionID: '', targetHeadcount: 0, nextRoom: null, nextCap: 0, fallbackRoom: null, fallbackCap: 0, fitsAnywhere: false });
   const [editSubjectModal, setEditSubjectModal] = useState({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
   const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
@@ -519,40 +520,46 @@ for (let d = 0; d < examDays; d++) {
 
         let evalResult = evaluatePool(primaryPool, true);
 
-        // --- AUTO-POOL SWITCHING & EMERGENCY TEACHER OVERRIDE ---
+     // --- INTERACTIVE PROCTOR FALLBACK & EMERGENCY OVERRIDE ---
         if (evalResult.available.length === 0) {
            const fallbackResult = evaluatePool(fallbackPool, true);
+           const hasFallback = fallbackResult.available.length > 0;
            
-           if (fallbackResult.available.length > 0) {
-              evalResult = fallbackResult; // Switch successful
-           } else {
-              // EMERGENCY OVERRIDE
-              const desperatePrimary = evaluatePool(primaryPool, false);
-              const desperateFallback = evaluatePool(fallbackPool, false);
-              const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
-              
-              const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
-              const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
+           const desperatePrimary = evaluatePool(primaryPool, false);
+           const desperateFallback = evaluatePool(fallbackPool, false);
+           const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
+           
+           const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
+           const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
 
-            if (availableTeachers.length > 0) {
-                 // --- NEW: BEAUTIFUL REACT PROMISE MODAL INSTEAD OF WINDOW.PROMPT ---
-                 const selectedTeacher = await new Promise((resolve) => {
-                    setEmergencyModal({
-                       isOpen: true,
-                       teachers: availableTeachers,
-                       sectionID: sectionID,
-                       dayDate: dayDate,
-                       resolve: resolve
-                    });
-                 });
-                 
-                 if (selectedTeacher) {
-                    evalResult.available = [selectedTeacher]; // Emergency Override Accepted!
-                 }
-              }
-              
+           // PAUSE AND ASK ADMIN
+           const userChoice = await new Promise((resolve) => {
+              setProctorWarningModal({
+                 isOpen: true,
+                 resolve: resolve,
+                 sectionID: sectionID,
+                 dayDate: dayDate,
+                 source: proctorSource,
+                 fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
+                 hasFallback: hasFallback,
+                 teachers: availableTeachers
+              });
+           });
+
+           if (!userChoice || userChoice.type === 'halt') {
+              generationFailed = true;
+              errors.push({ issue: `Proctor Shortage Halted (Day ${d+1})`, resolution: `Generation aborted because no proctors were assigned for Section ${sectionID}.` });
+           } else if (userChoice.type === 'fallback') {
+              evalResult = fallbackResult;
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} pulled a proctor from the ${proctorSource === 'Department' ? 'Global' : 'Internal'} pool.`);
+           } else if (userChoice.type === 'teacher') {
+              evalResult.available = [userChoice.proctor];
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} forced a Subject Teacher conflict (${userChoice.proctor.full_name || userChoice.proctor.name}).`);
+           } else if (userChoice.type === 'manual') {
+              evalResult.available = [{ full_name: userChoice.name, name: userChoice.name }];
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} assigned to manual/guest proctor: ${userChoice.name}.`);
            }
-        }
+        }  
 
       // --- NEW: CHRONOLOGICAL & CAPACITY ROOM ASSIGNMENT ---
         availableRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
@@ -2045,44 +2052,69 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-     {/* --- NEW: EMERGENCY GENERATOR MODAL --- */}
-      {emergencyModal.isOpen && (
+    {/* --- NEW: PROCTOR WARNING & OVERRIDE MODAL --- */}
+      {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center gap-4 text-amber-500 mb-6">
               <AlertTriangle size={32} />
-              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Critical Shortage</h3>
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Proctor Shortage</h3>
             </div>
             
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
-              All eligible Global and Internal proctors are exhausted for <strong className="text-slate-800">Section {emergencyModal.sectionID}</strong> on <strong className="text-slate-800">{emergencyModal.dayDate}</strong>.
+              All eligible <strong className="text-slate-800">{proctorWarningModal.source}</strong> proctors are exhausted for <strong className="text-slate-800">Section {proctorWarningModal.sectionID}</strong> on <strong className="text-slate-800">{proctorWarningModal.dayDate}</strong>.
             </p>
             
-            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-6 shadow-inner">
-               <p className="text-amber-800 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
-                 The following <strong className="font-black text-rose-500">Subject Teachers</strong> are available. Select one to force an override, or cancel to halt generation.
-               </p>
-            </div>
-            
-            <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar mb-8">
-              {emergencyModal.teachers.map((t, idx) => (
-                 <div key={idx} onClick={() => {
-                    emergencyModal.resolve(t); // Resumes the generator loop!
-                    setEmergencyModal({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
-                 }} className="p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-amber-400 hover:bg-amber-50 cursor-pointer flex justify-between items-center group transition-all shadow-sm">
-                    <div>
-                       <p className="font-black text-xs uppercase text-slate-900 group-hover:text-amber-700 transition-colors">{t.full_name || t.name}</p>
-                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Subject Teacher Conflict</p>
-                    </div>
-                    <button className="bg-amber-100 text-amber-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase group-hover:bg-amber-500 group-hover:text-white transition-all shadow-sm">Assign & Continue</button>
-                 </div>
-              ))}
+            <div className="space-y-4">
+               {proctorWarningModal.hasFallback && (
+                  <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
+                     <p className="text-[10px] font-black text-blue-800 uppercase mb-2">Cross-Pool Assignment Available</p>
+                     <p className="text-[9px] font-bold text-blue-600 mb-3">There are available proctors in the {proctorWarningModal.fallbackPoolName}. Do you want to pull from there?</p>
+                     <button onClick={() => {
+                        proctorWarningModal.resolve({ type: 'fallback' });
+                        setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                     }} className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-blue-500 transition-all">Use {proctorWarningModal.fallbackPoolName}</button>
+                  </div>
+               )}
+
+               <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+                  <p className="text-[10px] font-black text-amber-800 uppercase mb-2">Manual / Guest Assignment</p>
+                  <p className="text-[9px] font-bold text-amber-600 mb-3">Type any name. If they are a verified system user, they will receive a Reliever Request to accept/decline.</p>
+                  <div className="flex gap-2">
+                     <input value={manualProctorInput} onChange={e => setManualProctorInput(e.target.value)} placeholder="Type name..." className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" />
+                     <button onClick={() => {
+                        if(manualProctorInput.trim()) {
+                           proctorWarningModal.resolve({ type: 'manual', name: manualProctorInput.trim() });
+                           setManualProctorInput("");
+                           setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                        }
+                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all">Force Assign</button>
+                  </div>
+               </div>
+
+               {proctorWarningModal.teachers.length > 0 && (
+                  <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl">
+                     <p className="text-[10px] font-black text-rose-800 uppercase mb-2">Subject Teacher Conflict Override</p>
+                     <p className="text-[9px] font-bold text-rose-600 mb-3">The following teachers are available but are teaching subjects in this block.</p>
+                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                       {proctorWarningModal.teachers.map((t, idx) => (
+                          <div key={idx} onClick={() => {
+                             proctorWarningModal.resolve({ type: 'teacher', proctor: t });
+                             setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                          }} className="p-3 bg-white border border-rose-100 rounded-xl hover:border-rose-400 cursor-pointer flex justify-between items-center group transition-all">
+                             <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-rose-600">{t.full_name || t.name}</span>
+                             <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-rose-500 group-hover:text-white transition-all">Override</span>
+                          </div>
+                       ))}
+                     </div>
+                  </div>
+               )}
             </div>
             
             <button onClick={() => {
-               emergencyModal.resolve(null); // Fails the override, halts generation
-               setEmergencyModal({ isOpen: false, resolve: null, teachers: [], sectionID: '', dayDate: '' });
-            }} className="w-full p-5 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 transition-colors">
+               proctorWarningModal.resolve({ type: 'halt' });
+               setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
               Halt Generation
             </button>
           </div>
