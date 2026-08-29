@@ -1048,29 +1048,30 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
   };
   
   const handleApproveAndLock = async () => {
-    // 1. Identify unverified assignments in the current local draft
     const unverifiedAssignments = localSchedule.filter(item => {
+      if (item.proctor === 'TBA' || !item.proctor) return false;
+      const pNameStr = String(item.proctor).trim().toLowerCase();
+      
       const isInternal = allProfiles.some(p => 
-        (p.full_name === item.proctor || p.name === item.proctor) && 
-        p.role?.toUpperCase() === 'PROCTOR'
+        (p.full_name || '').trim().toLowerCase() === pNameStr || 
+        (p.name || '').trim().toLowerCase() === pNameStr
       );
-      if (!isInternal) return false;
+      
+      if (!isInternal) return false; // Guests do not get in-app requests
       
       return !globalAvailability?.some(entry => 
-        entry.proctor_name === item.proctor && 
+        (entry.proctor_name || '').trim().toLowerCase() === pNameStr && 
         entry.exam_date === item.exam_date &&
         (item.start_time < entry.end_time && item.end_time > entry.start_time)
       );
     });
 
-    // 2. If there are unverified proctors, trigger the new Reliever Request Modal
     if (unverifiedAssignments.length > 0) {
       setSummaryModalIsOpen(false);
       setUnverifiedModal({ isOpen: true, assignments: unverifiedAssignments, reason: '' });
       return;
     }
 
-    // 3. If everything is clean, proceed to save normally
     executeSave();
   };
 
@@ -1656,7 +1657,14 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                                     <span className="text-[10px] font-black text-slate-900 uppercase mr-2">{s.code}</span>
                                     <span className="text-[9px] font-bold text-slate-400 uppercase italic leading-none block md:inline mt-1 md:mt-0">{s.slot}</span>
                                   </div>
-                                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>{s.proctor}</span>
+                                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded flex items-center gap-1.5 ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>
+                                    {s.proctor}
+                                    {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
+                                       <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[7px] shadow-sm">GUEST</span>
+                                    ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
+                                       <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[7px] animate-pulse shadow-sm">TBC</span>
+                                    ) : null)}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -1876,10 +1884,10 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     <div className="flex justify-between items-center mb-3 px-1">
                       <div className="flex flex-col">
                         <span className="font-black text-xs text-blue-800 uppercase">{proctorSearchTerm.trim()}</span>
-                        <div className="flex items-center gap-1 mt-1 text-blue-500">
+                        <div className="flex items-center gap-1 mt-1 text-purple-500">
                           <Info size={10} />
                           <span className="text-[7px] font-black uppercase tracking-widest">
-                            External / Manual Entry
+                            {proctorSearchTerm.trim()} is a Guest Proctor
                           </span>
                         </div>
                       </div>
