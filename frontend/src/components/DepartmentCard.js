@@ -1735,8 +1735,16 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                           </div>
                           <p className="text-[11px] font-black text-slate-800 uppercase mt-4 leading-snug">{s.name}</p>
                           <div className={`mt-4 pt-4 border-t flex justify-between items-center ${s.flagged ? 'border-orange-200' : 'border-slate-100'}`}>
-                       <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       <Users size={12}/> <span className="truncate max-w-[80px]">{s.proctor}</span> <Edit3 size={10}/>
-                            </button>
+                       <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       
+                          <Users size={12}/> 
+                          <span className="truncate max-w-[80px]">{s.proctor}</span>
+                          {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
+                             <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[7px] shadow-sm ml-1">GUEST</span>
+                          ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
+                             <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[7px] animate-pulse shadow-sm ml-1">TBC</span>
+                          ) : null)}
+                          <Edit3 size={10} className="ml-1"/>
+                       </button>
                             <button onClick={() => setFlagModal({ isOpen: true, targetId: s.id, note: s.flagNote })} className={`p-1.5 rounded-lg transition-colors ${s.flagged ? 'bg-orange-100 text-orange-600' : 'hover:bg-slate-100 text-slate-300 hover:text-orange-500'}`}>
                               <AlertTriangle size={14}/>
                             </button>
@@ -1843,7 +1851,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         const t = proctorModal.targetSub;
         
         // --- SMART GLOBAL AUTO-SEARCH ---
-        // If they type anything, auto-expand to search the entire Global Pool
         const isSearching = proctorSearchTerm.trim().length > 0;
         const targetProctors = (isSearching || proctorModal.pool === 'Global') ? globalProctorPool : activeDeptProctors;
         
@@ -1879,38 +1886,17 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               </div>
 
               <div className="max-h-80 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                {proctorSearchTerm.trim().length > 0 && !filteredList.some(p => (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()) && (
-                  <div className="p-4 rounded-3xl border-2 border-dashed border-blue-300 bg-blue-50/50">
-                    <div className="flex justify-between items-center mb-3 px-1">
-                      <div className="flex flex-col">
-                        <span className="font-black text-xs text-blue-800 uppercase">{proctorSearchTerm.trim()}</span>
-                        <div className="flex items-center gap-1 mt-1 text-purple-500">
-                          <Info size={10} />
-                          <span className="text-[7px] font-black uppercase tracking-widest">
-                            {proctorSearchTerm.trim()} is a Guest Proctor
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-blue-200 text-[8px] font-black uppercase text-blue-600 hover:bg-blue-600 hover:text-white transition-colors">Subject Only</button>
-                      <button onClick={() => handleProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-blue-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-blue-700 transition-all">Whole Session</button>
-                    </div>
-                  </div>
-                )}
-
+               {/* 1. REGISTERED SUGGESTIONS APPEAR FIRST */}
                {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
-                  const pArr = normalizeNameToArray(pName); // <-- UPGRADED!
+                  const pArr = normalizeNameToArray(pName); 
                   
-                // NEW: Checks the entire year level curriculum for the ban!
                   const yearSubs = subjects[t.year_level] || [];
                   const isTeacherForSection = yearSubs.some(sub => {
                      const profList = parseSubjectProfs(sub.prof);
                      const sectionLetter = t.section.slice(-1);
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         // --- UPGRADED: Now uses the Smart Prefix Engine! ---
                          const nameMatch = checkNameMatch(profObj.name, pName);
                          return appliesToThisSection && nameMatch;
                      });
@@ -1931,7 +1917,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          {/* Removed the line-through so the name is readable */}
                           <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForSection ? 'text-rose-600' : 'text-slate-800'}`}>
                             {pName}
                             {p.assigned_dept && p.assigned_dept !== deptCode && (
@@ -1950,15 +1935,33 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                       </div>
 
                       <div className="flex gap-2">
-                        {/* REMOVED disabled={isTeacherForBlock} so admins can force the assignment! */}
-                       <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
+                        <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
                         <button onClick={() => confirmProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
                       </div>
                     </div>
                   );
-       
-            
-                })}                 
+                })}
+
+                {/* 2. GUEST PROCTOR FALLBACK AT THE BOTTOM */}
+                {proctorSearchTerm.trim().length > 0 && !filteredList.some(p => (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()) && (
+                  <div className="p-4 rounded-3xl border-2 border-dashed border-purple-300 bg-purple-50/50 mt-4">
+                    <div className="flex justify-between items-center mb-3 px-1">
+                      <div className="flex flex-col">
+                        <span className="font-black text-xs text-purple-800 uppercase">{proctorSearchTerm.trim()}</span>
+                        <div className="flex items-center gap-1.5 mt-1 text-purple-600">
+                          <Info size={12} />
+                          <span className="text-[8px] font-black uppercase tracking-widest">
+                            {proctorSearchTerm.trim()} is a Guest Proctor
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-purple-200 text-[8px] font-black uppercase text-purple-600 hover:bg-purple-600 hover:text-white transition-colors">Subject Only</button>
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all">Whole Session</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
