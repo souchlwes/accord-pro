@@ -501,6 +501,11 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
           />
         </div>
 
+{searchTerm && filteredProfiles.length === 0 && (
+          <div className="p-10 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] mb-4">
+             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">"{searchTerm.trim()}" is not a registered system account.</p>
+          </div>
+        )}
        {/* MOBILE CARD VIEW */}
         <div className="md:hidden space-y-4 mb-4">
           {filteredProfiles.map(p => (
@@ -1041,14 +1046,18 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
             <div className="flex items-center w-full md:w-auto text-blue-600 gap-2 font-black uppercase text-[10px] tracking-widest px-2"><Search size={18} /> Directory Search</div>
             <div className="relative w-full flex-1">
               <input type="text" placeholder="Search other proctors to view their dashboard..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"/>
-              {searchQuery && filteredDirectory.length > 0 && (
+              {searchQuery && (
                 <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar z-50">
-                  {filteredDirectory.map(p => (
+                  {filteredDirectory.length > 0 ? filteredDirectory.map(p => (
                     <div key={p.id} onClick={() => { onViewProctor(p); setSearchQuery(""); }} className="p-4 border-b border-slate-50 hover:bg-blue-50 cursor-pointer flex justify-between items-center group transition-all">
                        <div><p className="text-xs font-black text-slate-900 uppercase group-hover:text-blue-600 transition-colors">{p.full_name}</p><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.assigned_dept || 'Global System'}</p></div>
                        <button className="bg-blue-100 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm"><LayoutDashboard size={14} /></button>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="p-6 text-center border-2 border-dashed border-slate-100 m-2 rounded-xl">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">"{searchQuery.trim()}" is not a registered account.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
