@@ -2091,7 +2091,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-   {proctorWarningModal.isOpen && (
+               {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center gap-4 text-amber-500 mb-6">
@@ -2118,8 +2118,14 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
                   <p className="text-[10px] font-black text-amber-800 uppercase mb-2">Manual / Guest Assignment</p>
                   <p className="text-[9px] font-bold text-amber-600 mb-3">Type any name. If they are a verified system user, they will receive a Reliever Request to accept/decline.</p>
-                  <div className="flex gap-2">
-                     <input value={manualProctorInput} onChange={e => setManualProctorInput(e.target.value)} placeholder="Type name..." className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" />
+                  
+                  <div className="flex gap-2 mb-2">
+                     <input 
+                       value={manualProctorInput} 
+                       onChange={e => setManualProctorInput(e.target.value)} 
+                       placeholder="Type name..." 
+                       className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" 
+                     />
                      <button onClick={() => {
                         if(manualProctorInput.trim()) {
                            proctorWarningModal.resolve({ type: 'manual', name: manualProctorInput.trim() });
@@ -2128,6 +2134,30 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                         }
                      }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all">Force Assign</button>
                   </div>
+
+                  {/* --- INJECTED SMART NAME VALIDATOR FEEDBACK --- */}
+                  {manualProctorInput.trim().length > 1 && (() => {
+                     const typedName = manualProctorInput.trim();
+                     const matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+
+                     return (
+                       <div className="px-1 flex items-center">
+                          {matches.length === 0 ? (
+                             <span className="text-[9px] font-black text-purple-700 uppercase flex items-center gap-1">
+                               <Info size={12}/> Guest Proctor (No system account found)
+                             </span>
+                          ) : matches.length === 1 ? (
+                             <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                               <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                             </span>
+                          ) : (
+                             <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                               <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                             </span>
+                          )}
+                       </div>
+                     );
+                  })()}
                </div>
 
                {proctorWarningModal.teachers.length > 0 && (
@@ -2158,8 +2188,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
           </div>
         </div>
       )}
-
-            
+      
       {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
