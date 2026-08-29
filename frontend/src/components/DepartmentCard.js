@@ -148,9 +148,9 @@ const DepartmentCard = ({
   // --- NEW: DECISION ENGINE MODAL ---
   const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
 
-  // --- NEW: SMART DOUBLE-BOOKING PREVENTER ---
-  const isProctorDoubleBooked = (pName, date, start, end, ignoreId) => {
-    if(!pName || pName === 'TBA') return false;
+  // --- NEW: SMART DOUBLE-BOOKING PREVENTER & IDENTIFIER ---
+  const getProctorDoubleBookedSection = (pName, date, start, end, ignoreId) => {
+    if(!pName || pName === 'TBA') return null;
     const targetStart = (start||'').substring(0, 5);
     const targetEnd = (end||'').substring(0, 5);
 
@@ -162,7 +162,13 @@ const DepartmentCard = ({
         const sEnd = (s.end_time || s.endTime).substring(0, 5);
         return targetStart < sEnd && targetEnd > sStart;
     };
-    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap);
+    
+    const conflictLocal = localSchedule.find(checkOverlap);
+    if (conflictLocal) return conflictLocal.section;
+    const conflictGlobal = globalSchedule.find(checkOverlap);
+    if (conflictGlobal) return conflictGlobal.section;
+
+    return null;
   };
 
   const confirmProctorSwitch = (pName, scope) => {
@@ -1916,8 +1922,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         const filteredList = targetProctors.filter(p => {
           const pName = p.full_name || p.name || "";
           if (pName === t.proctor) return false;
-          // Hide proctors already assigned to this exact time/date!
-          if (isProctorDoubleBooked(pName, t.date || t.exam_date, t.startTime || t.start_time, t.endTime || t.end_time, t.id || t.tempId)) return false;
           if (!isSearching) return true; 
           return checkNameMatch(proctorSearchTerm.trim(), pName) || pName.toLowerCase().includes(proctorSearchTerm.trim().toLowerCase());
         });
@@ -1946,7 +1950,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 <Users className="absolute left-5 top-5 text-slate-400" size={16} />
               </div>
               
-              {/* --- NEW POOL TOGGLE UI --- */}
               <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                 <button onClick={() => { setProctorSearchTerm(""); setProctorModal({...proctorModal, pool: 'Department'}) }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!isSearching && proctorModal.pool === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Internal Dept</button>
                 <button onClick={() => setProctorModal({...proctorModal, pool: 'Global'})} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${isSearching || proctorModal.pool === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>Global System</button>
@@ -1956,7 +1959,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                {/* 1. REGISTERED SUGGESTIONS APPEAR FIRST */}
                {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
-                  const pArr = normalizeNameToArray(pName); 
+                  const bookedSection = getProctorDoubleBookedSection(pName, t.date || t.exam_date, t.startTime || t.start_time, t.endTime || t.end_time, t.id || t.tempId);
                   
                   const yearSubs = subjects[t.year_level] || [];
                   const isTeacherForSection = yearSubs.some(sub => {
@@ -1979,12 +1982,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                   return (
                     <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
-                      isTeacherForSection ? 'border-rose-100 bg-rose-50/30' :
+                      bookedSection ? 'border-rose-200 bg-rose-50/40 opacity-70 grayscale-[30%]' :
+                      isTeacherForSection ? 'border-orange-200 bg-orange-50/30' :
                       hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForSection ? 'text-rose-600' : 'text-slate-800'}`}>
+                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${bookedSection ? 'text-rose-800' : isTeacherForSection ? 'text-orange-600' : 'text-slate-800'}`}>
                             {pName}
                             {p.assigned_dept && p.assigned_dept !== deptCode && (
                                <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
@@ -1992,19 +1996,25 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                                </span>
                             )}
                           </span>
-                          <div className={`flex items-center gap-1 mt-1 ${isTeacherForSection ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            {isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
+                          <div className={`flex items-center gap-1 mt-1 ${bookedSection ? 'text-rose-600' : isTeacherForSection ? 'text-orange-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {bookedSection ? <AlertCircle size={10} /> : isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                             <span className="text-[7px] font-black uppercase tracking-widest">
-                              {isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                              {bookedSection ? `DOUBLE-BOOKED: IN SECTION ${bookedSection}` : isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
-                        <button onClick={() => confirmProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
-                      </div>
+                      {bookedSection ? (
+                        <div className="flex gap-2">
+                           <button disabled className="flex-1 py-3 rounded-xl bg-slate-100/50 text-[8px] font-black uppercase text-slate-400 cursor-not-allowed border border-slate-200">Unavailable (Time Conflict)</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
+                          <button onClick={() => confirmProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2208,7 +2218,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all cursor-pointer">Force Assign</button>
                   </div>
 
-                  <div className="max-h-56 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
+                <div className="max-h-56 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
                      {(() => {
                         const searchTerm = manualProctorInput.trim();
                         const isGlobal = proctorWarningModal.viewPool === 'Global';
@@ -2218,13 +2228,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                         
                         const filteredWarningList = poolToSearch.filter(p => {
                            const pName = p.full_name || p.name || "";
-                           if (isProctorDoubleBooked(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null)) return false;
                            if (!searchTerm) return true;
                            return checkNameMatch(searchTerm, pName) || pName.toLowerCase().includes(searchTerm.toLowerCase());
                         });
 
                         return filteredWarningList.map((p, idx) => {
                            const pName = p.full_name || p.name;
+                           const bookedSection = getProctorDoubleBookedSection(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null);
                            
                            // Evaluate Badges
                            const targetYear = proctorWarningModal.sectionID.replace(deptCode, '').charAt(0);
@@ -2248,12 +2258,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                            return (
                              <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
-                               isTeacherForSection ? 'border-rose-100 bg-rose-50/30' :
+                               bookedSection ? 'border-rose-200 bg-rose-50/40 opacity-70 grayscale-[30%]' :
+                               isTeacherForSection ? 'border-orange-200 bg-orange-50/30' :
                                hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
                              }`}>
                                <div className="flex justify-between items-center mb-3 px-1">
                                  <div className="flex flex-col">
-                                   <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForSection ? 'text-rose-600' : 'text-slate-800'}`}>
+                                   <span className={`font-black text-xs uppercase flex items-center gap-2 ${bookedSection ? 'text-rose-800' : isTeacherForSection ? 'text-orange-600' : 'text-slate-800'}`}>
                                      {pName}
                                      {p.assigned_dept && p.assigned_dept !== deptCode && (
                                         <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
@@ -2261,28 +2272,34 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                                         </span>
                                      )}
                                    </span>
-                                   <div className={`flex items-center gap-1 mt-1 ${isTeacherForSection ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
-                                     {isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
+                                   <div className={`flex items-center gap-1 mt-1 ${bookedSection ? 'text-rose-600' : isTeacherForSection ? 'text-orange-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                     {bookedSection ? <AlertCircle size={10} /> : isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                                      <span className="text-[7px] font-black uppercase tracking-widest">
-                                       {isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                                       {bookedSection ? `DOUBLE-BOOKED: IN SECTION ${bookedSection}` : isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
                                      </span>
                                    </div>
                                  </div>
                                </div>
 
-                               <button onClick={() => {
-                                  if(typeof showToast === 'function') showToast(`Successfully assigned ${pName}!`, "success");
-                                  proctorWarningModal.resolve({ type: 'manual', name: pName });
-                                  setManualProctorInput("");
-                                  setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
-                               }} className={`w-full py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all cursor-pointer ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
-                                 Assign Proctor
-                               </button>
+                               {bookedSection ? (
+                                   <button disabled className="w-full py-3 rounded-xl bg-slate-100/50 text-[8px] font-black uppercase text-slate-400 cursor-not-allowed border border-slate-200">
+                                     Unavailable
+                                   </button>
+                               ) : (
+                                   <button onClick={() => {
+                                      if(typeof showToast === 'function') showToast(`Successfully assigned ${pName}!`, "success");
+                                      proctorWarningModal.resolve({ type: 'manual', name: pName });
+                                      setManualProctorInput("");
+                                      setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                                   }} className={`w-full py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all cursor-pointer ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
+                                     Assign Proctor
+                                   </button>
+                               )}
                              </div>
                            );
                         });
                      })()}
-                  </div>
+                  </div> 
 
                   {manualProctorInput.trim().length > 1 && (() => {
                      const typedName = manualProctorInput.trim();
