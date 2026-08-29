@@ -2096,18 +2096,44 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   </div>
                )}
 
-               <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+             <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
                   <p className="text-[10px] font-black text-amber-800 uppercase mb-2">Manual / Guest Assignment</p>
-                  <p className="text-[9px] font-bold text-amber-600 mb-3">Type any name. If they are a verified system user, they will receive a Reliever Request to accept/decline.</p>
-                  <div className="flex gap-2">
-                     <input value={manualProctorInput} onChange={e => setManualProctorInput(e.target.value)} placeholder="Type name..." className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" />
+                  <p className="text-[9px] font-bold text-amber-600 mb-3">Type any name to search registered proctors or add a guest.</p>
+                  <div className="flex gap-2 items-start">
+                     <div className="flex-1">
+                       <input value={manualProctorInput} onChange={e => setManualProctorInput(e.target.value)} placeholder="Type name..." className="w-full bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500 transition-all" />
+                       
+                       {/* INJECTED SMART VALIDATOR HERE */}
+                       {manualProctorInput.trim().length > 1 && (() => {
+                          const term = manualProctorInput.trim();
+                          const matches = globalProctorPool.filter(proc => checkNameMatch(term, proc.full_name || proc.name));
+                          
+                          return (
+                            <div className="mt-2 px-2 flex items-center">
+                               {matches.length === 0 ? (
+                                  <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                                    <Info size={12}/> "{term}" is a Guest Proctor
+                                  </span>
+                               ) : matches.length === 1 ? (
+                                  <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1 cursor-pointer hover:underline" onClick={() => setManualProctorInput(matches[0].full_name || matches[0].name)}>
+                                    <CheckCircle2 size={12}/> System Account: {matches[0].full_name || matches[0].name} (Click to fill)
+                                  </span>
+                               ) : (
+                                  <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                    <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}).
+                                  </span>
+                               )}
+                            </div>
+                          );
+                       })()}
+                     </div>
                      <button onClick={() => {
                         if(manualProctorInput.trim()) {
                            proctorWarningModal.resolve({ type: 'manual', name: manualProctorInput.trim() });
                            setManualProctorInput("");
                            setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
                         }
-                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all">Force Assign</button>
+                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all h-fit">Force Assign</button>
                   </div>
                </div>
 
