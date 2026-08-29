@@ -2265,6 +2265,54 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
       
+
+      {/* --- MISSING ROOM CAPACITY WARNING MODAL --- */}
+      {roomWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+            <AlertTriangle className="mx-auto text-amber-500 mb-6" size={48} />
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Capacity Warning</h3>
+            
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed">
+              Section <strong className="text-rose-500">{roomWarningModal.sectionID}</strong> has <strong className="text-slate-800">{roomWarningModal.targetHeadcount} students</strong>, but the next chronological room (Room {roomWarningModal.nextRoom?.number}) only holds <strong className="text-slate-800">{roomWarningModal.nextCap}</strong>.
+            </p>
+
+            <div className="space-y-3 mb-8 text-left">
+               <button onClick={() => {
+                  roomWarningModal.resolve('force');
+                  setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+               }} className="w-full p-4 rounded-xl border-2 border-rose-100 hover:border-rose-500 bg-rose-50 flex justify-between items-center group transition-all cursor-pointer">
+                  <div className="flex flex-col">
+                     <span className="font-black text-[10px] uppercase text-rose-800">Force Assignment</span>
+                     <span className="text-[8px] font-bold text-rose-600 uppercase mt-1">Ignore limit, squeeze into Room {roomWarningModal.nextRoom?.number}</span>
+                  </div>
+                  <ChevronRight size={16} className="text-rose-400 group-hover:text-rose-600"/>
+               </button>
+
+               {roomWarningModal.fitsAnywhere && (
+                 <button onClick={() => {
+                    roomWarningModal.resolve('skip');
+                    setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+                 }} className="w-full p-4 rounded-xl border-2 border-emerald-100 hover:border-emerald-500 bg-emerald-50 flex justify-between items-center group transition-all cursor-pointer">
+                    <div className="flex flex-col">
+                       <span className="font-black text-[10px] uppercase text-emerald-800">Skip to Room {roomWarningModal.fallbackRoom?.number}</span>
+                       <span className="text-[8px] font-bold text-emerald-600 uppercase mt-1">Fits {roomWarningModal.fallbackCap} students safely</span>
+                    </div>
+                    <ChevronRight size={16} className="text-emerald-400 group-hover:text-emerald-600"/>
+                 </button>
+               )}
+            </div>
+
+            <button onClick={() => {
+               if(typeof showToast === 'function') showToast("Generation Halted.", "error");
+               roomWarningModal.resolve('halt');
+               setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+            }} className="w-full p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer">
+              Halt Generation
+            </button>
+          </div>
+        </div>
+      )}
       {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
