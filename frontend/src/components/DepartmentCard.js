@@ -148,6 +148,23 @@ const DepartmentCard = ({
   // --- NEW: DECISION ENGINE MODAL ---
   const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
 
+  // --- NEW: SMART DOUBLE-BOOKING PREVENTER ---
+  const isProctorDoubleBooked = (pName, date, start, end, ignoreId) => {
+    if(!pName || pName === 'TBA') return false;
+    const targetStart = (start||'').substring(0, 5);
+    const targetEnd = (end||'').substring(0, 5);
+
+    const checkOverlap = (s) => {
+        if ((s.id || s.tempId) === ignoreId) return false;
+        if (s.proctor !== pName) return false;
+        if (s.exam_date !== date && s.date !== date) return false;
+        const sStart = (s.start_time || s.startTime).substring(0, 5);
+        const sEnd = (s.end_time || s.endTime).substring(0, 5);
+        return targetStart < sEnd && targetEnd > sStart;
+    };
+    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap);
+  };
+
   const confirmProctorSwitch = (pName, scope) => {
      const isGlobal = !activeDeptProctors.some(p => (p.full_name || p.name) === pName);
      if (isGlobal) {
@@ -559,6 +576,8 @@ for (let d = 0; d < examDays; d++) {
                  resolve: resolve,
                  sectionID: sectionID,
                  dayDate: dayDate,
+                 startTime: startTime,
+                 endTime: endTime,
                  source: proctorSource,
                  fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
                  hasFallback: hasFallback,
@@ -852,8 +871,28 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       }
     });
 
-    validateAndApplyChange(updatedLocal, `Proctor Update (${scope})`, externalSwaps);
-    setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' });
+  validateAndApplyChange(updatedLocal, `Proctor Update (${scope})`, externalSwaps);
+
+    // --- NEW: INSTANT RELIEVER REQUEST TRIGGER ---
+    const targetProfile = allProfiles.find(p => (p.full_name||'').toLowerCase() === newProctorName.toLowerCase() || (p.name||'').toLowerCase() === newProctorName.toLowerCase());
+    
+    if (targetProfile && onNotify) {
+        const subStart = (t.startTime || t.start_time).substring(0, 5);
+        const subEnd = (t.endTime || t.end_time).substring(0, 5);
+        
+        const hasAvail = globalAvailability.some(a => 
+            a.proctor_id === targetProfile.id && 
+            a.exam_date === targetDate && 
+            subStart >= a.start_time.substring(0, 5) && 
+            subEnd <= a.end_time.substring(0, 5)
+        );
+        
+        if (!hasAvail) {
+            onNotify(null, null, targetProfile.id, 'Proctor Assignment Request', `You have been assigned to ${t.subject_code} on ${targetDate} without logged availability. Please Accept or Decline on your dashboard.`, 'urgent');
+        }
+    }
+
+    setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' }); 
   };
   
   const handleRoomSwitch = (newRoomNumber) => {
@@ -1870,19 +1909,19 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
  {proctorModal.isOpen && proctorModal.targetSub && (() => {
         const t = proctorModal.targetSub;
         
-        // --- SMART GLOBAL AUTO-SEARCH ---
+        // --- SMART GLOBAL AUTO-SEARCH & TOGGLE FIX ---
         const isSearching = proctorSearchTerm.trim().length > 0;
-        const targetProctors = (isSearching || proctorModal.pool === 'Global') ? globalProctorPool : activeDeptProctors;
+        const targetProctors = isSearching ? globalProctorPool : (proctorModal.pool === 'Global' ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors);
         
-        // --- UPGRADED: Smart Prefix Engine + Contains Match ---
         const filteredList = targetProctors.filter(p => {
           const pName = p.full_name || p.name || "";
           if (pName === t.proctor) return false;
-          if (!isSearching) return true; // Show all if search is empty
+          // Hide proctors already assigned to this exact time/date!
+          if (isProctorDoubleBooked(pName, t.date || t.exam_date, t.startTime || t.start_time, t.endTime || t.end_time, t.id || t.tempId)) return false;
+          if (!isSearching) return true; 
           return checkNameMatch(proctorSearchTerm.trim(), pName) || pName.toLowerCase().includes(proctorSearchTerm.trim().toLowerCase());
         });
 
-        // --- UPGRADED: Checks the entire database to see if the EXACT typed name exists ---
         const exactMatchExists = allProfiles.some(p => 
           (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()
         );
@@ -2099,7 +2138,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Proctor Shortage</h3>
             </div>
 
-            {/* HIGHLIGHTED PROGRESS BANNER */}
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6">
                <p className="text-[11px] font-black text-amber-800 uppercase tracking-widest leading-relaxed">
                  Action Required for Section: <strong className="text-rose-600 text-sm">{proctorWarningModal.sectionID}</strong>
@@ -2114,24 +2152,26 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </p>
             
             <div className="space-y-4">
-               {/* CROSS-POOL SELECTION LIST */}
                {proctorWarningModal.hasFallback && (
                   <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
                      <p className="text-[10px] font-black text-blue-800 uppercase mb-2">Cross-Pool Assignment Available</p>
-                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}. Select one below:</p>
+                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}:</p>
                      
                      <div className="space-y-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
                         {globalProctorPool
                            .filter(p => p.assigned_dept !== deptCode)
+                           .filter(p => !isProctorDoubleBooked(p.full_name || p.name, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null))
                            .map((fp, idx) => (
-                              <div key={idx} onClick={() => {
-                                 showToast(`Successfully assigned to ${proctorWarningModal.sectionID}!`, "success");
-                                 proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
-                                 setManualProctorInput("");
-                                 setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
-                              }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
-                                 <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-600">{fp.full_name || fp.name}</span>
-                                 <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-blue-600 group-hover:text-white transition-all">Select</span>
+                              <div key={idx} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-400 flex justify-between items-center transition-all shadow-sm">
+                                 <span className="font-black text-[10px] uppercase text-slate-800">{fp.full_name || fp.name}</span>
+                                 <button onClick={() => {
+                                    if(typeof showToast === 'function') showToast(`Successfully assigned ${fp.full_name || fp.name}!`, "success");
+                                    proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
+                                    setManualProctorInput("");
+                                    setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                                 }} className="bg-blue-100 hover:bg-blue-600 text-blue-700 hover:text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all cursor-pointer">
+                                    Select
+                                 </button>
                               </div>
                            ))
                         }
@@ -2141,9 +2181,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl">
                   <p className="text-[10px] font-black text-slate-800 uppercase mb-2">Manual / Guest Assignment</p>
-                  <p className="text-[9px] font-bold text-slate-500 mb-3">Type any name. If they are a verified system user, they will receive a Reliever Request to accept/decline.</p>
+                  <p className="text-[9px] font-bold text-slate-500 mb-3">Type any name. Unverified users will receive a Reliever Request.</p>
                   
-                  {/* FULLY FUNCTIONAL POOL TOGGLES */}
                   <div className="flex bg-white p-1 rounded-xl mb-3 border border-slate-200">
                     <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Department' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${(!proctorWarningModal.viewPool || proctorWarningModal.viewPool === 'Department') ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Internal Dept</button>
                     <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Global' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${proctorWarningModal.viewPool === 'Global' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Global System</button>
@@ -2159,18 +2198,17 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      <button onClick={() => {
                         const trimmed = manualProctorInput.trim();
                         if(trimmed) {
-                           showToast(`Forced assignment for ${proctorWarningModal.sectionID}!`, "success");
+                           if(typeof showToast === 'function') showToast(`Forced assignment for ${trimmed}!`, "success");
                            proctorWarningModal.resolve({ type: 'manual', name: trimmed });
                            setManualProctorInput("");
                            setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
                         } else {
-                           showToast("Please enter a name first.", "error");
+                           if(typeof showToast === 'function') showToast("Please enter a name first.", "error");
                         }
                      }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all cursor-pointer">Force Assign</button>
                   </div>
 
-                  {/* DYNAMIC LIST BASED ON TOGGLE */}
-                  <div className="max-h-40 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
+                  <div className="max-h-56 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
                      {(() => {
                         const searchTerm = manualProctorInput.trim();
                         const isGlobal = proctorWarningModal.viewPool === 'Global';
@@ -2180,32 +2218,72 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                         
                         const filteredWarningList = poolToSearch.filter(p => {
                            const pName = p.full_name || p.name || "";
+                           if (isProctorDoubleBooked(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null)) return false;
                            if (!searchTerm) return true;
                            return checkNameMatch(searchTerm, pName) || pName.toLowerCase().includes(searchTerm.toLowerCase());
                         });
 
-                        return filteredWarningList.map((p, idx) => (
-                           <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-white hover:border-amber-400 flex justify-between items-center transition-all">
-                              <div className="flex flex-col">
-                                 <span className="font-black text-[10px] text-slate-800 uppercase">{p.full_name || p.name}</span>
-                                 <span className="text-[7px] font-black text-amber-600 uppercase tracking-widest mt-0.5">
-                                   {p.assigned_dept ? `${p.assigned_dept} Dept` : 'System Account'}
-                                 </span>
-                              </div>
-                              <button onClick={() => {
-                                 showToast(`Successfully assigned to ${proctorWarningModal.sectionID}!`, "success");
-                                 proctorWarningModal.resolve({ type: 'manual', name: p.full_name || p.name });
-                                 setManualProctorInput("");
-                                 setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
-                              }} className="bg-slate-100 hover:bg-amber-500 text-slate-600 hover:text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase transition-all cursor-pointer">
-                                 Select
-                              </button>
-                           </div>
-                        ));
+                        return filteredWarningList.map((p, idx) => {
+                           const pName = p.full_name || p.name;
+                           
+                           // Evaluate Badges
+                           const targetYear = proctorWarningModal.sectionID.replace(deptCode, '').charAt(0);
+                           const yearSubs = subjects[targetYear] || [];
+                           const isTeacherForSection = yearSubs.some(sub => {
+                              const profList = parseSubjectProfs(sub.prof);
+                              const sectionLetter = proctorWarningModal.sectionID.slice(-1);
+                              return profList.some(profObj => {
+                                  const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                                  return appliesToThisSection && checkNameMatch(profObj.name, pName);
+                              });
+                           });
+
+                           const hasLoggedAvailability = globalAvailability?.some(entry => {
+                             const safeLogStart = entry.start_time.substring(0, 5);
+                             const safeLogEnd = entry.end_time.substring(0, 5);
+                             const subStart = proctorWarningModal.startTime.substring(0, 5);
+                             const subEnd = proctorWarningModal.endTime.substring(0, 5);
+                             return entry.proctor_id === p.id && entry.exam_date === proctorWarningModal.dayDate && (subStart >= safeLogStart && subEnd <= safeLogEnd);
+                           });
+
+                           return (
+                             <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
+                               isTeacherForSection ? 'border-rose-100 bg-rose-50/30' :
+                               hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
+                             }`}>
+                               <div className="flex justify-between items-center mb-3 px-1">
+                                 <div className="flex flex-col">
+                                   <span className={`font-black text-xs uppercase flex items-center gap-2 ${isTeacherForSection ? 'text-rose-600' : 'text-slate-800'}`}>
+                                     {pName}
+                                     {p.assigned_dept && p.assigned_dept !== deptCode && (
+                                        <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
+                                          {p.assigned_dept}
+                                        </span>
+                                     )}
+                                   </span>
+                                   <div className={`flex items-center gap-1 mt-1 ${isTeacherForSection ? 'text-rose-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                     {isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
+                                     <span className="text-[7px] font-black uppercase tracking-widest">
+                                       {isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                                     </span>
+                                   </div>
+                                 </div>
+                               </div>
+
+                               <button onClick={() => {
+                                  if(typeof showToast === 'function') showToast(`Successfully assigned ${pName}!`, "success");
+                                  proctorWarningModal.resolve({ type: 'manual', name: pName });
+                                  setManualProctorInput("");
+                                  setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                               }} className={`w-full py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all cursor-pointer ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
+                                 Assign Proctor
+                               </button>
+                             </div>
+                           );
+                        });
                      })()}
                   </div>
 
-                  {/* SMART NAME VALIDATOR FEEDBACK FOR GUESTS */}
                   {manualProctorInput.trim().length > 1 && (() => {
                      const typedName = manualProctorInput.trim();
                      const matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
@@ -2220,7 +2298,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                                  </span>
                               </div>
                               <button onClick={() => {
-                                 showToast(`Added Guest Proctor to ${proctorWarningModal.sectionID}!`, "success");
+                                 if(typeof showToast === 'function') showToast(`Added Guest Proctor!`, "success");
                                  proctorWarningModal.resolve({ type: 'manual', name: typedName });
                                  setManualProctorInput("");
                                  setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
@@ -2233,29 +2311,10 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      return null;
                   })()}
                </div>
-
-               {proctorWarningModal.teachers.length > 0 && (
-                  <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl">
-                     <p className="text-[10px] font-black text-rose-800 uppercase mb-2">Subject Teacher Conflict Override</p>
-                     <p className="text-[9px] font-bold text-rose-600 mb-3">The following teachers are available but are teaching subjects in this block.</p>
-                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                       {proctorWarningModal.teachers.map((t, idx) => (
-                          <div key={idx} onClick={() => {
-                             showToast(`Successfully overrode conflict for ${proctorWarningModal.sectionID}!`, "success");
-                             proctorWarningModal.resolve({ type: 'teacher', proctor: t });
-                             setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
-                          }} className="p-3 bg-white border border-rose-100 rounded-xl hover:border-rose-400 cursor-pointer flex justify-between items-center group transition-all">
-                             <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-rose-600">{t.full_name || t.name}</span>
-                             <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-rose-500 group-hover:text-white transition-all cursor-pointer">Override</span>
-                          </div>
-                       ))}
-                     </div>
-                  </div>
-               )}
             </div>
             
             <button onClick={() => {
-               showToast("Generation Halted.", "error");
+               if(typeof showToast === 'function') showToast("Generation Halted.", "error");
                proctorWarningModal.resolve({ type: 'halt' });
                setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
             }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer">
