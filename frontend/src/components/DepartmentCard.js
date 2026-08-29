@@ -2091,7 +2091,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-    {proctorWarningModal.isOpen && (
+   {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             
@@ -2117,7 +2117,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               All eligible <strong className="text-slate-800">{proctorWarningModal.source}</strong> proctors are exhausted. Search the system pool or assign a guest proctor below:
             </p>
 
-            {/* --- EXACT SWITCH PROCTOR SEARCH UI & POOL TOGGLES --- */}
+            {/* SEARCH INPUT */}
             <div className="relative mb-4">
               <input 
                 autoFocus 
@@ -2130,6 +2130,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               <Users className="absolute left-5 top-5 text-slate-400" size={16} />
             </div>
 
+            {/* FULLY FUNCTIONAL POOL TOGGLES */}
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
               <button onClick={() => setProctorSource('Department')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${proctorSource === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Internal Dept</button>
               <button onClick={() => setProctorSource('Global')} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${proctorSource === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Global System</button>
@@ -2138,6 +2139,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             <div className="max-h-60 overflow-y-auto space-y-3 pr-2 custom-scrollbar mb-6">
                {(() => {
                   const searchTerm = manualProctorInput.trim();
+                  // Fixed: Dynamically changes pool array based on the toggle state!
                   const poolToSearch = proctorSource === 'Global' ? globalProctorPool : activeDeptProctors;
                   
                   const filteredWarningList = poolToSearch.filter(p => {
@@ -2152,20 +2154,22 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                   return (
                     <>
-                      {/* 1. REGISTERED SUGGESTIONS WITH BADGES */}
+                      {/* 1. REGISTERED SUGGESTIONS WITH WORKING SELECT BUTTON */}
                       {filteredWarningList.map((p, idx) => {
                          const pName = p.full_name || p.name;
                          return (
                            <div key={idx} className="p-4 rounded-3xl border-2 border-slate-100 bg-white hover:border-blue-500 flex justify-between items-center transition-all">
                               <div className="flex flex-col">
                                  <span className="font-black text-xs text-slate-800 uppercase">{pName}</span>
-                                 <span className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mt-1">Verified System Account</span>
+                                 <span className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mt-1">
+                                   {p.assigned_dept ? `${p.assigned_dept} Department` : 'Verified System Account'}
+                                 </span>
                               </div>
                               <button onClick={() => {
                                  proctorWarningModal.resolve({ type: 'manual', name: pName });
                                  setManualProctorInput("");
                                  setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                              }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase shadow-sm transition-all">
+                              }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase shadow-sm transition-all cursor-pointer">
                                  Select
                               </button>
                            </div>
@@ -2190,7 +2194,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                                proctorWarningModal.resolve({ type: 'manual', name: searchTerm });
                                setManualProctorInput("");
                                setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                            }} className="w-full py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all">
+                            }} className="w-full py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all cursor-pointer">
                                Assign as Guest Proctor
                             </button>
                          </div>
@@ -2206,19 +2210,19 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   <button onClick={() => {
                      proctorWarningModal.resolve({ type: 'fallback' });
                      setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                  }} className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-blue-500 transition-all">Use {proctorWarningModal.fallbackPoolName}</button>
+                  }} className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-blue-500 transition-all cursor-pointer">Use {proctorWarningModal.fallbackPoolName}</button>
                </div>
             )}
             
             <button onClick={() => {
                proctorWarningModal.resolve({ type: 'halt' });
                setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-            }} className="w-full p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+            }} className="w-full p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
               Halt Generation
             </button>
           </div>
         </div>
-      )}
+      )} 
       
       {/* --- EDIT ROOM MODAL --- */}
       {editRoomModal.isOpen && (
