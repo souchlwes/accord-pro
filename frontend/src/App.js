@@ -1091,16 +1091,16 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
                         <span className="text-[10px] font-black text-rose-500 uppercase">RM {s.room}</span>
                       </div>
 
-                      <div className="flex gap-3">
+                     <div className="flex gap-3">
                         <button onClick={() => {
                           const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
                           const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
-                          onAddAvailability({ proctor_id: profile.id, proctor_name: profile.full_name, dept_code: profile.assigned_dept, exam_date: s.exam_date, start_time: fStart, end_time: fEnd, is_emergency_flag: false, note: "Accepted Reliever Request" });
+                          onAcceptAssignment(profile.id, profile.full_name, profile.assigned_dept, s.exam_date, fStart, fEnd, s.subject_code);
                           showToast("Request Accepted! Schedule verified.", "success");
                         }} className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"><CheckCircle2 size={16}/> Accept Assignment</button>
                         
                         <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
-                      </div>
+                      </div> 
                     </div>
                   ))}
                 </div>
