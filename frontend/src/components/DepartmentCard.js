@@ -1854,9 +1854,17 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         const isSearching = proctorSearchTerm.trim().length > 0;
         const targetProctors = (isSearching || proctorModal.pool === 'Global') ? globalProctorPool : activeDeptProctors;
         
-        const filteredList = targetProctors.filter(p => 
-          (p.full_name || p.name || "").toLowerCase().includes(proctorSearchTerm.toLowerCase()) && 
-          (p.full_name || p.name || "") !== t.proctor
+        // Upgraded: Now uses the Smart Prefix Engine for highly intelligent filtering
+        const filteredList = targetProctors.filter(p => {
+          const pName = p.full_name || p.name || "";
+          if (pName === t.proctor) return false;
+          if (!isSearching) return true;
+          return checkNameMatch(proctorSearchTerm.trim(), pName) || pName.toLowerCase().includes(proctorSearchTerm.trim().toLowerCase());
+        });
+
+        // Upgraded: Checks the entire database to see if the EXACT typed name exists
+        const exactMatchExists = allProfiles.some(p => 
+          (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()
         );
 
         return (
@@ -1879,7 +1887,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 <Users className="absolute left-5 top-5 text-slate-400" size={16} />
               </div>
               
-              {/* --- NEW POOL TOGGLE UI --- */}
               <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                 <button onClick={() => { setProctorSearchTerm(""); setProctorModal({...proctorModal, pool: 'Department'}) }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!isSearching && proctorModal.pool === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Internal Dept</button>
                 <button onClick={() => setProctorModal({...proctorModal, pool: 'Global'})} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${isSearching || proctorModal.pool === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>Global System</button>
@@ -1889,16 +1896,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                {/* 1. REGISTERED SUGGESTIONS APPEAR FIRST */}
                {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
-                  const pArr = normalizeNameToArray(pName); 
-                  
                   const yearSubs = subjects[t.year_level] || [];
                   const isTeacherForSection = yearSubs.some(sub => {
                      const profList = parseSubjectProfs(sub.prof);
                      const sectionLetter = t.section.slice(-1);
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         const nameMatch = checkNameMatch(profObj.name, pName);
-                         return appliesToThisSection && nameMatch;
+                         return appliesToThisSection && checkNameMatch(profObj.name, pName);
                      });
                   });
 
@@ -1943,7 +1947,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 })}
 
                 {/* 2. GUEST PROCTOR FALLBACK AT THE BOTTOM */}
-                {proctorSearchTerm.trim().length > 0 && !filteredList.some(p => (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()) && (
+                {isSearching && !exactMatchExists && (
                   <div className="p-4 rounded-3xl border-2 border-dashed border-purple-300 bg-purple-50/50 mt-4">
                     <div className="flex justify-between items-center mb-3 px-1">
                       <div className="flex flex-col">
@@ -1951,14 +1955,14 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                         <div className="flex items-center gap-1.5 mt-1 text-purple-600">
                           <Info size={12} />
                           <span className="text-[8px] font-black uppercase tracking-widest">
-                            {proctorSearchTerm.trim()} is a Guest Proctor
+                            "{proctorSearchTerm.trim()}" is not a registered account.
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-purple-200 text-[8px] font-black uppercase text-purple-600 hover:bg-purple-600 hover:text-white transition-colors">Subject Only</button>
-                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all">Whole Session</button>
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-purple-200 text-[8px] font-black uppercase text-purple-600 hover:bg-purple-600 hover:text-white transition-colors">Add Guest (Subject)</button>
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all">Add Guest (Session)</button>
                     </div>
                   </div>
                 )}
