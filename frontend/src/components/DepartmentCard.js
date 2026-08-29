@@ -148,6 +148,23 @@ const DepartmentCard = ({
   // --- NEW: DECISION ENGINE MODAL ---
   const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
 
+  // --- CORE: SMART DOUBLE-BOOKING PREVENTER (BOOLEAN) ---
+  const isProctorDoubleBooked = (pName, date, start, end, ignoreId) => {
+    if(!pName || pName === 'TBA') return false;
+    const targetStart = (start||'').substring(0, 5);
+    const targetEnd = (end||'').substring(0, 5);
+
+    const checkOverlap = (s) => {
+        if ((s.id || s.tempId) === ignoreId) return false;
+        if (s.proctor !== pName) return false;
+        if (s.exam_date !== date && s.date !== date) return false;
+        const sStart = (s.start_time || s.startTime).substring(0, 5);
+        const sEnd = (s.end_time || s.endTime).substring(0, 5);
+        return targetStart < sEnd && targetEnd > sStart;
+    };
+    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap);
+  };
+  
   // --- NEW: SMART DOUBLE-BOOKING PREVENTER & IDENTIFIER ---
   const getProctorDoubleBookedSection = (pName, date, start, end, ignoreId) => {
     if(!pName || pName === 'TBA') return null;
