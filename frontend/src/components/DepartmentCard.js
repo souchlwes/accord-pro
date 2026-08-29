@@ -2091,7 +2091,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-               {proctorWarningModal.isOpen && (
+           {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center gap-4 text-amber-500 mb-6">
@@ -2104,14 +2104,27 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </p>
             
             <div className="space-y-4">
+               {/* --- FULLY FUNCTIONAL CROSS-POOL SELECTION LIST --- */}
                {proctorWarningModal.hasFallback && (
                   <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
                      <p className="text-[10px] font-black text-blue-800 uppercase mb-2">Cross-Pool Assignment Available</p>
-                     <p className="text-[9px] font-bold text-blue-600 mb-3">There are available proctors in the {proctorWarningModal.fallbackPoolName}. Do you want to pull from there?</p>
-                     <button onClick={() => {
-                        proctorWarningModal.resolve({ type: 'fallback' });
-                        setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                     }} className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-blue-500 transition-all">Use {proctorWarningModal.fallbackPoolName}</button>
+                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}. Select one below:</p>
+                     
+                     <div className="space-y-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
+                        {globalProctorPool
+                           .filter(p => p.assigned_dept !== deptCode)
+                           .map((fp, idx) => (
+                              <div key={idx} onClick={() => {
+                                 proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
+                                 setManualProctorInput("");
+                                 setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                              }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
+                                 <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-600">{fp.full_name || fp.name}</span>
+                                 <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-blue-600 group-hover:text-white transition-all">Select</span>
+                              </div>
+                           ))
+                        }
+                     </div>
                   </div>
                )}
 
@@ -2127,15 +2140,17 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                        className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" 
                      />
                      <button onClick={() => {
-                        if(manualProctorInput.trim()) {
-                           proctorWarningModal.resolve({ type: 'manual', name: manualProctorInput.trim() });
+                        const trimmed = manualProctorInput.trim();
+                        if(trimmed) {
+                           // Fixed: Passes a clean object payload matching generator expectations
+                           proctorWarningModal.resolve({ type: 'manual', name: trimmed });
                            setManualProctorInput("");
                            setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
                         }
-                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all">Force Assign</button>
+                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all cursor-pointer">Force Assign</button>
                   </div>
 
-                  {/* --- INJECTED SMART NAME VALIDATOR FEEDBACK --- */}
+                  {/* --- SMART NAME VALIDATOR FEEDBACK --- */}
                   {manualProctorInput.trim().length > 1 && (() => {
                      const typedName = manualProctorInput.trim();
                      const matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
@@ -2182,7 +2197,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             <button onClick={() => {
                proctorWarningModal.resolve({ type: 'halt' });
                setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
               Halt Generation
             </button>
           </div>
