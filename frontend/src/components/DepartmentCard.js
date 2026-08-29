@@ -1847,22 +1847,22 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
 
-    {proctorModal.isOpen && proctorModal.targetSub && (() => {
+ {proctorModal.isOpen && proctorModal.targetSub && (() => {
         const t = proctorModal.targetSub;
         
         // --- SMART GLOBAL AUTO-SEARCH ---
         const isSearching = proctorSearchTerm.trim().length > 0;
         const targetProctors = (isSearching || proctorModal.pool === 'Global') ? globalProctorPool : activeDeptProctors;
         
-        // Upgraded: Now uses the Smart Prefix Engine for highly intelligent filtering
+        // --- UPGRADED: Smart Prefix Engine + Contains Match ---
         const filteredList = targetProctors.filter(p => {
           const pName = p.full_name || p.name || "";
           if (pName === t.proctor) return false;
-          if (!isSearching) return true;
+          if (!isSearching) return true; // Show all if search is empty
           return checkNameMatch(proctorSearchTerm.trim(), pName) || pName.toLowerCase().includes(proctorSearchTerm.trim().toLowerCase());
         });
 
-        // Upgraded: Checks the entire database to see if the EXACT typed name exists
+        // --- UPGRADED: Checks the entire database to see if the EXACT typed name exists ---
         const exactMatchExists = allProfiles.some(p => 
           (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()
         );
@@ -1887,6 +1887,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 <Users className="absolute left-5 top-5 text-slate-400" size={16} />
               </div>
               
+              {/* --- NEW POOL TOGGLE UI --- */}
               <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                 <button onClick={() => { setProctorSearchTerm(""); setProctorModal({...proctorModal, pool: 'Department'}) }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!isSearching && proctorModal.pool === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Internal Dept</button>
                 <button onClick={() => setProctorModal({...proctorModal, pool: 'Global'})} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${isSearching || proctorModal.pool === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>Global System</button>
@@ -1896,13 +1897,16 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                {/* 1. REGISTERED SUGGESTIONS APPEAR FIRST */}
                {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
+                  const pArr = normalizeNameToArray(pName); 
+                  
                   const yearSubs = subjects[t.year_level] || [];
                   const isTeacherForSection = yearSubs.some(sub => {
                      const profList = parseSubjectProfs(sub.prof);
                      const sectionLetter = t.section.slice(-1);
                      return profList.some(profObj => {
                          const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                         return appliesToThisSection && checkNameMatch(profObj.name, pName);
+                         const nameMatch = checkNameMatch(profObj.name, pName);
+                         return appliesToThisSection && nameMatch;
                      });
                   });
 
@@ -1970,7 +1974,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </div>
           </div>
         );
-      })()}
+      })()}   
 
       {roomModal.isOpen && roomModal.targetBlock && (() => {
         const tb = roomModal.targetBlock;
