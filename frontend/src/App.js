@@ -217,19 +217,15 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
             <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
             <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
           </div>
-          <button onClick={() => onViewProctor(dmTarget)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2 text-[9px] font-black uppercase tracking-widest" title="View Profile Dashboard">
+          <button onClick={() => {
+            onClose(); // Closes the chat panel
+            onViewProctor(dmTarget); // Opens their dashboard
+          }} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2 text-[9px] font-black uppercase tracking-widest" title="View Profile Dashboard">
             <LayoutDashboard size={14}/> View
           </button>
         </div>
-      )} 
-
-      {!activeThread && chatMode === 'dm' && dmTarget && (
-        <div className="bg-white p-4 border-b-2 flex items-center gap-3 shadow-sm z-10">
-          <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl"><ArrowLeft size={16}/></button>
-          <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
-        </div>
       )}
-      
+
       {(chatMode === 'global' || chatMode === 'dm') && (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
           
@@ -1321,7 +1317,7 @@ const [targetHighlight, setTargetHighlight] = useState("");
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
- // --- UPGRADED: CONTEXT-AWARE ROUTER ---
+ // --- UPGRADED: CONTEXT-AWARE ROUTER & TOAST DIRECTIVE ---
   const handleNotificationClick = async (notification) => {
     await markNotificationRead(notification.id);
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
@@ -1331,27 +1327,18 @@ const [targetHighlight, setTargetHighlight] = useState("");
     const title = (notification.title || "").toLowerCase();
     const msg = notification.message || "";
 
-    // 1. CHAT & ANNOUNCEMENTS
-    if (title.includes('announcement')) {
-      setShowChat(true); return;
-    }
+    if (title.includes('announcement')) { setShowChat(true); return; }
 
-   // 2. AVAILABILITY LOGS (Routes to the Proctor's Read-Only Dashboard)
     if (title.includes('availability')) {
-      // Extracts the name before "updated" or "uploaded"
       const nameMatch = msg.match(/^(.*?)\s+(updated|uploaded)/i);
       if (nameMatch) {
         const proctorName = nameMatch[1].trim().toLowerCase();
         const targetUser = allProfiles.find(p => (p.full_name || "").toLowerCase() === proctorName || (p.name || "").toLowerCase() === proctorName);
-        if (targetUser) {
-           setViewingProctor(targetUser); 
-           setTargetHighlight("availability-log"); 
-        }
+        if (targetUser) { setViewingProctor(targetUser); setTargetHighlight("availability-log"); }
       }
       return;
     }
 
-    // 3. REGISTRY ROUTING (Account Approvals)
     if (title.includes('account') || (title.includes('request') && !title.includes('assignment'))) {
       setActiveTab('users');
       const nameMatch = msg.match(/^(.*?)\s+(requested|created)/i) || msg.match(/account for\s+(.*?)\./i);
@@ -1363,18 +1350,31 @@ const [targetHighlight, setTargetHighlight] = useState("");
       return;
     }
 
-    // 4. TIMELINE ROUTING (Flags, Declines, Subject Overrides)
+    // --- TIMELINE ROUTING & TOAST INTEGRATION ---
     setActiveTab('dashboard');
     if (notification.target_dept) {
        const targetDept = departments.find(d => d.code === notification.target_dept);
        if (targetDept) setActiveDeptId(targetDept.id);
     }
     
-    // Extracts the Subject Code (e.g., CS101) to pulse the specific block
+    // Extract the Subject Code (e.g., CS101) to pulse the specific block in the preview
     const codeMatch = msg.match(/([A-Z]{2,4}\d{2,4})/i); 
     if (codeMatch) {
        setTargetHighlight(codeMatch[1].toUpperCase()); 
        setTimeout(() => setTargetHighlight(""), 6000); 
+    }
+
+    // Fire the matching Toast alert based on the notification type
+    if (title.includes('declined')) {
+        setAppToast({ 
+            message: "Action Required: Reliever request was DECLINED. Review or switch proctor in the preview draft.", 
+            type: "error" 
+        });
+    } else if (title.includes('accepted') || title.includes('request accepted')) {
+        setAppToast({ 
+            message: "Success: Reliever request was ACCEPTED. Slot verified and locked.", 
+            type: "success" 
+        });
     }
   };
 
@@ -2116,9 +2116,7 @@ useEffect(() => {
           onViewProctor={(p) => setViewingProctor(p)}
           highlightTarget={targetHighlight}
         />
-{showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
-        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+
         
         {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
@@ -2173,10 +2171,10 @@ useEffect(() => {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
       
-     {/* GLOBAL OVERLAYS */}
-{showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
+    {/* GLOBAL OVERLAYS */}
+      {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} />}
+      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
