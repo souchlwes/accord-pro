@@ -211,12 +211,17 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         </div>
       )}
 
-      {activeThread && (
-        <div className="bg-indigo-50 p-4 border-b-2 border-indigo-100 flex items-center gap-3 shadow-sm z-10 cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => setActiveThread(null)}>
-          <button className="p-2 bg-white text-indigo-500 rounded-xl"><ArrowLeft size={16}/></button>
-          <div><h4 className="text-sm font-black text-indigo-900 uppercase">Thread View</h4><span className="text-[9px] font-black uppercase text-indigo-500">Back to main feed</span></div>
+     {!activeThread && chatMode === 'dm' && dmTarget && (
+        <div className="bg-white p-4 border-b-2 flex justify-between items-center shadow-sm z-10">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
+            <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
+          </div>
+          <button onClick={() => onViewProctor(dmTarget)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2 text-[9px] font-black uppercase tracking-widest" title="View Profile Dashboard">
+            <LayoutDashboard size={14}/> View
+          </button>
         </div>
-      )}
+      )} 
 
       {!activeThread && chatMode === 'dm' && dmTarget && (
         <div className="bg-white p-4 border-b-2 flex items-center gap-3 shadow-sm z-10">
@@ -228,11 +233,20 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       {(chatMode === 'global' || chatMode === 'dm') && (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
           
-          {activeThread && (
-            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6">
-               <span className="text-[10px] font-black text-indigo-700 uppercase mb-1 block">{activeThread.sender_name}</span>
+{activeThread && (
+            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6 relative">
+               <button 
+                 onClick={() => {
+                    const targetUser = systemUsers.find(u => u.id === activeThread.sender_id);
+                    if (targetUser) onViewProctor(targetUser);
+                 }}
+                 className="text-[10px] font-black text-indigo-700 uppercase mb-2 flex items-center gap-1.5 hover:text-indigo-500 transition-colors w-max"
+                 title="View Profile Dashboard"
+               >
+                 <User size={12}/> {activeThread.sender_name}
+               </button>
                <p className="text-sm font-bold text-slate-800">{activeThread.text}</p>
-               <span className="text-[8px] font-black text-slate-400 uppercase mt-2 block border-t pt-2">Original Post</span>
+               <span className="text-[8px] font-black text-slate-400 uppercase mt-2 block border-t border-indigo-50 pt-2">Original Post</span>
             </div>
           )}
 
@@ -244,7 +258,20 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
 
             return (
               <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
-                {!isMe && <span className="text-[10px] font-black text-slate-700 uppercase mb-1 ml-1">{m.sender_name} <span className="text-[8px] text-slate-400 ml-1 font-bold">({m.sender_role})</span></span>}
+{!isMe && (
+                  <button 
+                    onClick={() => {
+                       const targetUser = systemUsers.find(u => u.id === m.sender_id);
+                       if (targetUser) onViewProctor(targetUser);
+                    }}
+                    className="text-[10px] font-black text-slate-700 uppercase mb-1 ml-1 flex items-center gap-1 hover:text-indigo-600 transition-colors cursor-pointer group/name text-left"
+                    title="View Profile Dashboard"
+                  >
+                    <User size={10} className="opacity-50 group-hover/name:opacity-100 transition-opacity" />
+                    {m.sender_name} 
+                    <span className="text-[8px] text-slate-400 font-bold group-hover/name:text-indigo-400 transition-colors">({m.sender_role})</span>
+                  </button>
+                )}
                 <div className="flex items-center gap-2 max-w-[90%]">
                   {isMe && (
                     <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
@@ -821,8 +848,8 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount }) => {
-  const [dashboardView, setDashboardView] = useState('upcoming');
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount }) => {
+const [dashboardView, setDashboardView] = useState('upcoming');
 
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -1203,7 +1230,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
             <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head and removes you from the schedule.</p>
             <textarea value={declineModal.note} onChange={(e) => setDeclineModal({...declineModal, note: e.target.value})} placeholder="e.g. Schedule conflict, out of town..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6 transition-all" />
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-              <button onClick={() => setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="w-full sm:flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+<button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, examDate: s.exam_date, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
               <button onClick={() => { 
                 
                 onDeclineAssignment(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); 
