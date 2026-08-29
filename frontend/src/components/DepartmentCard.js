@@ -148,31 +148,30 @@ const DepartmentCard = ({
   // --- NEW: DECISION ENGINE MODAL ---
   const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
 
-  // --- CORE: SMART DOUBLE-BOOKING PREVENTER (BOOLEAN) ---
-  const isProctorDoubleBooked = (pName, date, start, end, ignoreId) => {
+ // --- SMART DOUBLE-BOOKING CHECKERS (WITH LIVE DRAFT SUPPORT) ---
+  const isProctorDoubleBooked = (pName, date, start, end, ignoreId, draftData = []) => {
     if(!pName || pName === 'TBA') return false;
     const targetStart = (start||'').substring(0, 5);
     const targetEnd = (end||'').substring(0, 5);
 
     const checkOverlap = (s) => {
-        if ((s.id || s.tempId) === ignoreId) return false;
+        if ((s.id || s.tempId) === ignoreId && ignoreId != null) return false;
         if (s.proctor !== pName) return false;
         if (s.exam_date !== date && s.date !== date) return false;
         const sStart = (s.start_time || s.startTime).substring(0, 5);
         const sEnd = (s.end_time || s.endTime).substring(0, 5);
         return targetStart < sEnd && targetEnd > sStart;
     };
-    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap);
+    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap) || draftData.some(checkOverlap);
   };
-  
-  // --- NEW: SMART DOUBLE-BOOKING PREVENTER & IDENTIFIER ---
-  const getProctorDoubleBookedSection = (pName, date, start, end, ignoreId) => {
+
+  const getProctorDoubleBookedSection = (pName, date, start, end, ignoreId, draftData = []) => {
     if(!pName || pName === 'TBA') return null;
     const targetStart = (start||'').substring(0, 5);
     const targetEnd = (end||'').substring(0, 5);
 
     const checkOverlap = (s) => {
-        if ((s.id || s.tempId) === ignoreId) return false;
+        if ((s.id || s.tempId) === ignoreId && ignoreId != null) return false;
         if (s.proctor !== pName) return false;
         if (s.exam_date !== date && s.date !== date) return false;
         const sStart = (s.start_time || s.startTime).substring(0, 5);
@@ -180,6 +179,8 @@ const DepartmentCard = ({
         return targetStart < sEnd && targetEnd > sStart;
     };
     
+    const conflictDraft = draftData.find(checkOverlap);
+    if (conflictDraft) return conflictDraft.section;
     const conflictLocal = localSchedule.find(checkOverlap);
     if (conflictLocal) return conflictLocal.section;
     const conflictGlobal = globalSchedule.find(checkOverlap);
@@ -551,7 +552,7 @@ for (let d = 0; d < examDays; d++) {
                return; 
             }
 
-            // 3. Check Logged Availability
+          // 3. Check Logged Availability
             const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
             const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
               assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
@@ -565,7 +566,8 @@ for (let d = 0; d < examDays; d++) {
               const isBurnt = pAssignments.some(assign => {
                 const assignStart = assign.start_time.substring(0, 5);
                 const assignEnd = assign.end_time.substring(0, 5);
-                return safeLogStart < assignEnd && safeLogEnd > assignStart; 
+                // FIXED: Now checks if the EXAM block overlaps, not the log!
+                return startTime < assignEnd && endTime > assignStart; 
               });
 
               return coversExam && !isBurnt;
@@ -592,7 +594,7 @@ for (let d = 0; d < examDays; d++) {
            const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
            const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
 
-           // PAUSE AND ASK ADMIN
+           // PAUSE AND ASK ADMIN (Passing the Live Draft!)
            const userChoice = await new Promise((resolve) => {
               setProctorWarningModal({
                  isOpen: true,
@@ -604,7 +606,8 @@ for (let d = 0; d < examDays; d++) {
                  source: proctorSource,
                  fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
                  hasFallback: hasFallback,
-                 teachers: availableTeachers
+                 teachers: availableTeachers,
+                 currentDraft: finalGeneratedData // <-- This is the magic key!
               });
            });
 
@@ -2157,7 +2160,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-     {proctorWarningModal.isOpen && (
+    {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center gap-4 text-amber-500 mb-6">
@@ -2187,7 +2190,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      <div className="space-y-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
                         {globalProctorPool
                            .filter(p => p.assigned_dept !== deptCode)
-                           .filter(p => !isProctorDoubleBooked(p.full_name || p.name, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null))
+                           // FIX APPLIED HERE: Added proctorWarningModal.currentDraft
+                           .filter(p => !isProctorDoubleBooked(p.full_name || p.name, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null, proctorWarningModal.currentDraft))
                            .map((fp, idx) => (
                               <div key={idx} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-400 flex justify-between items-center transition-all shadow-sm">
                                  <span className="font-black text-[10px] uppercase text-slate-800">{fp.full_name || fp.name}</span>
@@ -2251,7 +2255,9 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                         return filteredWarningList.map((p, idx) => {
                            const pName = p.full_name || p.name;
-                           const bookedSection = getProctorDoubleBookedSection(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null);
+
+                           // FIX APPLIED HERE: Added proctorWarningModal.currentDraft
+                           const bookedSection = getProctorDoubleBookedSection(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null, proctorWarningModal.currentDraft);
                            
                            // Evaluate Badges
                            const targetYear = proctorWarningModal.sectionID.replace(deptCode, '').charAt(0);
@@ -2358,7 +2364,6 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
       
-
       {/* --- MISSING ROOM CAPACITY WARNING MODAL --- */}
       {roomWarningModal.isOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
