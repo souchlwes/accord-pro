@@ -1069,42 +1069,43 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           
           <div className="lg:col-span-1 flex flex-col gap-6">
             
-            {/* --- NEW: DEDICATED PENDING REQUESTS SECTION --- */}
+         {/* --- NEW: DEDICATED PENDING REQUESTS SECTION --- */}
             {pendingRequests.length > 0 && (
-              <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-6 shadow-lg animate-in slide-in-from-bottom-4">
-                <h3 className="text-amber-600 font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Users size={16} className="animate-pulse"/> Action Required ({pendingRequests.length})
+              <div className="bg-amber-500 border-4 border-amber-600 rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
+                <h3 className="text-white font-black text-lg uppercase tracking-widest mb-6 flex items-center gap-3 relative z-10">
+                  <BellRing size={24} className="animate-pulse"/> Reliever Request ({pendingRequests.length})
                 </h3>
                 
-                <div className="space-y-4">
+                <div className="space-y-4 relative z-10">
                   {pendingRequests.map((s, i) => (
-                    <div key={i} className="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
-                      <div className="mb-3">
+                    <div key={i} className="bg-white p-5 rounded-2xl shadow-xl relative overflow-hidden border-2 border-amber-100">
+                      <div className="mb-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">{s.subject_code}</p>
-                        <p className="text-xs font-bold truncate text-slate-800">{s.subject_name}</p>
+                        <p className="text-sm font-black truncate text-slate-900">{s.subject_name}</p>
                       </div>
                       
-                      <div className="flex flex-wrap items-center bg-amber-50 p-2.5 rounded-xl gap-3 mb-4">
-                        <span className="text-[9px] font-black text-amber-700 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
-                        <span className="text-[9px] font-black text-amber-700 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
+                      <div className="flex flex-wrap items-center bg-amber-50 p-3 rounded-xl gap-4 mb-6 border border-amber-100">
+                        <span className="text-[10px] font-black text-amber-700 uppercase flex items-center gap-1.5"><Clock size={12}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
+                        <span className="text-[10px] font-black text-amber-700 uppercase flex items-center gap-1.5"><Calendar size={12}/> {s.exam_date}</span>
+                        <span className="text-[10px] font-black text-rose-500 uppercase">RM {s.room}</span>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                         <button onClick={() => {
                           const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
                           const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
                           onAddAvailability({ proctor_id: profile.id, proctor_name: profile.full_name, dept_code: profile.assigned_dept, exam_date: s.exam_date, start_time: fStart, end_time: fEnd, is_emergency_flag: false, note: "Accepted Reliever Request" });
                           showToast("Request Accepted! Schedule verified.", "success");
-                        }} className="flex-1 bg-amber-500 hover:bg-amber-400 text-white font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 shadow-md">Accept</button>
+                        }} className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"><CheckCircle2 size={16}/> Accept Assignment</button>
                         
-                        <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black text-[9px] uppercase py-2.5 rounded-lg transition-all active:scale-95 border border-slate-200">Decline</button>
+                        <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
+            )}   
 
           {/* CONFIRMED ASSIGNMENTS SECTION */}
             <div className="bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col flex-1 max-h-[600px]">
@@ -1539,9 +1540,14 @@ useEffect(() => {
   const handleDeclineAssignment = async (scheduleId, reason, deptCode, subjectCode) => {
     // Sets flagged to true, logs the reason, AND voids the proctor so it reads "TBA" globally!
     await supabase.from('schedules').update({ flagged: true, flagNote: reason, proctor: 'TBA' }).eq('id', scheduleId);
-    await sendNotification(deptCode, null, null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
+    
+    // Explicitly notify both Admins
+    await sendNotification(deptCode, 'DEPT_ADMIN', null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
+    await sendNotification(deptCode, 'HEAD_ADMIN', null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
+    
     fetchAllData(false);
   };
+
   // --- NEW: ACCEPT RELIEVER ASSIGNMENT ---
   const handleAcceptAssignment = async (proctorId, proctorName, deptCode, examDate, startTime, endTime, subjectCode) => {
     // 1. Log the availability to verify the pending slot
@@ -1559,15 +1565,10 @@ useEffect(() => {
     if (error) {
       alert("Database Error: " + error.message);
     } else {
-      // 2. Fire the targeted notification (This automatically alerts Dept Admin AND Head Admin)
-      await sendNotification(
-        deptCode, 
-        null, 
-        null, 
-        'Proctor Assignment Request Accepted', 
-        `${proctorName} has accepted the proctor assignment for ${subjectCode} on ${examDate}.`, 
-        'success'
-      );
+      // 2. Explicitly fire the targeted notifications to both Admins
+      await sendNotification(deptCode, 'DEPT_ADMIN', null, 'Request Accepted', `${proctorName} accepted the assignment for ${subjectCode}.`, 'success');
+      await sendNotification(deptCode, 'HEAD_ADMIN', null, 'Request Accepted', `${proctorName} accepted the assignment for ${subjectCode}.`, 'success');
+      
       await fetchAllData(false);
     }
   };
@@ -2374,9 +2375,36 @@ onShowChat={handleOpenChat}
                 </div>
               </div>
             ) : (
+             
              <div className="mt-6 md:mt-10">
                 <UserRegistry
-                  profiles={allProfiles} 
+                  profiles={[
+                    ...allProfiles, 
+                    ...Array.from(new Set(
+                      globalSchedule
+                        .filter(s => {
+                          if (!s.proctor || s.proctor === 'TBA') return false;
+                          const isVerified = allProfiles.some(p => (p.full_name || '').toLowerCase() === s.proctor.toLowerCase());
+                          if (isVerified) return false;
+
+                          // Auto-wipe check: only show if the session has NOT ended yet
+                          const now = new Date();
+                          const todayStr = now.toISOString().split('T')[0];
+                          const currentTimeStr = now.toTimeString().substring(0, 5);
+                          const isSessionPast = s.exam_date < todayStr || (s.exam_date === todayStr && s.end_time < currentTimeStr);
+
+                          return !isSessionPast;
+                        })
+                        .map(s => s.proctor)
+                    )).map(guestName => ({
+                       id: `guest-${guestName}`,
+                       full_name: guestName,
+                       email: 'External Resource',
+                       role: 'GUEST PROCTOR',
+                       assigned_dept: 'EXTERNAL',
+                       status: 'ACTIVE'
+                    }))
+                  ]} 
                   onCreate={handleCreateAccount}
                   onBlock={handleBlockUser}
                   onDelete={handleDeleteUser}
