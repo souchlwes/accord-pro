@@ -1317,7 +1317,8 @@ const [targetHighlight, setTargetHighlight] = useState("");
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
- // --- UPGRADED: CONTEXT-AWARE ROUTER & TOAST DIRECTIVE ---
+ 
+  // --- UPGRADED: CONTEXT-AWARE ROUTER & MODAL TRIGGER ---
   const handleNotificationClick = async (notification) => {
     await markNotificationRead(notification.id);
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
@@ -1350,34 +1351,25 @@ const [targetHighlight, setTargetHighlight] = useState("");
       return;
     }
 
-    // --- TIMELINE ROUTING & TOAST INTEGRATION ---
+    // --- TIMELINE ROUTING & SWITCH PROCTOR MODAL TRIGGER ---
     setActiveTab('dashboard');
     if (notification.target_dept) {
        const targetDept = departments.find(d => d.code === notification.target_dept);
        if (targetDept) setActiveDeptId(targetDept.id);
     }
     
-    // Extract the Subject Code (e.g., CS101) to pulse the specific block in the preview
-    const codeMatch = msg.match(/([A-Z]{2,4}\d{2,4})/i); 
-    if (codeMatch) {
-       setTargetHighlight(codeMatch[1].toUpperCase()); 
-       setTimeout(() => setTargetHighlight(""), 6000); 
-    }
-
-    // Fire the matching Toast alert based on the notification type
     if (title.includes('declined')) {
-        setAppToast({ 
-            message: "Action Required: Reliever request was DECLINED. Review or switch proctor in the preview draft.", 
-            type: "error" 
-        });
+        const switchMatch = notification.message.match(/SWITCH-PROCTOR-([^\s|]+)/);
+        if (switchMatch) {
+            setTargetHighlight(`SWITCH-PROCTOR-${switchMatch[1]}`);
+        } else {
+            setAppToast({ message: "Action Required: Reliever request was DECLINED. Review or switch proctor in the preview draft.", type: "error" });
+        }
     } else if (title.includes('accepted') || title.includes('request accepted')) {
-        setAppToast({ 
-            message: "Success: Reliever request was ACCEPTED. Slot verified and locked.", 
-            type: "success" 
-        });
+        setAppToast({ message: "Success: Reliever request was ACCEPTED. Slot verified and locked.", type: "success" });
     }
   };
-
+  
   const fetchNotifications = async () => {
     if (!profile) return;
     let query = supabase.from('notifications').select('*').order('created_at', { ascending: false });
@@ -1573,14 +1565,12 @@ useEffect(() => {
   };
 
   // --- NEW: VOID DECLINED ASSIGNMENTS ---
-  const handleDeclineAssignment = async (scheduleId, reason, deptCode, subjectCode) => {
-    // Sets flagged to true, logs the reason, AND voids the proctor so it reads "TBA" globally!
-    await supabase.from('schedules').update({ flagged: true, flagNote: reason, proctor: 'TBA' }).eq('id', scheduleId);
+  const handleDeclineAssignment = async (scheduleId, reason, deptCode, subjectCode, examDate) => {
+    await supabase.from('schedules').update({ flagged: true, flagNote: `DECLINED: ${reason}`, proctor: 'TBA' }).eq('id', scheduleId);
     
-    // Explicitly notify both Admins
-    await sendNotification(deptCode, 'DEPT_ADMIN', null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
-    await sendNotification(deptCode, 'HEAD_ADMIN', null, 'Reliever Declined', `${profile.full_name} declined ${subjectCode}. Reason: ${reason}`, 'urgent');
-    
+    const msg = `SWITCH-PROCTOR-${scheduleId} | CRITICAL: ${profile.full_name} declined the reliever request for ${subjectCode} on ${examDate}. Reason: ${reason}.`;
+    await sendNotification(deptCode, 'DEPT_ADMIN', null, 'Assignment Declined', msg, 'urgent');
+    await sendNotification(deptCode, 'HEAD_ADMIN', null, 'Assignment Declined', msg, 'urgent');
     fetchAllData(false);
   };
 
