@@ -2091,7 +2091,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         </div>
       )}
      
-          {proctorWarningModal.isOpen && (
+      {proctorWarningModal.isOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center gap-4 text-amber-500 mb-6">
@@ -2100,28 +2100,30 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </div>
             
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
-              All eligible <strong className="text-slate-800">{proctorWarningModal.source}</strong> proctors are exhausted for <strong className="text-slate-800">Section {proctorWarningModal.sectionID}</strong> on <strong className="text-slate-800">{proctorWarningModal.dayDate}</strong>.
+              All eligible <strong className="text-slate-800">{proctorWarningModal.source}</strong> proctors are exhausted for <strong className="text-rose-500">Section {proctorWarningModal.sectionID}</strong> on <strong className="text-slate-800">{proctorWarningModal.dayDate}</strong>.
             </p>
             
             <div className="space-y-4">
-               {/* CROSS-POOL SELECTION LIST */}
+               
+               {/* 1. UPGRADED: CROSS-POOL SELECTION LIST */}
                {proctorWarningModal.hasFallback && (
                   <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
                      <p className="text-[10px] font-black text-blue-800 uppercase mb-2">Cross-Pool Assignment Available</p>
-                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}. Select one below:</p>
+                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}. Select one below to assign:</p>
                      
                      <div className="space-y-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
                         {globalProctorPool
                            .filter(p => p.assigned_dept !== deptCode)
                            .map((fp, idx) => (
-                              <div key={idx} onClick={() => {
-                                 showToast(`Successfully added ${fp.full_name || fp.name}!`, "success");
-                                 proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
-                                 setManualProctorInput("");
-                                 setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                              }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
-                                 <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-600">{fp.full_name || fp.name}</span>
-                                 <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-blue-600 group-hover:text-white transition-all">Select</span>
+                              <div key={idx} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-400 flex justify-between items-center transition-all shadow-sm">
+                                 <span className="font-black text-[10px] uppercase text-slate-800">{fp.full_name || fp.name}</span>
+                                 <button onClick={() => {
+                                    showToast(`Successfully assigned ${fp.full_name || fp.name} to ${proctorWarningModal.sectionID}`, "success");
+                                    proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
+                                    setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                                 }} className="bg-blue-100 hover:bg-blue-600 text-blue-700 hover:text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all cursor-pointer">
+                                    Select
+                                 </button>
                               </div>
                            ))
                         }
@@ -2129,101 +2131,32 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   </div>
                )}
 
+               {/* 2. STABLE: MANUAL / GUEST ASSIGNMENT */}
                <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
                   <p className="text-[10px] font-black text-amber-800 uppercase mb-2">Manual / Guest Assignment</p>
                   <p className="text-[9px] font-bold text-amber-600 mb-3">Type any name. If they are a verified system user, they will receive a Reliever Request to accept/decline.</p>
-                  
-                  {/* FULLY FUNCTIONAL POOL TOGGLES */}
-                  <div className="flex bg-white p-1 rounded-xl mb-3 border border-amber-100">
-                    <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Department' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${(!proctorWarningModal.viewPool || proctorWarningModal.viewPool === 'Department') ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Internal Dept</button>
-                    <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Global' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${proctorWarningModal.viewPool === 'Global' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Global System</button>
-                  </div>
-
-                  <div className="flex gap-2 mb-2">
+                  <div className="flex gap-2">
                      <input 
-                       value={manualProctorInput} 
-                       onChange={e => setManualProctorInput(e.target.value)} 
-                       placeholder="Search or Type new..." 
-                       className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" 
+                        value={manualProctorInput} 
+                        onChange={e => setManualProctorInput(e.target.value)} 
+                        placeholder="Type name..." 
+                        className="flex-1 bg-white border border-amber-100 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500" 
                      />
                      <button onClick={() => {
-                        const trimmed = manualProctorInput.trim();
-                        if(trimmed) {
-                           showToast(`Successfully forced assignment for ${trimmed}!`, "success");
-                           proctorWarningModal.resolve({ type: 'manual', name: trimmed });
+                        const val = manualProctorInput.trim();
+                        if(val) {
+                           showToast(`Forced assignment of ${val} to ${proctorWarningModal.sectionID}`, "success");
+                           proctorWarningModal.resolve({ type: 'manual', name: val });
                            setManualProctorInput("");
-                           setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                           setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
                         } else {
                            showToast("Please enter a name first.", "error");
                         }
                      }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all cursor-pointer">Force Assign</button>
                   </div>
-
-                  {/* DYNAMIC LIST BASED ON TOGGLE */}
-                  <div className="max-h-40 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
-                     {(() => {
-                        const searchTerm = manualProctorInput.trim();
-                        const isGlobal = proctorWarningModal.viewPool === 'Global';
-                        const poolToSearch = isGlobal 
-                           ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) 
-                           : activeDeptProctors;
-                        
-                        const filteredWarningList = poolToSearch.filter(p => {
-                           const pName = p.full_name || p.name || "";
-                           if (!searchTerm) return true;
-                           return checkNameMatch(searchTerm, pName) || pName.toLowerCase().includes(searchTerm.toLowerCase());
-                        });
-
-                        return filteredWarningList.map((p, idx) => (
-                           <div key={idx} className="p-3 rounded-xl border border-amber-100 bg-white hover:border-amber-400 flex justify-between items-center transition-all">
-                              <div className="flex flex-col">
-                                 <span className="font-black text-[10px] text-slate-800 uppercase">{p.full_name || p.name}</span>
-                                 <span className="text-[7px] font-black text-amber-600 uppercase tracking-widest mt-0.5">
-                                   {p.assigned_dept ? `${p.assigned_dept} Dept` : 'System Account'}
-                                 </span>
-                              </div>
-                              <button onClick={() => {
-                                 showToast(`Successfully assigned ${p.full_name || p.name}!`, "success");
-                                 proctorWarningModal.resolve({ type: 'manual', name: p.full_name || p.name });
-                                 setManualProctorInput("");
-                                 setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                              }} className="bg-amber-100 hover:bg-amber-500 text-amber-700 hover:text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase transition-all cursor-pointer">
-                                 Select
-                              </button>
-                           </div>
-                        ));
-                     })()}
-                  </div>
-
-                  {/* SMART NAME VALIDATOR FEEDBACK FOR GUESTS */}
-                  {manualProctorInput.trim().length > 1 && (() => {
-                     const typedName = manualProctorInput.trim();
-                     const matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
-
-                     if (matches.length === 0) {
-                        return (
-                           <div className="mt-2 p-3 border border-purple-200 bg-purple-50 rounded-xl flex justify-between items-center">
-                              <div className="flex flex-col">
-                                 <span className="text-[10px] font-black text-purple-800 uppercase">{typedName}</span>
-                                 <span className="text-[7px] font-black text-purple-600 uppercase flex items-center gap-1 mt-1">
-                                   <Info size={10}/> Guest (No system account)
-                                 </span>
-                              </div>
-                              <button onClick={() => {
-                                 showToast(`Added Guest Proctor: ${typedName}!`, "success");
-                                 proctorWarningModal.resolve({ type: 'manual', name: typedName });
-                                 setManualProctorInput("");
-                                 setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-                              }} className="bg-purple-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase shadow-sm hover:bg-purple-700 cursor-pointer">
-                                 Add Guest
-                              </button>
-                           </div>
-                        );
-                     }
-                     return null;
-                  })()}
                </div>
 
+               {/* 3. STABLE: SUBJECT TEACHER OVERRIDE */}
                {proctorWarningModal.teachers.length > 0 && (
                   <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl">
                      <p className="text-[10px] font-black text-rose-800 uppercase mb-2">Subject Teacher Conflict Override</p>
@@ -2231,9 +2164,9 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                      <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
                        {proctorWarningModal.teachers.map((t, idx) => (
                           <div key={idx} onClick={() => {
-                             showToast(`Successfully overrode conflict for ${t.full_name || t.name}!`, "success");
+                             showToast(`Overrode teacher ${t.full_name || t.name} for ${proctorWarningModal.sectionID}`, "success");
                              proctorWarningModal.resolve({ type: 'teacher', proctor: t });
-                             setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
+                             setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
                           }} className="p-3 bg-white border border-rose-100 rounded-xl hover:border-rose-400 cursor-pointer flex justify-between items-center group transition-all">
                              <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-rose-600">{t.full_name || t.name}</span>
                              <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded text-[8px] font-black uppercase group-hover:bg-rose-500 group-hover:text-white transition-all">Override</span>
@@ -2247,8 +2180,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             <button onClick={() => {
                showToast("Generation Halted.", "error");
                proctorWarningModal.resolve({ type: 'halt' });
-               setProctorWarningModal({ ...proctorWarningModal, isOpen: false });
-            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer">
+               setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
               Halt Generation
             </button>
           </div>
