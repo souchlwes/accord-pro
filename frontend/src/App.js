@@ -1880,9 +1880,14 @@ const executeAddDepartment = async (e) => {
     const { name, code, campus } = deptModal;
     if (!name || !code) return;
 
-    const { error } = await supabase.from('departments').insert([{ 
-      name, code: code.toUpperCase(), campus_location: campus, university: profile.university 
-    }]);
+   const { error } = await supabase.from('departments').insert([{ 
+      name, 
+      code: code.toUpperCase(), 
+      campus_location: campus, 
+      university: profile.university,
+      subjects: {}, 
+      rooms: [] 
+    }]); 
     
     if (error) {
       setAppToast({ message: error.message, type: "error" });
