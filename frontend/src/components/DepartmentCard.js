@@ -97,8 +97,8 @@ const DepartmentCard = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
   // Destructure from the 'dept' prop directly for logic
-  const { subjects, proctors, rooms, name: deptName, code: deptCode, id: deptId } = dept;
-  
+  // Destructure with safety nets to prevent crashes on empty databases
+  const { subjects = {}, rooms = [], name: deptName, code: deptCode, id: deptId } = dept;
   // --- AUTOMATION: Dynamically find all Proctors assigned to this Dept from Profiles ---
   const activeDeptProctors = useMemo(() => {
     return allProfiles.filter(p => 
