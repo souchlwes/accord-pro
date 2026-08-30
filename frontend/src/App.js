@@ -1258,6 +1258,7 @@ function App() {
   const [fullName, setFullName] = useState(''); 
   const [regRole, setRegRole] = useState('PROCTOR'); 
   const [regDept, setRegDept] = useState(''); 
+  const [regUni, setRegUni] = useState('');
   const [authMode, setAuthMode] = useState('login');
 
   // --- DATA STATES ---
@@ -1281,7 +1282,7 @@ const handleOpenChat = () => {
   };
 
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-  const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '' });
+const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main Campus' });
   const [appToast, setAppToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
@@ -1381,14 +1382,15 @@ const [targetHighlight, setTargetHighlight] = useState("");
     if (data) setNotifications(data);
   };
 
-  const fetchAllData = async (showSpinner = true) => {
+  const fetchAllData = async (showSpinner = true, activeProfile = profile) => {
     if (showSpinner) { setLoading(true); setSyncError(null); }
     try {
+      const uni = activeProfile?.university || 'UNKNOWN';
       const fetchPromise = Promise.all([
-        supabase.from('departments').select('*').order('name', { ascending: true }),
-        supabase.from('schedules').select('*'),
-        supabase.from('proctor_availability').select('*'),
-        supabase.from('profiles').select('*')
+        supabase.from('departments').select('*').eq('university', uni).order('name', { ascending: true }),
+        supabase.from('schedules').select('*').eq('university', uni),
+        supabase.from('proctor_availability').select('*').eq('university', uni),
+        supabase.from('profiles').select('*').eq('university', uni)
       ]);
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database took too long to respond.")), 10000));
       const [deptsRes, schedsRes, availRes, profilesRes] = await Promise.race([fetchPromise, timeoutPromise]);
@@ -1673,22 +1675,25 @@ useEffect(() => {
     });
   };
 
-  const executeRegistration = async () => {
+ const executeRegistration = async () => {
     setLoading(true);
     try {
+      if (!regUni.trim()) throw new Error("University Name is required.");
       if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
+      
+      const targetUni = regUni.toUpperCase().trim();
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
       if (error) throw error;
       
       if (data?.user) {
-        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN');
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN').eq('university', targetUni);
         if (count === 0) {
-          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', status: 'ACTIVE' }]);
-          setAppToast({ message: "First user auto-promoted to Head Admin!", type: "success" });
+          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
+          setAppToast({ message: "First user auto-promoted to Head Admin for this University!", type: "success" });
           setTimeout(() => window.location.reload(), 2000);
         } else {
           await supabase.from('profiles').upsert([{ 
-            id: data.user.id, full_name: fullName, role: regRole, assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), status: 'PENDING' 
+            id: data.user.id, full_name: fullName, role: regRole, assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), university: targetUni, status: 'PENDING' 
           }]);
           
           if (regRole === 'PROCTOR') await sendNotification(regDept.toUpperCase(), 'DEPT_ADMIN', null, 'New Proctor Request', `${fullName} requested to join ${regDept.toUpperCase()}.`, 'info');
@@ -1696,7 +1701,7 @@ useEffect(() => {
           
           await supabase.auth.signOut();
           setAuthMode('success'); 
-          setEmail(''); setPassword(''); setFullName(''); setRegDept('');
+          setEmail(''); setPassword(''); setFullName(''); setRegDept(''); setRegUni('');
         }
       }
     } catch (err) { setAppToast({ message: err.message, type: "error" }); } finally { setLoading(false); }
@@ -1721,12 +1726,13 @@ useEffect(() => {
         if (validData.id && String(validData.id).includes('temp')) delete validData.id;
         if (validData.tempId) delete validData.tempId;
         
-        const cleanItem = { 
+       const cleanItem = { 
             ...validData, 
             year_level: String(validData.year_level), 
-            flagged: Boolean(validData.flagged ?? false), 
+            flagged: Boolean(validData.flagged ?? false),
             isManualProctor: Boolean(validData.isManualProctor ?? false), 
-            original_proctor: validData.original_proctor || validData.proctor 
+            original_proctor: validData.original_proctor || validData.proctor,
+            university: profile.university // Explicitly assigns the generated schedule to this university
         };
         
         // --- NEW: BULLETPROOF ROUTING ---
@@ -1869,20 +1875,22 @@ useEffect(() => {
     }
   };
 
-  const executeAddDepartment = async (e) => {
+const executeAddDepartment = async (e) => {
     e.preventDefault();
-    const { name, code } = deptModal;
+    const { name, code, campus } = deptModal;
     if (!name || !code) return;
 
-    const { error } = await supabase.from('departments').insert([{ name, code: code.toUpperCase() }]);
+    const { error } = await supabase.from('departments').insert([{ 
+      name, code: code.toUpperCase(), campus_location: campus, university: profile.university 
+    }]);
     
     if (error) {
       setAppToast({ message: error.message, type: "error" });
     } else {
-      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()}.`, 'info');
+      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()} at ${campus}.`, 'info');
       await fetchAllData(false);
       setAppToast({ message: `Workspace ${code.toUpperCase()} initialized!`, type: "success" });
-      setDeptModal({ isOpen: false, name: '', code: '' });
+      setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main Campus' });
     }
   };
 
@@ -1952,7 +1960,7 @@ useEffect(() => {
                 <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
                 <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
                 <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                
+                <input type="text" placeholder="University / Institution Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
                 <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
@@ -2525,7 +2533,7 @@ useEffect(() => {
                 </div>
               </div>
               
-              <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
+            <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
                   <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
@@ -2535,8 +2543,15 @@ useEffect(() => {
                   <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
                 </div>
                 
+                {/* --- NEW CAMPUS INPUT GOES HERE --- */}
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Campus Location</label>
+                  <input required type="text" value={deptModal.campus} onChange={e=>setDeptModal({...deptModal, campus: e.target.value})} placeholder="e.g. North Campus" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                </div>
+
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  {/* Updated the cancel button to clear the campus state */}
+                  <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main Campus' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                   <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
                 </div>
               </form>
