@@ -1580,7 +1580,7 @@ useEffect(() => {
     fetchAllData(false);
   };
 
-  // --- NEW: ACCEPT RELIEVER ASSIGNMENT ---
+ // --- NEW: ACCEPT RELIEVER ASSIGNMENT ---
   const handleAcceptAssignment = async (proctorId, proctorName, deptCode, examDate, startTime, endTime, subjectCode) => {
     // 1. Log the availability to verify the pending slot
     const { error } = await supabase.from('proctor_availability').insert([{
@@ -1591,7 +1591,8 @@ useEffect(() => {
       start_time: startTime,
       end_time: endTime,
       is_emergency_flag: false,
-      note: "Accepted Proctor Assignment Request"
+      note: "Accepted Proctor Assignment Request",
+      university: profile.university // <-- FIX: STAMP ADDED HERE
     }]);
 
     if (error) {
@@ -1625,7 +1626,12 @@ useEffect(() => {
       setAppToast({ message: error.message, type: 'error' });
     } else if (data.user) {
       await supabase.from('profiles').upsert([{ 
-        id: data.user.id, full_name: name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', assigned_dept: d, status: 'ACTIVE' 
+        id: data.user.id, 
+        full_name: name, 
+        role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
+        assigned_dept: d, 
+        status: 'ACTIVE',
+        university: profile.university // <-- FIX: STAMP ADDED HERE
       }]);
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
       setAppToast({ message: "Account successfully created!", type: 'success' });
@@ -2052,7 +2058,13 @@ const executeAddDepartment = async (e) => {
    if (viewingProctor) {
     return (
       <>
-        <ProctorDashboard 
+        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
+        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
+        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+
+        <ProctorDashboard
+   
           profile={viewingProctor} 
           globalSchedule={globalSchedule} 
           allExamDates={allExamDates} 
@@ -2103,10 +2115,15 @@ const executeAddDepartment = async (e) => {
   }
   
 
-  if (isProctor) {
+ if (isProctor) {
     return (
       <>
-      <ProctorDashboard 
+        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
+        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
+        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+
+      <ProctorDashboard
           profile={profile} 
           globalSchedule={globalSchedule} 
           allExamDates={allExamDates} 
