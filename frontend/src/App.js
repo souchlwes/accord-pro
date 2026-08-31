@@ -1442,15 +1442,16 @@ const [targetHighlight, setTargetHighlight] = useState("");
          await new Promise(res => setTimeout(res, 1000)); // Retry logic
       }
 
-      if (isMounted) {
-        if (fetchedProfile) {
-           setProfile(fetchedProfile);
-           await fetchAllData(false); 
-        } else {
-           console.error("Profile completely disconnected from database.");
+     if (isMounted) {
+          if (fetchedProfile) {
+             setProfile(fetchedProfile);
+             // THIS IS THE FIX: Passes the newly loaded profile directly into the fetcher!
+             await fetchAllData(false, fetchedProfile); 
+          } else {
+             console.error("Profile completely disconnected from database.");
+          }
+          setLoading(false); 
         }
-        setLoading(false); // <--- Guarantees the spinner turns off!
-      }
     };
 
     // 2. Force check on mount (Fixes the perpetual refresh bug)
