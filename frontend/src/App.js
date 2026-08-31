@@ -1766,11 +1766,15 @@ useEffect(() => {
     const targetYear = String(newAssignments[0].year_level);
     try {
       await supabase.from('schedules').delete().eq('dept_code', deptCode).eq('year_level', targetYear);
+      
+      // FIX APPLIED HERE: Added university: profile.university to the stamp!
       const formattedData = newAssignments.map(item => ({
         dept_code: deptCode, year_level: String(item.year_level), section: item.section || 'A', subject_code: item.subject_code || 'N/A',
         subject_name: item.subject_name || 'N/A', proctor: item.proctor, room: item.room, exam_date: item.exam_date,
-        start_time: item.start_time, end_time: item.end_time, flagged: false, flagNote: "", isManualProctor: false
+        start_time: item.start_time, end_time: item.end_time, flagged: false, flagNote: "", isManualProctor: false,
+        university: profile.university 
       }));
+      
       await supabase.from('schedules').insert(formattedData);
       await sendNotification(null, 'HEAD_ADMIN', null, 'Schedule Generated', `Department ${deptCode} generated a draft for Year ${targetYear}.`, 'info');
       await fetchAllData(false);
