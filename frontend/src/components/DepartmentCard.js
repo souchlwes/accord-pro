@@ -633,30 +633,42 @@ for (let d = 0; d < examDays; d++) {
         localRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
         uniqueOtherRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
 
+        // NEW: Respect the Room Source Toggle!
+        let primaryRooms = roomSource === "Department" 
+           ? localRooms 
+           : [...localRooms, ...uniqueOtherRooms].sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+
         let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
         const getRoomCap = (r) => parseInt(String(r?.capacity || '0').split('-').pop().trim()) || 0;
 
         // Find ALL rooms that safely fit the headcount
-        let validInternalRooms = localRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+        let validPrimaryRooms = primaryRooms.filter(r => getRoomCap(r) >= targetHeadcount);
         let validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) >= targetHeadcount);
 
         let finalSelectedRoom = null;
 
-        if (localRooms.length > 0 && (validInternalRooms.includes(localRooms[0]) || targetHeadcount === 0)) {
-            // Perfect chronological fit within internal department
-            finalSelectedRoom = localRooms.splice(0, 1)[0];
-        } else if (localRooms.length === 0 && uniqueOtherRooms.length === 0) {
+        if (primaryRooms.length > 0 && (validPrimaryRooms.includes(primaryRooms[0]) || targetHeadcount === 0)) {
+            // Perfect chronological fit within the strictly selected source pool
+            finalSelectedRoom = primaryRooms.shift();
+            
+            // Sync the parallel arrays to prevent double-booking
+            const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom.number);
+            if (lIdx >= 0) localRooms.splice(lIdx, 1);
+            const gIdx = uniqueOtherRooms.findIndex(r => r.number === finalSelectedRoom.number);
+            if (gIdx >= 0) uniqueOtherRooms.splice(gIdx, 1);
+
+        } else if (primaryRooms.length === 0 && uniqueOtherRooms.length === 0) {
             errors.push({ issue: `Room Shortage (Day ${d+1})`, resolution: `No available rooms anywhere in the university for Section ${sectionID}.` });
             generationFailed = true;
         } else {
-            // Conflict: Sequence doesn't fit, or we must borrow. 
-            let nextChronologicalRoom = localRooms[0] || uniqueOtherRooms[0];
-            let nextChronologicalCap = getRoomCap(nextChronologicalRoom);
+            // Conflict: Sequence doesn't fit, or primary pool completely ran out. 
+            let nextChronologicalRoom = primaryRooms[0]; // Will be undefined if primary pool is empty
+            let nextChronologicalCap = nextChronologicalRoom ? getRoomCap(nextChronologicalRoom) : 0;
 
-            // DESPERATE FALLBACK: If NO room anywhere fits the headcount, gather the absolute largest rooms available
-            if (validInternalRooms.length === 0 && localRooms.length > 0) {
-                let maxCap = Math.max(...localRooms.map(r => getRoomCap(r)));
-                validInternalRooms = localRooms.filter(r => getRoomCap(r) === maxCap);
+            // DESPERATE FALLBACK: Gather the absolute largest rooms available
+            if (validPrimaryRooms.length === 0 && primaryRooms.length > 0) {
+                let maxCap = Math.max(...primaryRooms.map(r => getRoomCap(r)));
+                validPrimaryRooms = primaryRooms.filter(r => getRoomCap(r) === maxCap);
             }
             if (validGlobalRooms.length === 0 && uniqueOtherRooms.length > 0) {
                 let maxCap = Math.max(...uniqueOtherRooms.map(r => getRoomCap(r)));
@@ -672,7 +684,7 @@ for (let d = 0; d < examDays; d++) {
                     targetHeadcount: targetHeadcount,
                     nextRoom: nextChronologicalRoom,
                     nextCap: nextChronologicalCap,
-                    internalFits: validInternalRooms,
+                    internalFits: validPrimaryRooms,
                     globalFits: validGlobalRooms
                 });
             });
@@ -681,24 +693,29 @@ for (let d = 0; d < examDays; d++) {
                 generationFailed = true;
                 errors.push({ issue: `Capacity Halted (Day ${d+1})`, resolution: `Generation aborted due to strict capacity constraints for Section ${sectionID} (${targetHeadcount} students).` });
             } else if (userChoice.type === 'force') {
-                const localIdx = localRooms.findIndex(r => r.number === nextChronologicalRoom.number);
-                if (localIdx >= 0) finalSelectedRoom = localRooms.splice(localIdx, 1)[0];
-                else {
-                    const globalIdx = uniqueOtherRooms.findIndex(r => r.number === nextChronologicalRoom.number);
-                    finalSelectedRoom = uniqueOtherRooms.splice(globalIdx, 1)[0];
-                }
+                finalSelectedRoom = primaryRooms.shift(); // Strictly forces from PRIMARY pool only
+                
+                const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom.number);
+                if (lIdx >= 0) localRooms.splice(lIdx, 1);
+                const gIdx = uniqueOtherRooms.findIndex(r => r.number === finalSelectedRoom.number);
+                if (gIdx >= 0) uniqueOtherRooms.splice(gIdx, 1);
+
                 warningLogs.push(`Section ${sectionLetter} forced into Room ${finalSelectedRoom.number} (${nextChronologicalCap} cap) despite having ${targetHeadcount} students.`);
             } else if (userChoice.type === 'select') {
                 const rNum = userChoice.room.number;
-                const localIdx = localRooms.findIndex(r => r.number === rNum);
-                if (localIdx >= 0) {
-                    finalSelectedRoom = localRooms.splice(localIdx, 1)[0];
-                    warningLogs.push(`Section ${sectionLetter} skipped to Internal Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap) to accommodate ${targetHeadcount} students.`);
+                
+                const pIdx = primaryRooms.findIndex(r => r.number === rNum);
+                if (pIdx >= 0) {
+                    finalSelectedRoom = primaryRooms.splice(pIdx, 1)[0];
+                    warningLogs.push(`Section ${sectionLetter} skipped to Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
                 } else {
-                    const globalIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
-                    finalSelectedRoom = uniqueOtherRooms.splice(globalIdx, 1)[0];
-                    warningLogs.push(`Section ${sectionLetter} borrowed Global Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap) to accommodate ${targetHeadcount} students.`);
+                    const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
+                    finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
+                    warningLogs.push(`Section ${sectionLetter} borrowed Global Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
                 }
+                
+                const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom?.number);
+                if (lIdx >= 0) localRooms.splice(lIdx, 1);
             } else if (userChoice.type === 'manual') {
                 finalSelectedRoom = { number: userChoice.room, capacity: 'N/A', type: 'Manual/Temporary' };
                 warningLogs.push(`Section ${sectionLetter} manually assigned to temporary Room: ${userChoice.room}.`);
@@ -2364,7 +2381,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
       )}
       
       {/* --- MISSING ROOM CAPACITY WARNING MODAL --- */}
-      {/* --- UPGRADED ROOM CAPACITY WARNING MODAL --- */}
+     {/* --- UPGRADED ROOM CAPACITY WARNING MODAL --- */}
       {roomWarningModal.isOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-lg p-8 rounded-[3.5rem] shadow-2xl">
@@ -2385,25 +2402,27 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
             <div className="space-y-4 mb-6 text-left max-h-[55vh] overflow-y-auto pr-2 custom-scrollbar">
                
-               {/* OPTION 1: FORCE SEQUENCE */}
-               <button onClick={() => {
-                  if(typeof showToast === 'function') showToast(`Forced into Room ${roomWarningModal.nextRoom?.number}`, "success");
-                  roomWarningModal.resolve({ type: 'force' });
-                  setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
-               }} className="w-full p-4 rounded-2xl border-2 border-rose-100 hover:border-rose-500 bg-white hover:bg-rose-50 flex justify-between items-center group transition-all cursor-pointer">
-                  <div className="flex flex-col">
-                     <span className="font-black text-xs uppercase text-slate-800 group-hover:text-rose-800">1. Force Sequence</span>
-                     <span className="text-[9px] font-bold text-slate-500 uppercase mt-1">
-                       Squeeze into Room {roomWarningModal.nextRoom?.number} (Cap: <strong className="text-rose-500">{roomWarningModal.nextCap}</strong>)
-                     </span>
-                  </div>
-                  <ChevronRight size={16} className="text-rose-400 group-hover:text-rose-600"/>
-               </button>
+               {/* OPTION 1: FORCE SEQUENCE (ONLY SHOWS IF PRIMARY ROOMS EXIST) */}
+               {roomWarningModal.nextRoom && (
+                 <button onClick={() => {
+                    if(typeof showToast === 'function') showToast(`Forced into Room ${roomWarningModal.nextRoom?.number}`, "success");
+                    roomWarningModal.resolve({ type: 'force' });
+                    setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+                 }} className="w-full p-4 rounded-2xl border-2 border-rose-100 hover:border-rose-500 bg-white hover:bg-rose-50 flex justify-between items-center group transition-all cursor-pointer">
+                    <div className="flex flex-col">
+                       <span className="font-black text-xs uppercase text-slate-800 group-hover:text-rose-800">1. Force Sequence</span>
+                       <span className="text-[9px] font-bold text-slate-500 uppercase mt-1">
+                         Squeeze into Room {roomWarningModal.nextRoom?.number} (Cap: <strong className="text-rose-500">{roomWarningModal.nextCap}</strong>)
+                       </span>
+                    </div>
+                    <ChevronRight size={16} className="text-rose-400 group-hover:text-rose-600"/>
+                 </button>
+               )}
 
                {/* OPTION 2: INTERNAL BEST FITS */}
                {roomWarningModal.internalFits?.length > 0 && (
                  <div className="bg-emerald-50 border-2 border-emerald-100 p-5 rounded-2xl">
-                    <p className="text-[10px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2"><Home size={14}/> 2. Internal Department Options</p>
+                    <p className="text-[10px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2"><Home size={14}/> Primary Source Options</p>
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
                        {roomWarningModal.internalFits.map(r => {
                           const cap = parseInt(String(r.capacity || '0').split('-').pop().trim()) || 0;
@@ -2428,7 +2447,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                {/* OPTION 3: GLOBAL BEST FITS */}
                {roomWarningModal.globalFits?.length > 0 && (
                  <div className="bg-blue-50 border-2 border-blue-100 p-5 rounded-2xl">
-                    <p className="text-[10px] font-black text-blue-800 uppercase mb-3 flex items-center gap-2"><Globe size={14}/> 3. Borrow Global Options</p>
+                    <p className="text-[10px] font-black text-blue-800 uppercase mb-3 flex items-center gap-2"><Globe size={14}/> Borrow Global Options</p>
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
                        {roomWarningModal.globalFits.map(r => {
                           const cap = parseInt(String(r.capacity || '0').split('-').pop().trim()) || 0;
@@ -2436,7 +2455,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                           return (
                              <div key={r.number} onClick={() => {
                                 if(typeof showToast === 'function') showToast(`Borrowed Global Room ${r.number}`, "success");
-                                roomWarningModal.resolve({ type: 'global', room: r });
+                                roomWarningModal.resolve({ type: 'select', room: r });
                                 setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
                              }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
                                 <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-700">Room {r.number}</span>
@@ -2452,7 +2471,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
                {/* OPTION 4: MANUAL ENTRY */}
                <div className="w-full p-5 rounded-2xl border-2 border-purple-100 bg-purple-50 flex flex-col transition-all">
-                  <span className="font-black text-xs uppercase text-purple-800 mb-1">4. Manual Overflow Room</span>
+                  <span className="font-black text-xs uppercase text-purple-800 mb-1">Manual Overflow Room</span>
                   <span className="text-[9px] font-bold text-purple-600 uppercase mb-3">Type a temporary room/hall (e.g. GYM)</span>
                   <div className="flex gap-2">
                      <input 
