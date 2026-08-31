@@ -651,7 +651,8 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
   const displayedAvails = logView === 'upcoming' 
     ? myAvails.filter(a => !isPast(a.exam_date, a.end_time)) 
     : myAvails.filter(a => isPast(a.exam_date, a.end_time));
-  const handleSubmit = () => {
+ 
+    const handleSubmit = () => {
     if (!date || !start || !end) return showToast ? showToast("Please fill in all fields.", "error") : alert("Please fill in all fields.");
     const formattedStart = start.length === 5 ? `${start}:00` : start;
     const formattedEnd = end.length === 5 ? `${end}:00` : end;
@@ -664,7 +665,8 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
       start_time: formattedStart,     
       end_time: formattedEnd,         
       is_emergency_flag: false,       
-      note: "Standard Log"            
+      note: "Standard Log",
+      university: profile.university // <-- FIX: STAMP ADDED HERE
     });
     
     setDate(""); setStart(""); setEnd("");
@@ -741,7 +743,7 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
              const startTime = parseTimeTo24H(cols[1]);
              const endTime = parseTimeTo24H(cols[2]);
              
-             if (examDate && startTime && endTime && startTime.includes(':') && endTime.includes(':')) {
+            if (examDate && startTime && endTime && startTime.includes(':') && endTime.includes(':')) {
                bulkData.push({
                   proctor_id: profile.id,         
                   proctor_name: profile.full_name,
@@ -750,7 +752,8 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
                   start_time: startTime,     
                   end_time: endTime,         
                   is_emergency_flag: false,       
-                  note: "Bulk Excel Import" 
+                  note: "Bulk Excel Import",
+                  university: profile.university // <-- FIX: STAMP ADDED HERE
                });
              } else {
                errors++;
