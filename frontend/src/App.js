@@ -2375,7 +2375,7 @@ const executeAddDepartment = async (e) => {
                       />
                     ))}
                   </div>
-                )}                     globalSchedule={globalSchedule}
+                )}                     
                        
 
                 {/* --- COLLAPSIBLE MASTER TIMELINE --- */}
