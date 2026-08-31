@@ -98,7 +98,10 @@ const DepartmentCard = ({
   const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
   // Destructure from the 'dept' prop directly for logic
   // Destructure with safety nets to prevent crashes on empty databases
-  const { subjects = {}, rooms = [], name: deptName, code: deptCode, id: deptId } = dept;
+// BULLETPROOF DESTRUCTURING: Safely catches strict 'null' from Supabase
+  const subjects = dept.subjects || {};
+  const rooms = dept.rooms || [];
+  const { name: deptName, code: deptCode, id: deptId } = dept;
   // --- AUTOMATION: Dynamically find all Proctors assigned to this Dept from Profiles ---
   const activeDeptProctors = useMemo(() => {
     return allProfiles.filter(p => 
@@ -2433,7 +2436,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                           return (
                              <div key={r.number} onClick={() => {
                                 if(typeof showToast === 'function') showToast(`Borrowed Global Room ${r.number}`, "success");
-                                roomWarningModal.resolve({ type: 'select', room: r });
+                                roomWarningModal.resolve({ type: 'global', room: r });
                                 setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
                              }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
                                 <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-700">Room {r.number}</span>
