@@ -2300,8 +2300,18 @@ const executeAddDepartment = async (e) => {
                   />
                 </div>
 
-                {/* --- SMART WORKSPACE ROUTER --- */}
-                {!activeDeptId && visibleDepartments.length > 1 ? (
+                 {/* --- SMART WORKSPACE ROUTER --- */}
+                {visibleDepartments.length === 0 ? (
+                  <div className="text-center py-32 bg-white rounded-[3rem] border-4 border-dashed border-slate-200 mt-8 shadow-sm animate-in fade-in duration-500">
+                    <Layers size={64} className="mx-auto text-slate-300 mb-6" />
+                    <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">No Workspaces Found</h3>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2 max-w-md mx-auto leading-relaxed">
+                      {isHeadAdmin 
+                         ? "Click '+ Add Department' above to initialize your university campus." 
+                         : "You are not assigned to any active department workspace. Please contact your Head Administrator."}
+                    </p>
+                  </div>
+                ) : !activeDeptId && visibleDepartments.length > 1 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {visibleDepartments.map(dept => (
                       <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white p-8 rounded-[2rem] border border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col">
@@ -2364,7 +2374,8 @@ const executeAddDepartment = async (e) => {
                       />
                     ))}
                   </div>
-                )}
+                )}                     globalSchedule={globalSchedule}
+                       
 
                 {/* --- COLLAPSIBLE MASTER TIMELINE --- */}
                 <div className="mt-10 md:mt-16 pt-8 md:pt-10 border-t border-slate-200">
