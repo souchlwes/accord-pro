@@ -1267,6 +1267,8 @@ function App() {
 // --- NEW OTP STATES ---
   const [otpMode, setOtpMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [regMode, setRegMode] = useState('join'); 
+  const [joinCode, setJoinCode] = useState('');
 
   // --- DATA STATES ---
   const [departments, setDepartments] = useState([]);
@@ -1424,8 +1426,11 @@ const [targetHighlight, setTargetHighlight] = useState("");
     }
   };
 
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*');
+ const fetchProfiles = async () => {
+    if (!profile?.university) return;
+    
+    // Security gatekeeper filter applied
+    const { data } = await supabase.from('profiles').select('*').eq('university', profile.university);
     setAllProfiles(data || []);
   };
 
@@ -1692,8 +1697,17 @@ useEffect(() => {
 const executeRegistration = async () => {
     setLoading(true);
     try {
-      if (!regUni.trim()) throw new Error("University Name is required.");
-      if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
+      if (regMode === 'join') {
+        if (!joinCode.trim()) throw new Error("Invite Code is required.");
+        const { data: dData, error: dErr } = await supabase.from('departments').select('university, code').eq('invite_code', joinCode.toUpperCase().trim()).maybeSingle();
+        if (dErr || !dData) throw new Error("Invalid or expired Invite Code. Please check with your Administrator.");
+        
+        setRegUni(dData.university);
+        setRegDept(dData.code);
+      } else {
+        if (!regUni.trim()) throw new Error("University Name is required.");
+        setRegRole('HEAD_ADMIN'); 
+      }
       
       const { data, error } = await supabase.auth.signUp({ 
          email, 
@@ -1702,7 +1716,6 @@ const executeRegistration = async () => {
       });
       if (error) throw error;
       
-      // Supabase sent the email. Switch UI to ask for the code.
       setOtpMode(true);
       setAppToast({ message: "Verification code sent to your email!", type: "success" });
       
@@ -1919,13 +1932,16 @@ const executeAddDepartment = async (e) => {
     const { name, code, campus } = deptModal;
     if (!name || !code) return;
 
+   const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
    const { error } = await supabase.from('departments').insert([{ 
       name, 
       code: code.toUpperCase(), 
       campus_location: campus, 
       university: profile.university,
       subjects: {}, 
-      rooms: [] 
+      rooms: [],
+      invite_code: generatedCode
     }]); 
     
     if (error) {
@@ -1933,8 +1949,8 @@ const executeAddDepartment = async (e) => {
     } else {
       await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()} at ${campus}.`, 'info');
       await fetchAllData(false);
-      setAppToast({ message: `Workspace ${code.toUpperCase()} initialized!`, type: "success" });
-      setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main Campus' });
+      setAppToast({ message: `Workspace initialized! Code: ${generatedCode}`, type: "success" });
+      setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main' });
     }
   };
 
@@ -2004,19 +2020,26 @@ const executeAddDepartment = async (e) => {
               
               {!otpMode ? (
                 <>
+                  <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                    <button onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'join' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Join Workspace</button>
+                    <button onClick={() => { setRegMode('new'); setRegRole('HEAD_ADMIN'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'new' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>New University</button>
+                  </div>
+
                   <div className="space-y-3 mb-6">
                     <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
                     <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
                     <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                    <input type="text" placeholder="University / Institution Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
-                    <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
-                      <option value="PROCTOR">Proctor</option>
-                      <option value="DEPT_ADMIN">Department Head</option>
-                      <option value="HEAD_ADMIN">Global Head Admin</option>
-                    </select>
                     
-                   {regRole !== 'HEAD_ADMIN' && (
-                      <input type="text" placeholder="Dept Code (or 'GLOBAL' for Part-Timers)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+                    {regMode === 'join' ? (
+                      <>
+                        <input type="text" placeholder="6-Character Invite Code (e.g. X7B9PQ)" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} className="w-full bg-blue-50 p-4 rounded-2xl font-black text-xs text-blue-800 border-2 border-transparent focus:border-blue-500 outline-none transition-all tracking-widest uppercase"/>
+                        <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
+                          <option value="PROCTOR">Proctor</option>
+                          <option value="DEPT_ADMIN">Department Head</option>
+                        </select>
+                      </>
+                    ) : (
+                      <input type="text" placeholder="Official University Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-emerald-50 p-4 rounded-2xl font-black text-xs text-emerald-800 border-2 border-transparent focus:border-emerald-500 outline-none transition-all uppercase"/>
                     )}
                   </div>
                   
@@ -2406,8 +2429,9 @@ const executeAddDepartment = async (e) => {
                                   <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
                                 </div>
-                                <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                  <LayoutDashboard size={20} />
+                                <div className="text-right">
+                                  <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
+                                  <span className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-black tracking-widest border border-slate-200">{dept.invite_code || 'N/A'}</span>
                                 </div>
                               </div>
                               
