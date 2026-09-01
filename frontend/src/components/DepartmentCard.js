@@ -101,7 +101,7 @@ const DepartmentCard = ({
 // BULLETPROOF DESTRUCTURING: Safely catches strict 'null' from Supabase
   const subjects = dept.subjects || {};
   const rooms = dept.rooms || [];
-  const { name: deptName, code: deptCode, id: deptId } = dept;
+  const { name: deptName, code: deptCode, id: deptId, invite_code } = dept;
   // --- AUTOMATION: Dynamically find all Proctors assigned to this Dept from Profiles ---
   const activeDeptProctors = useMemo(() => {
     return allProfiles.filter(p => 
@@ -1249,7 +1249,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-      {/* HEADER SECTION */}
+     {/* HEADER SECTION */}
       <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         <div className="relative z-10">
@@ -1262,9 +1262,16 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               <Trash2 size={20} />
             </button>
           </div>
-          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] mt-3 flex items-center gap-2">
-            <Settings2 size={12}/> Departmental Workspace Engine
-          </p>
+          
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] flex items-center gap-2">
+              <Settings2 size={12}/> Departmental Workspace Engine
+            </p>
+            <div className="bg-white/10 px-3 py-1 rounded-md border border-white/20 flex items-center gap-2 shadow-sm">
+              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Invite Code:</span>
+              <span className="text-xs font-black text-amber-400 tracking-widest">{invite_code || 'N/A'}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-4 relative z-10">
           <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
