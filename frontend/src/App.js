@@ -1264,6 +1264,9 @@ function App() {
   const [regDept, setRegDept] = useState(''); 
   const [regUni, setRegUni] = useState('');
   const [authMode, setAuthMode] = useState('login');
+// --- NEW OTP STATES ---
+  const [otpMode, setOtpMode] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
   // --- DATA STATES ---
   const [departments, setDepartments] = useState([]);
@@ -1686,18 +1689,37 @@ useEffect(() => {
     });
   };
 
- const executeRegistration = async () => {
+const executeRegistration = async () => {
     setLoading(true);
     try {
       if (!regUni.trim()) throw new Error("University Name is required.");
       if (regRole !== 'HEAD_ADMIN' && !regDept.trim()) throw new Error("Department Code is required.");
       
-      const targetUni = regUni.toUpperCase().trim();
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+      const { data, error } = await supabase.auth.signUp({ 
+         email, 
+         password, 
+         options: { data: { full_name: fullName } } 
+      });
       if (error) throw error;
       
+      // Supabase sent the email. Switch UI to ask for the code.
+      setOtpMode(true);
+      setAppToast({ message: "Verification code sent to your email!", type: "success" });
+      
+    } catch (err) { setAppToast({ message: err.message, type: "error" }); } 
+    finally { setLoading(false); }
+  };
+
+  const executeVerifyOtp = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ email, token: otpCode, type: 'signup' });
+      if (error) throw error;
+
       if (data?.user) {
+        const targetUni = regUni.toUpperCase().trim();
         const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN').eq('university', targetUni);
+        
         if (count === 0) {
           await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
           setAppToast({ message: "First user auto-promoted to Head Admin for this University!", type: "success" });
@@ -1711,11 +1733,13 @@ useEffect(() => {
           else await sendNotification(null, 'HEAD_ADMIN', null, 'New Admin Request', `${fullName} requested access as a ${regRole}.`, 'info');
           
           await supabase.auth.signOut();
+          setOtpMode(false);
           setAuthMode('success'); 
-          setEmail(''); setPassword(''); setFullName(''); setRegDept(''); setRegUni('');
+          setEmail(''); setPassword(''); setFullName(''); setRegDept(''); setRegUni(''); setOtpCode('');
         }
       }
-    } catch (err) { setAppToast({ message: err.message, type: "error" }); } finally { setLoading(false); }
+    } catch (err) { setAppToast({ message: "Invalid code: " + err.message, type: "error" }); } 
+    finally { setLoading(false); }
   };
 
   const handleApproveUser = async (id) => {
@@ -1973,28 +1997,45 @@ const executeAddDepartment = async (e) => {
               </div>
             </div>
           ) : (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300 text-left">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center">Staff Registration</p>
+           <div className="animate-in fade-in slide-in-from-right-4 duration-300 text-left">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center">
+                 {otpMode ? "Verify Your Email" : "Staff Registration"}
+              </p>
               
-              <div className="space-y-3 mb-6">
-                <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                <input type="text" placeholder="University / Institution Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
-                <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
-                  <option value="PROCTOR">Proctor</option>
-                  <option value="DEPT_ADMIN">Department Head</option>
-                  <option value="HEAD_ADMIN">Global Head Admin</option>
-                </select>
-                
-               {regRole !== 'HEAD_ADMIN' && (
-                  <input type="text" placeholder="Dept Code (or 'GLOBAL' for Part-Timers)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
-                )}
-              </div>
-              
-              <button onClick={executeRegistration} disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
-                {loading ? "Processing..." : "Submit Request"}
-              </button>
+              {!otpMode ? (
+                <>
+                  <div className="space-y-3 mb-6">
+                    <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                    <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                    <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                    <input type="text" placeholder="University / Institution Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+                    <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
+                      <option value="PROCTOR">Proctor</option>
+                      <option value="DEPT_ADMIN">Department Head</option>
+                      <option value="HEAD_ADMIN">Global Head Admin</option>
+                    </select>
+                    
+                   {regRole !== 'HEAD_ADMIN' && (
+                      <input type="text" placeholder="Dept Code (or 'GLOBAL' for Part-Timers)" value={regDept} onChange={e=>setRegDept(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+                    )}
+                  </div>
+                  
+                  <button onClick={executeRegistration} disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
+                    {loading ? "Processing..." : "Send Verification Code"}
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
+                     <p className="text-[10px] font-bold text-blue-800 text-center">We sent a 6-digit code to <strong>{email}</strong></p>
+                  </div>
+                  <input type="text" maxLength="6" placeholder="Enter 6-Digit Code" value={otpCode} onChange={e=>setOtpCode(e.target.value)} className="w-full bg-slate-50 p-6 rounded-2xl font-black text-2xl text-center tracking-[0.5em] border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                  
+                  <button onClick={executeVerifyOtp} disabled={loading || otpCode.length < 6} className="w-full bg-emerald-500 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 transition-all shadow-xl active:scale-95">
+                    {loading ? "Verifying..." : "Verify & Complete"}
+                  </button>
+                </div>
+              )}
               
               <div className="pt-6 border-t-2 border-slate-50">
                 <button onClick={() => { setAuthMode('login'); setEmail(''); setPassword(''); }} className="w-full bg-slate-50 text-slate-500 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2">
