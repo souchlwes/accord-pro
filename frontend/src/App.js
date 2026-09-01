@@ -1282,23 +1282,24 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
-const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
-const handleOpenChat = () => {
+  const handleOpenChat = () => {
     setShowChat(true);
     setUnreadMessageCount(0);
     if (profile) localStorage.setItem(`last_read_chat_${profile.id}`, new Date().toISOString());
   };
 
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main' });
+  const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main' });
   const [appToast, setAppToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
+  const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
   const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
-const [targetHighlight, setTargetHighlight] = useState("");
+  const [targetHighlight, setTargetHighlight] = useState("");
 
  
 
@@ -1350,16 +1351,24 @@ const [targetHighlight, setTargetHighlight] = useState("");
       return;
     }
 
-    if (title.includes('account') || (title.includes('request') && !title.includes('assignment'))) {
-      setActiveTab('users');
+   if (title.includes('account') || (title.includes('request') && !title.includes('assignment'))) {
       const nameMatch = msg.match(/^(.*?)\s+(requested|created)/i) || msg.match(/account for\s+(.*?)\./i);
       if (nameMatch) {
          let extractedName = nameMatch[1].trim();
          if(extractedName.startsWith("Created account for ")) extractedName = extractedName.replace("Created account for ", "");
-         setTargetHighlight(extractedName); 
+         
+         // NEW: Intercept and open the Approval Modal directly
+         const pendingUser = allProfiles.find(p => p.full_name === extractedName && p.status === 'PENDING');
+         if (pendingUser) {
+            setApprovalModal({ isOpen: true, profile: pendingUser });
+            return;
+         }
+
+         setActiveTab('users');
+         setTargetHighlight(extractedName);
       }
       return;
-    }
+    } 
 
     // --- TIMELINE ROUTING & SWITCH PROCTOR MODAL TRIGGER ---
     setActiveTab('dashboard');
@@ -1730,7 +1739,8 @@ const executeRegistration = async () => {
       if (error) throw error;
 
       if (data?.user) {
-        const targetUni = regUni.toUpperCase().trim();
+// FIX: Retain exact DB casing when joining via Invite Code to prevent Ghost Universities!
+        const targetUni = regMode === 'new' ? regUni.toUpperCase().trim() : regUni.trim();
         const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN').eq('university', targetUni);
         
         if (count === 0) {
@@ -1759,6 +1769,12 @@ const executeRegistration = async () => {
     await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
     await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
     setAppToast({ message: "Account approved successfully.", type: "success" });
+    fetchProfiles();
+  };
+
+  const handleDeclineUser = async (id) => {
+    await supabase.from('profiles').delete().eq('id', id);
+    setAppToast({ message: "Registration request declined and removed.", type: "success" });
     fetchProfiles();
   };
 
@@ -2648,6 +2664,33 @@ const executeAddDepartment = async (e) => {
           </div>
         )}
         
+{/* --- PENDING APPROVAL MODAL --- */}
+        {approvalModal.isOpen && approvalModal.profile && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <UserPlus size={32} />
+              </div>
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Staff Request</h3>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed">
+                 <strong className="text-slate-800 text-sm block">{approvalModal.profile.full_name}</strong>
+                 Requested to join as {approvalModal.profile.role} {approvalModal.profile.assigned_dept ? `(${approvalModal.profile.assigned_dept})` : ''}
+              </p>
+              <div className="flex gap-4">
+                <button onClick={() => {
+                   handleDeclineUser(approvalModal.profile.id);
+                   setApprovalModal({ isOpen: false, profile: null });
+                }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-rose-600 bg-rose-50 hover:bg-rose-500 hover:text-white transition-colors">Decline & Remove</button>
+                <button onClick={() => {
+                   handleApproveUser(approvalModal.profile.id);
+                   setApprovalModal({ isOpen: false, profile: null });
+                }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg transition-colors">Approve Access</button>
+              </div>
+              <button onClick={() => setApprovalModal({ isOpen: false, profile: null })} className="mt-4 w-full p-4 rounded-xl font-black text-[10px] uppercase text-slate-400 hover:bg-slate-50 transition-colors">Close</button>
+            </div>
+          </div>
+        )}
+
         {/* --- ADD DEPARTMENT MODAL --- */}
         {deptModal.isOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
