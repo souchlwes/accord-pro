@@ -484,6 +484,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterScope, setFilterScope] = useState("ALL");
   const [sortMode, setSortMode] = useState("NEWEST");
+  const [isSortOpen, setIsSortOpen] = useState(false);
   const isHead = currentRole === 'HEAD_ADMIN';
 
   // Auto-fill the search bar when a notification routes here
@@ -517,6 +518,13 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
      return new Date(dateStr).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  const sortOptions = [
+    { id: 'NEWEST', label: 'Newest First' },
+    { id: 'OLDEST', label: 'Oldest First' },
+    { id: 'A-Z', label: 'A-Z Sort' },
+    { id: 'Z-A', label: 'Z-A Sort' }
+  ];
+
   return (
     <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="bg-slate-900 p-6 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b-8 border-blue-600 gap-4 md:gap-0">
@@ -537,7 +545,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
       </div>
 
       <div className="p-4 md:p-8">
-        <div className="flex flex-col md:flex-row gap-3 mb-6 relative">
+        <div className="flex flex-col md:flex-row gap-3 mb-6 relative z-10">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
@@ -549,18 +557,41 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
             />
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 relative z-20">
             <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-1 flex">
                <button onClick={() => setFilterScope('ALL')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterScope === 'ALL' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Global</button>
                <button onClick={() => setFilterScope('DEPT')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterScope === 'DEPT' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>My Dept</button>
             </div>
             
-            <select value={sortMode} onChange={e => setSortMode(e.target.value)} className="bg-slate-50 border-2 border-slate-100 p-3 rounded-2xl text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer transition-all">
-               <option value="NEWEST">Newest First</option>
-               <option value="OLDEST">Oldest First</option>
-               <option value="A-Z">A-Z Sort</option>
-               <option value="Z-A">Z-A Sort</option>
-            </select>
+            {/* CUSTOM DROPDOWN UI */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsSortOpen(!isSortOpen)} 
+                className={`flex items-center justify-between gap-3 bg-slate-50 border-2 rounded-2xl p-3 min-w-[130px] transition-all active:scale-95 h-full ${isSortOpen ? 'border-blue-500 text-blue-600' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}
+              >
+                <span className="text-[9px] font-black uppercase tracking-widest mt-0.5">
+                  {sortOptions.find(o => o.id === sortMode)?.label}
+                </span>
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isSortOpen ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} />
+              </button>
+
+              {isSortOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsSortOpen(false)}></div>
+                  <div className="absolute top-full right-0 mt-2 w-full min-w-[140px] bg-white border-2 border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {sortOptions.map(opt => (
+                      <button 
+                        key={opt.id}
+                        onClick={() => { setSortMode(opt.id); setIsSortOpen(false); }}
+                        className={`w-full text-left px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all hover:bg-blue-50 hover:text-blue-600 ${sortMode === opt.id ? 'bg-blue-50 text-blue-600' : 'text-slate-500'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -571,7 +602,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
         )}
         
         {/* MOBILE CARD VIEW */}
-        <div className="md:hidden space-y-4 mb-4">
+        <div className="md:hidden space-y-4 mb-4 relative z-0">
           {filteredProfiles.map(p => (
              <div key={p.id} className={`bg-slate-50 p-5 rounded-[2rem] border-2 border-slate-100 ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
                  <div className="flex justify-between items-start mb-4">
@@ -610,7 +641,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
         </div>
 
         {/* DESKTOP TABLE VIEW */}
-        <div className="hidden md:block overflow-x-auto custom-scrollbar">
+        <div className="hidden md:block overflow-x-auto custom-scrollbar relative z-0">
           <table className="w-full text-left border-separate border-spacing-y-3 min-w-[800px]">
             <thead>
               <tr className="text-[10px] font-black uppercase text-slate-400">
