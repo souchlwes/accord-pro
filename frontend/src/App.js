@@ -482,6 +482,8 @@ const NotificationPanel = ({ notifications, onClose, onNotificationClick }) => {
 // --- 1. USER REGISTRY COMPONENT ---
 const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, onEdit, onApprove, currentRole, currentUserDept, onView }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterScope, setFilterScope] = useState("ALL");
+  const [sortMode, setSortMode] = useState("NEWEST");
   const isHead = currentRole === 'HEAD_ADMIN';
 
   // Auto-fill the search bar when a notification routes here
@@ -489,10 +491,31 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
     if (highlightTarget) setSearchTerm(highlightTarget);
   }, [highlightTarget]);
 
-  const filteredProfiles = profiles.filter(p => 
+  let filteredProfiles = profiles.filter(p => 
     (p.full_name || p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Apply Scope Filter
+  if (filterScope === 'DEPT' && currentUserDept) {
+     filteredProfiles = filteredProfiles.filter(p => p.assigned_dept === currentUserDept);
+  }
+
+  // Apply Sorting Logic
+  filteredProfiles.sort((a, b) => {
+     if (sortMode === 'A-Z') return (a.full_name || a.name || "").localeCompare(b.full_name || b.name || "");
+     if (sortMode === 'Z-A') return (b.full_name || b.name || "").localeCompare(a.full_name || a.name || "");
+     const dateA = new Date(a.created_at || 0).getTime();
+     const dateB = new Date(b.created_at || 0).getTime();
+     if (sortMode === 'NEWEST') return dateB - dateA;
+     if (sortMode === 'OLDEST') return dateA - dateB;
+     return 0;
+  });
+
+  const formatJoinDate = (dateStr) => {
+     if (!dateStr) return "Date Unknown";
+     return new Date(dateStr).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  };
 
   return (
     <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -514,23 +537,40 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
       </div>
 
       <div className="p-4 md:p-8">
-        <div className="mb-6 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input 
-            type="text" 
-            placeholder="Search staff globally by name or email..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500"
-          />
+        <div className="flex flex-col md:flex-row gap-3 mb-6 relative">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search staff by name or email..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-1 flex">
+               <button onClick={() => setFilterScope('ALL')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterScope === 'ALL' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Global</button>
+               <button onClick={() => setFilterScope('DEPT')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterScope === 'DEPT' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>My Dept</button>
+            </div>
+            
+            <select value={sortMode} onChange={e => setSortMode(e.target.value)} className="bg-slate-50 border-2 border-slate-100 p-3 rounded-2xl text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer transition-all">
+               <option value="NEWEST">Newest First</option>
+               <option value="OLDEST">Oldest First</option>
+               <option value="A-Z">A-Z Sort</option>
+               <option value="Z-A">Z-A Sort</option>
+            </select>
+          </div>
         </div>
 
-{searchTerm && filteredProfiles.length === 0 && (
+        {searchTerm && filteredProfiles.length === 0 && (
           <div className="p-10 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] mb-4">
-             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">"{searchTerm.trim()}" is not a registered system account.</p>
+             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">No matching accounts found.</p>
           </div>
         )}
-       {/* MOBILE CARD VIEW */}
+        
+        {/* MOBILE CARD VIEW */}
         <div className="md:hidden space-y-4 mb-4">
           {filteredProfiles.map(p => (
              <div key={p.id} className={`bg-slate-50 p-5 rounded-[2rem] border-2 border-slate-100 ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
@@ -538,6 +578,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                     <div>
                       <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
                       <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase mt-1">Joined: {formatJoinDate(p.created_at)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${p.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : p.status === 'PENDING' ? 'bg-amber-500 animate-bounce' : 'bg-rose-500'}`} />
@@ -586,6 +627,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                   <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
                     <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
                     <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Joined: {formatJoinDate(p.created_at)}</p>
                   </td>
                   <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
                     <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border-2 ${p.role?.trim().toUpperCase() === 'HEAD_ADMIN' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-900 border-slate-200'}`}>
