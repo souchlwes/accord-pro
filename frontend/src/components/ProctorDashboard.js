@@ -9,6 +9,14 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, onUpdateAvail
   const [activeTab, setActiveTab] = useState("my_schedule");
   const [logBook, setLogBook] = useState([]); // Local state for the log book form
 
+  useEffect(() => {
+    if (highlightTarget === 'availability-log') {
+      setTimeout(() => {
+        document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 400);
+    }
+  }, [highlightTarget]);
+  
   // Filter schedules where this proctor is assigned
   const myAssignments = useMemo(() => {
     return globalSchedule.filter(s => s.proctor === profile.full_name);

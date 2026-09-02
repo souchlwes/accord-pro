@@ -1,3 +1,4 @@
+import accordLogo from '../accord.png';
 import React, { useState, useMemo, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -5,7 +6,7 @@ import {
   Trash2, Plus, Play, Clock, Calendar, Download,
   ShieldCheck, Globe, Home, BookOpen, ChevronRight,
   Settings2, Users, RefreshCw, CheckCircle2, AlertCircle,
-  LayoutGrid, AlertTriangle, Edit3, ArrowUp, ArrowDown, Lock, X, Info, Layers
+  LayoutGrid, AlertTriangle, Edit3, ArrowUp, ArrowDown, Lock, X, Info, Layers, DoorOpen
 } from 'lucide-react';
 
 // --- HELPER FUNCTIONS ---
@@ -23,24 +24,84 @@ const addHours = (time, hours) => {
   return `${String(totalH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+// --- NEW: SMART NAME NORMALIZER ---
+const normalizeName = (name) => {
+  if (!name) return "";
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ') // Replaces commas, periods, etc. with spaces
+    .split(/\s+/) // Splits the name into individual words
+    .filter(word => word && !['prof', 'dr', 'mr', 'ms', 'mrs'].includes(word)) // Removes empty spaces and titles
+    .sort() // Alphabetizes the words (so "James Chua" matches "Chua James")
+    .join(' ');
+};
+// --- NEW: ADVANCED PARTIAL NAME MATCHER ---
+const normalizeNameToArray = (name) => {
+  if (!name) return [];
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word && !['prof', 'dr', 'mr', 'ms', 'mrs'].includes(word));
+};
+// --- NEW: SMART PREFIX ENGINE ---
+// Allows "J. Smith" to perfectly match "John Smith"
+const checkNameMatch = (typedName, systemName) => {
+   const typedArr = normalizeNameToArray(typedName);
+   const systemArr = normalizeNameToArray(systemName);
+   
+   if (typedArr.length === 0 || systemArr.length === 0) return false;
+   
+   // Every word/initial typed by the Admin must match OR be the starting letter of the System Name
+   return typedArr.every(searchWord => 
+       systemArr.some(sysWord => sysWord === searchWord || sysWord.startsWith(searchWord))
+   );
+};
+// --- NEW: SMART SECTION PARSER ---
+// Reads strings like "Kelly (C,D), Smith (A)" and outputs an array of objects
+const parseSubjectProfs = (profString) => {
+  if (!profString) return [];
+  // Split by comma, but ignore commas inside parentheses
+  const parts = profString.split(/,(?![^\(\)]*\))/g);
+  return parts.map(part => {
+     let p = part.trim();
+     // Bulletproof extraction (ignores trailing spaces completely)
+     if (p.includes('(') && p.includes(')')) {
+        const start = p.indexOf('(');
+        const end = p.indexOf(')');
+        const name = p.substring(0, start).trim();
+        const sections = p.substring(start + 1, end).split(',').map(s => s.trim().toUpperCase());
+        return { name, sections };
+     }
+     return { name: p, sections: [] };
+  });
+};
+
 const DepartmentCard = ({
   dept,
   onUpdate,
   onGenerate,
   onDeleteDept,
+  onEditDept,
   onClearSchedule,
   globalSchedule = [],
   allDepartments = [],
   allProfiles = [],
   globalAvailability = [], 
-  role 
+  role,
+  onNotify,
+  onEditProctor,
+  highlightTarget
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
   const [generationErrors, setGenerationErrors] = useState([]);
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
   // Destructure from the 'dept' prop directly for logic
-  const { subjects, proctors, rooms, name: deptName, code: deptCode, id: deptId } = dept;
-  
+  // Destructure with safety nets to prevent crashes on empty databases
+// BULLETPROOF DESTRUCTURING: Safely catches strict 'null' from Supabase
+  const subjects = dept.subjects || {};
+  const rooms = dept.rooms || [];
+  const { name: deptName, code: deptCode, id: deptId, invite_code } = dept;
   // --- AUTOMATION: Dynamically find all Proctors assigned to this Dept from Profiles ---
   const activeDeptProctors = useMemo(() => {
     return allProfiles.filter(p => 
@@ -59,20 +120,152 @@ const DepartmentCard = ({
   const [proctorModal, setProctorModal] = useState({ isOpen: false, targetSub: null, pool: 'Department' });
   const [roomModal, setRoomModal] = useState({ isOpen: false, targetBlock: null, pool: 'Department' });
   const [summaryModalIsOpen, setSummaryModalIsOpen] = useState(false);
-  
+  const [unverifiedModal, setUnverifiedModal] = useState({ isOpen: false, assignments: [], reason: '' });
+  const [proctorWarningModal, setProctorWarningModal] = useState({ isOpen: false, resolve: null, sectionID: '', dayDate: '', source: '', hasFallback: false, fallbackPoolName: '', teachers: [] });
+  const [manualProctorInput, setManualProctorInput] = useState("");
+  const [roomWarningModal, setRoomWarningModal] = useState({ isOpen: false, resolve: null, sectionID: '', targetHeadcount: 0, nextRoom: null, nextCap: 0, fallbackRoom: null, fallbackCap: 0, fitsAnywhere: false });
+  const [editSubjectModal, setEditSubjectModal] = useState({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+  const [editRoomModal, setEditRoomModal] = useState({ isOpen: false, id: null, number: '', type: 'Department' });
   const [exportConfig, setExportConfig] = useState({ isOpen: false, format: 'pdf', type: 'ALL', targetValue: '' });
 
-  // ENHANCEMENT: Sync initial preview AND respond to external updates (like additions/deletions)
+  // --- NEW: AUTO-POP PROCTOR MODAL WHEN ROUTED FROM A DECLINED NOTIFICATION ---
   useEffect(() => {
-    const synced = globalSchedule
-      .filter(s => s.dept_code === deptCode)
-      .map(item => ({
-        ...item,
-        flagged: Boolean(item.flagged ?? false),
-        flagNote: item.flagNote ?? "",
-        isManualProctor: Boolean(item.isManualProctor ?? false)
-      }));
-    setLocalSchedule(synced);
+    if (highlightTarget && highlightTarget.startsWith('SWITCH-PROCTOR-')) {
+       const schedId = highlightTarget.replace('SWITCH-PROCTOR-', '');
+       const targetItem = localSchedule.find(s => String(s.id) === schedId || s.subject_code === schedId);
+       if (targetItem) {
+          setProctorModal({
+             isOpen: true,
+             targetSub: {
+                ...targetItem,
+                date: targetItem.exam_date,
+                startTime: targetItem.start_time,
+                endTime: targetItem.end_time
+             },
+             pool: 'Department'
+          });
+       }
+    }
+  }, [highlightTarget, localSchedule]);
+
+  // --- NEW: DECISION ENGINE MODAL ---
+  const [decisionModal, setDecisionModal] = useState({ isOpen: false, title: '', message: '', type: 'info', action: null });
+
+ // --- SMART DOUBLE-BOOKING CHECKERS (WITH LIVE DRAFT SUPPORT) ---
+  const isProctorDoubleBooked = (pName, date, start, end, ignoreId, draftData = []) => {
+    if(!pName || pName === 'TBA') return false;
+    const targetStart = (start||'').substring(0, 5);
+    const targetEnd = (end||'').substring(0, 5);
+
+    const checkOverlap = (s) => {
+        if ((s.id || s.tempId) === ignoreId && ignoreId != null) return false;
+        if (s.proctor !== pName) return false;
+        if (s.exam_date !== date && s.date !== date) return false;
+        const sStart = (s.start_time || s.startTime).substring(0, 5);
+        const sEnd = (s.end_time || s.endTime).substring(0, 5);
+        return targetStart < sEnd && targetEnd > sStart;
+    };
+    return globalSchedule.some(checkOverlap) || localSchedule.some(checkOverlap) || draftData.some(checkOverlap);
+  };
+
+  const getProctorDoubleBookedSection = (pName, date, start, end, ignoreId, draftData = []) => {
+    if(!pName || pName === 'TBA') return null;
+    const targetStart = (start||'').substring(0, 5);
+    const targetEnd = (end||'').substring(0, 5);
+
+    const checkOverlap = (s) => {
+        if ((s.id || s.tempId) === ignoreId && ignoreId != null) return false;
+        if (s.proctor !== pName) return false;
+        if (s.exam_date !== date && s.date !== date) return false;
+        const sStart = (s.start_time || s.startTime).substring(0, 5);
+        const sEnd = (s.end_time || s.endTime).substring(0, 5);
+        return targetStart < sEnd && targetEnd > sStart;
+    };
+    
+    const conflictDraft = draftData.find(checkOverlap);
+    if (conflictDraft) return conflictDraft.section;
+    const conflictLocal = localSchedule.find(checkOverlap);
+    if (conflictLocal) return conflictLocal.section;
+    const conflictGlobal = globalSchedule.find(checkOverlap);
+    if (conflictGlobal) return conflictGlobal.section;
+
+    return null;
+  };
+
+  const confirmProctorSwitch = (pName, scope) => {
+     const isGlobal = !activeDeptProctors.some(p => (p.full_name || p.name) === pName);
+     if (isGlobal) {
+        setDecisionModal({
+           isOpen: true,
+           title: "Cross-Department Assignment",
+           message: `You are about to assign ${pName}, who belongs to a different department (Global Pool). This will lock their schedule university-wide. Proceed?`,
+           type: 'amber',
+           action: () => { handleProctorSwitch(pName, scope); setDecisionModal({ isOpen: false }); }
+        });
+     } else {
+        handleProctorSwitch(pName, scope);
+     }
+  };
+
+  const confirmRoomSwitch = (rNum) => {
+     const isGlobal = !rooms.some(r => r.number === rNum);
+     if (isGlobal) {
+        setDecisionModal({
+           isOpen: true,
+           title: "Global Room Assignment",
+           message: `You are about to assign Room ${rNum} from the Global Pool. This will claim a shared university resource for this time block. Proceed?`,
+           type: 'amber',
+           action: () => { handleRoomSwitch(rNum); setDecisionModal({ isOpen: false }); }
+        });
+     } else {
+        handleRoomSwitch(rNum);
+     }
+  };
+
+  const toggleProctorSource = () => {
+    const nextSource = proctorSource === "Department" ? "Global" : "Department";
+    setDecisionModal({
+      isOpen: true,
+      title: `Switch to ${nextSource} Proctors?`,
+      message: nextSource === 'Global' 
+        ? "You are about to allow the generator to pull available proctors from other departments. Proceed?"
+        : "You are restricting the generator to ONLY use your internal department proctors. Proceed?",
+      type: 'blue',
+      action: () => { setProctorSource(nextSource); setDecisionModal({ isOpen: false }); showToast(`Proctor Source set to ${nextSource}`); }
+    });
+  };
+
+  const toggleRoomSource = () => {
+    const nextSource = roomSource === "Department" ? "Global" : "Department";
+    setDecisionModal({
+      isOpen: true,
+      title: `Switch to ${nextSource} Rooms?`,
+      message: nextSource === 'Global' 
+        ? "You are about to allow the generator to pull unassigned rooms from the entire university pool. This helps resolve shortages but uses shared resources. Proceed?"
+        : "You are restricting the generator to ONLY use your department's internal rooms. Proceed?",
+      type: 'blue',
+      action: () => { setRoomSource(nextSource); setDecisionModal({ isOpen: false }); showToast(`Room Source set to ${nextSource}`); }
+    });
+  };
+
+  // ENHANCEMENT: Sync initial preview AND respond to external updates safely
+  useEffect(() => {
+    const serverData = globalSchedule.filter(s => s.dept_code === deptCode);
+    
+    setLocalSchedule(prevLocal => {
+      // SAFETY LOCK: Check if local items are missing DB IDs, but the server data has them
+      const needsIdSync = prevLocal.length > 0 && !prevLocal[0].id && serverData.length > 0 && serverData[0].id;
+      
+      if (prevLocal.length === 0 || serverData.length !== prevLocal.length || needsIdSync) {
+        return serverData.map(item => ({
+          ...item,
+          flagged: Boolean(item.flagged ?? false),
+          flagNote: item.flagNote ?? "",
+          isManualProctor: Boolean(item.isManualProctor ?? false)
+        }));
+      }
+      return prevLocal;
+    });
   }, [globalSchedule, deptCode]);
 
   const showToast = (message, type = 'success', undoable = false) => {
@@ -231,11 +424,13 @@ const DepartmentCard = ({
   const [examDates, setExamDates] = useState([]);
   const [startTime, setStartTime] = useState("08:00");
   const [selectedYear, setSelectedYear] = useState("1");
-  const [sectionCount, setSectionCount] = useState(0);
+ const [sectionCount, setSectionCount] = useState(0);
+  const [sectionSizes, setSectionSizes] = useState({}); // Upgraded to an object for dynamic boxes
   const [proctorSource, setProctorSource] = useState("Department");
   const [roomSource, setRoomSource] = useState("Department");
 
   const [pName, setPName] = useState("");
+
   const [pDayStart, setPDayStart] = useState("");
   const [pDayEnd, setPDayEnd] = useState("");
   const [pTimeStart, setPTimeStart] = useState("08:00");
@@ -243,8 +438,19 @@ const DepartmentCard = ({
 
   const [roomNum, setRoomNum] = useState("");
   const [roomType, setRoomType] = useState("Department");
+  const [roomCap, setRoomCap] = useState("");
+  
+  const now = new Date();
+  const todayString = now.toISOString().split('T')[0];
+  const currentTimeStr = now.toTimeString().substring(0, 5);
 
-  const globalProctorPool = useMemo(() => allDepartments.flatMap(d => d.proctors), [allDepartments]);
+  const isPast = (d, eTime) => {
+    if (!d) return false;
+    if (d < todayString) return true;
+    if (d === todayString && eTime < currentTimeStr) return true;
+    return false;
+  };
+  const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
 
   const handleExamDayChange = (val) => {
@@ -253,144 +459,358 @@ const DepartmentCard = ({
     setExamDates(new Array(num).fill(''));
   };
 
-  const handleGenerateClick = () => {
-  setGenerationErrors([]);
-  const errors = [];
-  const yearSubs = subjects[selectedYear] || [];
+  
+  const handleGenerateClick = async () => {
+    setGenerationErrors([]);
+    const errors = [];
+    const warningLogs = [];
+    const yearSubs = subjects[selectedYear] || [];
 
-  if (yearSubs.length === 0) errors.push({ 
-    issue: "No Subjects", 
-    resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
-  });
-  if (examDays === 0 || sectionCount === 0) errors.push({ 
-    issue: "Configuration Error", 
-    resolution: "Set Total Exam Days and Total Sections to at least 1." 
-  });
-  if (examDates.some(d => !d)) errors.push({ 
-    issue: "Timeline Incomplete", 
-    resolution: "Please assign a specific date to every exam day in the list." 
-  });
+    if (yearSubs.length === 0) errors.push({ 
+      issue: "No Subjects", 
+      resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
+    });
+    if (examDays === 0 || sectionCount === 0) errors.push({ 
+      issue: "Configuration Error", 
+      resolution: "Set Total Exam Days and Total Sections to at least 1." 
+    });
+    if (examDates.some(d => !d)) errors.push({ 
+      issue: "Timeline Incomplete", 
+      resolution: "Please assign a specific date to every exam day in the list." 
+    });
 
-  if (errors.length > 0) {
-    setGenerationErrors(errors);
-    showToast("Generation Halted: Setup incomplete.", "error");
-    return;
-  }
+    if (errors.length > 0) {
+      setGenerationErrors(errors);
+      showToast("Generation Halted: Setup incomplete.", "error");
+      return;
+    }
 
-  const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
-  const dailySubs = Array.from({ length: examDays }, () => []);
-  shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
+    const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
+    const dailySubs = Array.from({ length: examDays }, () => []);
+    shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
 
-  const finalGeneratedData = [];
-  let generationFailed = false; 
+    const finalGeneratedData = [];
+    let generationFailed = false; 
 
-  for (let d = 0; d < examDays; d++) {
-    if (generationFailed) break; 
+for (let d = 0; d < examDays; d++) {
+      if (generationFailed) break; 
 
-    const dayDate = examDates[d];
-    const daySubjects = dailySubs[d];
-    if (daySubjects.length === 0) continue;
+      const dayDate = examDates[d];
+      const daySubjects = dailySubs[d];
+      if (daySubjects.length === 0) continue;
 
-    const duration = daySubjects.length;
-    const endTime = addHours(startTime, duration);
+      const duration = daySubjects.length;
+      const endTime = addHours(startTime, duration);
 
-    const isRoomFree = (rNum) => !globalSchedule.some(gs => 
-      gs.room === rNum && 
-      gs.exam_date === dayDate && 
-      (startTime < gs.end_time && endTime > gs.start_time)
-    );
-
-    const isProctorFree = (p) => {
-      const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
-      
-      const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
-        assign.proctor === p.full_name && assign.exam_date === dayDate
+      const isRoomFree = (rNum) => !globalSchedule.some(gs => 
+        gs.room === rNum && 
+        gs.exam_date === dayDate && 
+        (startTime < gs.end_time && endTime > gs.start_time)
       );
 
-      return pLogs.some(log => {
-        const safeLogStart = log.start_time.substring(0, 5);
-        const safeLogEnd = log.end_time.substring(0, 5);
+      const localRooms = rooms.filter(r => isRoomFree(r.number));
+      const otherRooms = globalRoomPool.filter(r => !rooms.find(dr => dr.number === r.number) && isRoomFree(r.number));
+      const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
+      let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
 
-        const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
+      const primaryPool = proctorSource === "Department" ? activeDeptProctors : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
+      const fallbackPool = proctorSource === "Department" ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors;
 
-        const isBurnt = pAssignments.some(assign => {
-          const assignStart = assign.start_time.substring(0, 5);
-          const assignEnd = assign.end_time.substring(0, 5);
-          return safeLogStart < assignEnd && safeLogEnd > assignStart; 
-        });
+      for (let s = 0; s < sectionCount; s++) {
+        const sectionLetter = String.fromCharCode(65 + s);
+        const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-        return coversExam && !isBurnt;
-      });
-    };
+        // --- REUSABLE POOL EVALUATOR ---
+        const evaluatePool = (pool, enforceRules = true) => {
+          let available = [];
+          let tConflicts = [];
+          let aConflicts = [];
+          let dConflicts = [];
 
-    const localRooms = rooms.filter(r => isRoomFree(r.number));
-    const otherRooms = globalRoomPool.filter(r => !rooms.find(dr => dr.number === r.number) && isRoomFree(r.number));
-    const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
-    let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
+          pool.forEach(p => {
+            const pArr = normalizeNameToArray(p.full_name || p.name);
+            
+           // 1. Check Conflict of Interest (SMART PREFIX MATCHING - ENTIRE CURRICULUM)
+            const isTeacher = yearSubs.some(sub => {
+                const profList = parseSubjectProfs(sub.prof);
+                return profList.some(profObj => {
+                    const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                    const nameMatch = checkNameMatch(profObj.name, p.full_name || p.name);
+                    return appliesToThisSection && nameMatch;
+                });
+            });
 
-    const localProctors = activeDeptProctors.filter(isProctorFree);
-    let availableProctors = [...localProctors];
+            if (enforceRules && isTeacher) {
+              tConflicts.push(p.full_name || p.name);
+              return; 
+            }
 
-    for (let s = 0; s < sectionCount; s++) {
-      const sectionID = `${deptCode}${selectedYear}${String.fromCharCode(65 + s)}`;
+            // 2. Check Diversity Rule
+            const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
+               assign.proctor === (p.full_name || p.name) && assign.section === sectionID
+            );
 
-      if (availableRooms.length === 0) {
-        errors.push({ 
-          issue: `Room Shortage (Day ${d+1})`, 
-          resolution: `No available rooms for Section ${sectionID} on ${dayDate}. Add more rooms or check global overlaps.` 
-        });
-        generationFailed = true;
-      }
-      if (availableProctors.length === 0) {
-        errors.push({ 
-          issue: `Proctor Shortage (Day ${d+1})`, 
-          resolution: `No proctors available for Section ${sectionID} on ${dayDate}. Add more proctors or check their availability shifts.` 
-        });
-        generationFailed = true;
-      }
+            if (enforceRules && hasProctoredThisSectionBefore) {
+               dConflicts.push(p.full_name || p.name);
+               return; 
+            }
+
+          // 3. Check Logged Availability
+            const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
+            const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
+              assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
+            );
+
+            const hasValidLog = pLogs.some(log => {
+              const safeLogStart = log.start_time.substring(0, 5);
+              const safeLogEnd = log.end_time.substring(0, 5);
+              const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
+
+              const isBurnt = pAssignments.some(assign => {
+                const assignStart = assign.start_time.substring(0, 5);
+                const assignEnd = assign.end_time.substring(0, 5);
+                // FIXED: Now checks if the EXAM block overlaps, not the log!
+                return startTime < assignEnd && endTime > assignStart; 
+              });
+
+              return coversExam && !isBurnt;
+            });
+
+            if (hasValidLog) available.push(p);
+            else aConflicts.push(p.full_name || p.name);
+          });
+
+          return { available, tConflicts, aConflicts, dConflicts };
+        };
+
+        let evalResult = evaluatePool(primaryPool, true);
+
+     // --- INTERACTIVE PROCTOR FALLBACK & EMERGENCY OVERRIDE ---
+        if (evalResult.available.length === 0) {
+           const fallbackResult = evaluatePool(fallbackPool, true);
+           const hasFallback = fallbackResult.available.length > 0;
+           
+           const desperatePrimary = evaluatePool(primaryPool, false);
+           const desperateFallback = evaluatePool(fallbackPool, false);
+           const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
+           
+           const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
+           const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
+
+           // PAUSE AND ASK ADMIN (Passing the Live Draft!)
+           const userChoice = await new Promise((resolve) => {
+              setProctorWarningModal({
+                 isOpen: true,
+                 resolve: resolve,
+                 sectionID: sectionID,
+                 dayDate: dayDate,
+                 startTime: startTime,
+                 endTime: endTime,
+                 source: proctorSource,
+                 fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
+                 hasFallback: hasFallback,
+                 teachers: availableTeachers,
+                 currentDraft: finalGeneratedData // <-- This is the magic key!
+              });
+           });
+
+           if (!userChoice || userChoice.type === 'halt') {
+              generationFailed = true;
+              errors.push({ issue: `Proctor Shortage Halted (Day ${d+1})`, resolution: `Generation aborted because no proctors were assigned for Section ${sectionID}.` });
+           } else if (userChoice.type === 'fallback') {
+              evalResult = fallbackResult;
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} pulled a proctor from the ${proctorSource === 'Department' ? 'Global' : 'Internal'} pool.`);
+           } else if (userChoice.type === 'teacher') {
+              evalResult.available = [userChoice.proctor];
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} forced a Subject Teacher conflict (${userChoice.proctor.full_name || userChoice.proctor.name}).`);
+           } else if (userChoice.type === 'manual') {
+              evalResult.available = [{ full_name: userChoice.name, name: userChoice.name }];
+              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} assigned to manual/guest proctor: ${userChoice.name}.`);
+           }
+        }  
+
+// --- ULTIMATE: CHRONOLOGICAL, MULTI-FIT & GLOBAL BORROWING ENGINE ---
+        localRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+        uniqueOtherRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+
+        let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
+        const getRoomCap = (r) => parseInt(String(r?.capacity || '0').split('-').pop().trim()) || 0;
+
+        // NEW: Strictly define the allowed auto-assignment pool based on the toggle!
+        let allowedAutoRooms = roomSource === "Department" 
+           ? localRooms 
+           : [...localRooms, ...uniqueOtherRooms].sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+
+        // Find valid rooms that safely fit the headcount within the allowed pool
+        let validAutoRooms = allowedAutoRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+        
+        let finalSelectedRoom = null;
+
+        if (allowedAutoRooms.length > 0 && (validAutoRooms.includes(allowedAutoRooms[0]) || targetHeadcount === 0)) {
+            // Perfect chronological fit within the strictly chosen source pool!
+            finalSelectedRoom = allowedAutoRooms[0];
+            
+            // Remove from both arrays to prevent double booking
+            const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom.number);
+            if (lIdx >= 0) localRooms.splice(lIdx, 1);
+            const gIdx = uniqueOtherRooms.findIndex(r => r.number === finalSelectedRoom.number);
+            if (gIdx >= 0) uniqueOtherRooms.splice(gIdx, 1);
+
+        } else if (localRooms.length === 0 && uniqueOtherRooms.length === 0) {
+            errors.push({ issue: `Room Shortage (Day ${d+1})`, resolution: `No available rooms anywhere in the university for Section ${sectionID}.` });
+            generationFailed = true;
+        } else {
+            // CONFLICT DETECTED: The toggle's auto-sequence doesn't fit, or the pool ran out. 
+            // We pop the Pause Modal and give you full control.
+
+            let nextChronologicalRoom = localRooms[0] || uniqueOtherRooms[0]; 
+            let nextChronologicalCap = getRoomCap(nextChronologicalRoom);
+
+            let validInternalRooms = localRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+            let validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+
+            // Desperate fallback for the modal: if no room perfectly fits, find the absolute largest available
+            if (validInternalRooms.length === 0 && localRooms.length > 0) {
+                let maxCap = Math.max(...localRooms.map(r => getRoomCap(r)));
+                validInternalRooms = localRooms.filter(r => getRoomCap(r) === maxCap);
+            }
+            if (validGlobalRooms.length === 0 && uniqueOtherRooms.length > 0) {
+                let maxCap = Math.max(...uniqueOtherRooms.map(r => getRoomCap(r)));
+                validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) === maxCap);
+            }
+
+            // --- PAUSE ALGORITHM & ASK ADMIN ---
+            const userChoice = await new Promise((resolve) => {
+                setRoomWarningModal({
+                    isOpen: true,
+                    resolve: resolve,
+                    sectionID: sectionID,
+                    targetHeadcount: targetHeadcount,
+                    nextRoom: nextChronologicalRoom,
+                    nextCap: nextChronologicalCap,
+                    internalFits: validInternalRooms,
+                    globalFits: validGlobalRooms
+                });
+            });
+
+            if (!userChoice || userChoice.type === 'halt') {
+                generationFailed = true;
+                errors.push({ issue: `Capacity Halted (Day ${d+1})`, resolution: `Generation aborted due to strict capacity constraints for Section ${sectionID} (${targetHeadcount} students).` });
+            } else if (userChoice.type === 'force') {
+                // Force the sequence!
+                const rNum = nextChronologicalRoom.number;
+                const lIdx = localRooms.findIndex(r => r.number === rNum);
+                if (lIdx >= 0) {
+                    finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
+                } else {
+                    const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
+                    finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
+                }
+                warningLogs.push(`Section ${sectionLetter} forced into Room ${finalSelectedRoom.number} (${nextChronologicalCap} cap) despite having ${targetHeadcount} students.`);
+            } else if (userChoice.type === 'select') {
+                const rNum = userChoice.room.number;
+                const lIdx = localRooms.findIndex(r => r.number === rNum);
+                if (lIdx >= 0) {
+                    finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
+                    warningLogs.push(`Section ${sectionLetter} skipped to Internal Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
+                } else {
+                    const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
+                    finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
+                    warningLogs.push(`Section ${sectionLetter} borrowed Global Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
+                }
+            } else if (userChoice.type === 'manual') {
+                finalSelectedRoom = { number: userChoice.room, capacity: 'N/A', type: 'Manual/Temporary' };
+                warningLogs.push(`Section ${sectionLetter} manually assigned to temporary Room: ${userChoice.room}.`);
+            }
+        }
+
+        if (generationFailed) break;
+
+        if (evalResult.available.length === 0 && !generationFailed) {
+          let issueTitle = `Proctor Shortage (Day ${d+1})`;
+          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
+
+          if (evalResult.tConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.dConflicts.length === 0) {
+            issueTitle = `Conflict of Interest (Day ${d+1})`;
+            resolutionText = `The only available proctors (${evalResult.tConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
+          } else if (evalResult.dConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.tConflicts.length === 0) {
+            issueTitle = `Section Rotation Rule (Day ${d+1})`;
+            resolutionText = `Available proctors (${evalResult.dConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
+          } else if (evalResult.tConflicts.length > 0 || evalResult.dConflicts.length > 0) {
+            issueTitle = `Resource Blocked (Day ${d+1})`;
+            resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
+          } else {
+            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+          }
+
+          errors.push({ issue: issueTitle, resolution: resolutionText });
+          generationFailed = true;
+        }
 
       if (!generationFailed) {
-        const selectedRoom = availableRooms.shift();
-        const selectedProctor = availableProctors.shift();
-
-        daySubjects.forEach((sub, idx) => {
-          finalGeneratedData.push({
-            subject_code: sub.code,
-            subject_name: sub.name,
-            section: sectionID,
-            year_level: selectedYear,
-            dept_code: deptCode,
-            exam_date: dayDate,
-            start_time: addHours(startTime, idx),
-            end_time: addHours(startTime, idx + 1),
-            room: selectedRoom.number,
-            proctor: selectedProctor.full_name,
-            original_proctor: selectedProctor.full_name,
-            original_room: selectedRoom.number,
-            original_subject_code: sub.code,
-            status: 'ACTIVE',
-            flagged: false,
-            flagNote: '',
-            isManualProctor: false
+          // --- NEW: EQUAL WORKLOAD DISTRIBUTION ALGORITHM ---
+          // Sorts the available proctors so the person with the LEAST assignments gets picked first!
+          evalResult.available.sort((a, b) => {
+             const aName = a.full_name || a.name;
+             const bName = b.full_name || b.name;
+             const aCount = finalGeneratedData.filter(s => s.proctor === aName).length;
+             const bCount = finalGeneratedData.filter(s => s.proctor === bName).length;
+             return aCount - bCount; 
           });
-        });
-      } else {
-        break; 
+
+const selectedRoom = finalSelectedRoom;
+          const selectedProctor = evalResult.available.shift();
+
+          daySubjects.forEach((sub, idx) => {
+            finalGeneratedData.push({
+              subject_code: sub.code,
+              subject_name: sub.name,
+              section: sectionID,
+              year_level: selectedYear,
+              dept_code: deptCode,
+              exam_date: dayDate,
+              start_time: addHours(startTime, idx),
+              end_time: addHours(startTime, idx + 1),
+              room: selectedRoom.number,
+              proctor: selectedProctor.full_name || selectedProctor.name,
+              original_proctor: selectedProctor.full_name || selectedProctor.name,
+              original_room: selectedRoom.number,
+              original_subject_code: sub.code,
+              status: 'ACTIVE',
+              flagged: false,
+              flagNote: '',
+              isManualProctor: false
+            });
+          });
+        } else {
+          break; 
+        }
       }
     }
-  }
+  
 
-  if (errors.length > 0) {
-    setGenerationErrors(errors);
-    showToast("Generation Blocked: Resource conflicts found.", "error");
-    return; 
-  }
+   if (errors.length > 0) {
+      setGenerationErrors(errors);
+      showToast("Generation Blocked: Resource conflicts found.", "error");
+      return; 
+    }
 
-  setLocalSchedule(finalGeneratedData);
-  setAuditLog(["Automated Generation Completed."]);
-  setActiveTab("preview");
-  showToast("Schedule Generated Successfully!");
-};
+    // --- NEW: Instantly push the draft to Supabase so items receive valid IDs ---
+    if (onGenerate) {
+       onGenerate(finalGeneratedData, examDates);
+    }
+
+    setLocalSchedule(finalGeneratedData);
+    if (warningLogs.length > 0) {
+       setAuditLog([...warningLogs.map(w => `[SYSTEM WARNING] ${w}`), "Automated Generation Completed."]);
+       showToast("Schedule Generated with Sequence Warnings!", "error");
+    } else {
+       setAuditLog(["Automated Generation Completed."]);
+       showToast("Schedule Generated Successfully!");
+    }
+    setActiveTab("preview");
+  };
+
 
   const handleFlagSubmit = () => {
     const updated = localSchedule.map(s =>
@@ -495,8 +915,28 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       }
     });
 
-    validateAndApplyChange(updatedLocal, `Proctor Update (${scope})`, externalSwaps);
-    setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' });
+  validateAndApplyChange(updatedLocal, `Proctor Update (${scope})`, externalSwaps);
+
+    // --- NEW: INSTANT RELIEVER REQUEST TRIGGER ---
+    const targetProfile = allProfiles.find(p => (p.full_name||'').toLowerCase() === newProctorName.toLowerCase() || (p.name||'').toLowerCase() === newProctorName.toLowerCase());
+    
+    if (targetProfile && onNotify) {
+        const subStart = (t.startTime || t.start_time).substring(0, 5);
+        const subEnd = (t.endTime || t.end_time).substring(0, 5);
+        
+        const hasAvail = globalAvailability.some(a => 
+            a.proctor_id === targetProfile.id && 
+            a.exam_date === targetDate && 
+            subStart >= a.start_time.substring(0, 5) && 
+            subEnd <= a.end_time.substring(0, 5)
+        );
+        
+        if (!hasAvail) {
+            onNotify(null, null, targetProfile.id, 'Proctor Assignment Request', `You have been assigned to ${t.subject_code} on ${targetDate} without logged availability. Please Accept or Decline on your dashboard.`, 'urgent');
+        }
+    }
+
+    setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' }); 
   };
   
   const handleRoomSwitch = (newRoomNumber) => {
@@ -602,32 +1042,93 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         return dateA - dateB || (a.start_time || "").localeCompare(b.start_time || "");
       });
 
-      if (exportConfig.format === 'pdf') {
+       if (exportConfig.format === 'pdf') {
         const doc = new jsPDF({ orientation: 'landscape' });
-        doc.setFontSize(16);
-        doc.text(`${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`, 14, 20);
         
-        const tableColumn = ["Date", "Time", "Year", "Section", "Subject", "Room", "Proctor"];
-        const tableRows = sorted.map(item => [
-          item.exam_date || "N/A", 
-          `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
-          item.year_level || "N/A", 
-          item.section || "N/A", 
-          `${item.subject_code || ""} - ${item.subject_name || ""}`,
-          item.room || "N/A", 
-          item.proctor || "TBA"
-        ]);
+        const titleText = `${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`;
+        
+        // 1. UPDATED LETTERHEAD FUNCTION
+        const drawLetterhead = (data) => {
+          if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
+          if (doc.headerPrintedPages.has(data.pageNumber)) return;
+          doc.headerPrintedPages.add(data.pageNumber);
 
-        autoTable(doc, { 
-          head: [tableColumn], body: tableRows, startY: 30, theme: 'grid', 
-          styles: { fontSize: 9, cellPadding: 4 }, 
-          headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] } 
+          doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
+
+          // "ACCORD PRO" Branding
+          doc.setFont("helvetica", "bolditalic");
+          doc.setFontSize(22);
+          doc.setTextColor(15, 23, 42); 
+          doc.text("ACCORD", 30, 20);
+          
+          const accordWidth = doc.getTextWidth("ACCORD ");
+          doc.setTextColor(37, 99, 235); 
+          doc.text("PRO", 30 + accordWidth, 20);
+
+          // Clean Subtitle
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(100, 116, 139); 
+          doc.text(titleText.toUpperCase(), 30, 26);
+
+          doc.setDrawColor(37, 99, 235); 
+          doc.setLineWidth(0.5);
+          doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
+        };
+
+        let currentY = 40; 
+
+        const groupedData = {};
+        sorted.forEach(item => {
+          const sec = item.section || "N/A";
+          const date = item.exam_date || "N/A";
+          if (!groupedData[sec]) groupedData[sec] = {};
+          if (!groupedData[sec][date]) groupedData[sec][date] = [];
+          groupedData[sec][date].push(item);
+        });
+
+        Object.keys(groupedData).sort().forEach(section => {
+          Object.keys(groupedData[section]).sort().forEach(date => {
+            const items = groupedData[section][date];
+
+            const tableRows = items.map(item => [
+              `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
+              item.year_level || "N/A",
+              `${item.subject_code || ""} - ${item.subject_name || ""}`,
+              item.room || "N/A",
+              item.proctor || "TBA"
+            ]);
+
+            autoTable(doc, { 
+              head: [
+                [
+                  { content: `SECTION: ${section}   |   EXAM DATE: ${date}`, colSpan: 5, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } }
+                ],
+                ["Time", "Year", "Subject", "Room", "Proctor"]
+              ],
+              body: tableRows, 
+              startY: currentY, 
+              theme: 'grid', 
+              styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
+              headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+              // 2. THE FIX FOR MISSING HEADERS
+              margin: { top: 40, bottom: 20 }, 
+              pageBreak: 'avoid',
+              didDrawPage: drawLetterhead 
+            });
+
+            currentY = doc.lastAutoTable.finalY + 15; 
+          });
         });
 
         doc.save(`Accord_${deptCode || 'DEPT'}_${titleSuffix}.pdf`);
         showToast("PDF Downloaded!");
         
       } else {
+        
+        
+        
+    
         const headers = ["Date,Start Time,End Time,Year Level,Section,Subject Code,Subject Name,Room,Proctor"];
         const rows = sorted.map(item => `${item.exam_date || ""},${formatTime(item.start_time)},${formatTime(item.end_time)},${item.year_level || ""},${item.section || ""},${item.subject_code || ""},"${item.subject_name || ""}",${item.room || ""},"${item.proctor || ""}"`);
         const csvContent = headers.concat(rows).join("\n");
@@ -650,40 +1151,40 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
   };
   
   const handleApproveAndLock = async () => {
-    // 1. Identify unverified assignments in the current local draft
     const unverifiedAssignments = localSchedule.filter(item => {
-      // NEW: Check if this is an internal proctor by searching the registry
+      if (item.proctor === 'TBA' || !item.proctor) return false;
+      const pNameStr = String(item.proctor).trim().toLowerCase();
+      
       const isInternal = allProfiles.some(p => 
-        (p.full_name === item.proctor || p.name === item.proctor) && 
-        p.role?.toUpperCase() === 'PROCTOR'
+        (p.full_name || '').trim().toLowerCase() === pNameStr || 
+        (p.name || '').trim().toLowerCase() === pNameStr
       );
-
-      // NEW: If external, bypass the strict log requirement
-      if (!isInternal) return false;
-
-      // INTERNAL: Check if they have logged availability
+      
+      if (!isInternal) return false; // Guests do not get in-app requests
+      
       return !globalAvailability?.some(entry => 
-        entry.proctor_name === item.proctor && 
+        (entry.proctor_name || '').trim().toLowerCase() === pNameStr && 
         entry.exam_date === item.exam_date &&
         (item.start_time < entry.end_time && item.end_time > entry.start_time)
       );
     });
 
-    if (role === 'HEAD_ADMIN' && unverifiedAssignments.length > 0) {
-      const reason = prompt(
-        `SYSTEM ALERT: ${unverifiedAssignments.length} assignments involve proctors not verified in the Log Book.\n\nAs HEAD ADMIN, please provide a justification for this override to proceed:`
-      );
-      
-      if (!reason) {
-        alert("Action Cancelled. An override reason is required for unverified assignments.");
-        return;
-      }
-      
-      setAuditLog(prev => [...prev, `[ADMIN OVERRIDE] ${reason}`]);
-    } 
-    else if (role !== 'HEAD_ADMIN' && unverifiedAssignments.length > 0) {
-      alert("CRITICAL: You cannot lock this schedule. Some proctors have not logged their availability in Phase 3. Please contact the Head Admin for a Global Override.");
+    if (unverifiedAssignments.length > 0) {
+      setSummaryModalIsOpen(false);
+      setUnverifiedModal({ isOpen: true, assignments: unverifiedAssignments, reason: '' });
       return;
+    }
+
+    executeSave();
+  };
+
+  // --- NEW: Universal Save Engine (Handles normal saves AND Reliever Requests) ---
+  const executeSave = async (overrideReason = null, unverifiedToNotify = []) => {
+    if (isProcessing) return; // Prevent double-clicks!
+    setIsProcessing(true);
+
+    if (overrideReason) {
+      setAuditLog(prev => [...prev, `[OVERRIDE] ${overrideReason}`]);
     }
 
     const dataToSave = localSchedule.map(item => ({
@@ -699,9 +1200,25 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
     try {
       await onUpdate('lock_and_save', dataToSave);
       setSummaryModalIsOpen(false);
+      setUnverifiedModal({ isOpen: false, assignments: [], reason: '' });
+
+      // If we bypassed the lock, instantly send notifications to those specific proctors!
+      if (unverifiedToNotify.length > 0) {
+        const proctorsToNotify = new Set(unverifiedToNotify.map(a => a.proctor));
+        proctorsToNotify.forEach(pName => {
+           const proctorProfile = allProfiles.find(p => p.full_name === pName || p.name === pName);
+           if (proctorProfile && onNotify) {
+             onNotify(null, null, proctorProfile.id, 'Proctor Assignment Request', 'You have been assigned to an exam slot without logged availability. Please Accept or Decline on your dashboard.', 'urgent');
+           }
+        });
+      }
+      
       showToast("Schedule locked and saved globally!", "success");
     } catch (error) {
-      showToast("Failed to save!", "error");
+      console.error(error);
+      showToast("Failed to save schedule!", "error");
+    } finally {
+      setIsProcessing(false); // Unlock the buttons when done
     }
   };
 
@@ -732,19 +1249,29 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-      {/* HEADER SECTION */}
+     {/* HEADER SECTION */}
       <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         <div className="relative z-10">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">      
             <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
+            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+              <Edit3 size={20} />
+            </button>
             <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
               <Trash2 size={20} />
             </button>
           </div>
-          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] mt-3 flex items-center gap-2">
-            <Settings2 size={12}/> Departmental Workspace Engine
-          </p>
+          
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] flex items-center gap-2">
+              <Settings2 size={12}/> Departmental Workspace Engine
+            </p>
+            <div className="bg-white/10 px-3 py-1 rounded-md border border-white/20 flex items-center gap-2 shadow-sm">
+              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Invite Code:</span>
+              <span className="text-xs font-black text-amber-400 tracking-widest">{invite_code || 'N/A'}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-4 relative z-10">
           <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
@@ -767,55 +1294,150 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         ))}
       </div>
 
-      <div className="p-12">
-        {/* SUBJECTS TAB */}
+     <div className="p-12">
+       {/* SUBJECTS TAB */}
         {activeTab === 'subjects' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
-                <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
-                </select>
+            
+            {/* --- UPGRADED DYNAMIC SUBJECT FORM --- */}
+            <div className="flex flex-col gap-6 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
+                  <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                    {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Subject Code</label>
+                  <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
+                  <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Subject Code</label>
-                <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+
+              {/* --- NEW: DYNAMIC PROCTOR BOXES --- */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+                 <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Assigned Professor(s) & Sections</label>
+                 </div>
+                 
+                {tempProfs.map((p, idx) => {
+                    const typedName = p.name.trim();
+                    let matches = [];
+                    // LIVE SEARCH: Use our Smart Engine to find matches as they type
+                    if (typedName.length > 1) {
+                       matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                    }
+
+                    return (
+                    <div key={idx} className="flex flex-col bg-slate-50 p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
+                       <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                         <input
+                           placeholder="Prof Name (e.g. Jane Doe)"
+                           value={p.name}
+                           onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                         />
+                         <input
+                           placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                           value={p.sections}
+                           onChange={(e) => { const newP = [...tempProfs]; newP[idx].sections = e.target.value; setTempProfs(newP); }}
+                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                         />
+                         {tempProfs.length > 1 && (
+                           <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                             <Trash2 size={18}/>
+                           </button>
+                         )}
+                       </div>
+                       
+                       {/* --- NEW: LIVE NAME VALIDATOR UI --- */}
+                       {typedName.length > 1 && (
+                         <div className="mt-3 px-2 flex items-center">
+                            {matches.length === 0 ? (
+                               <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                                 <Info size={12}/> External Teacher (No system account found)
+                               </span>
+                            ) : matches.length === 1 ? (
+                               <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                                 <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                               </span>
+                            ) : (
+                               <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                 <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                               </span>
+                            )}
+                         </div>
+                       )}
+                    </div>
+                 )})}
+                 
+                 <button onClick={() => setTempProfs([...tempProfs, { name: '', sections: '' }])} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
+                    <Plus size={14}/> Add Co-Teacher
+                 </button>
               </div>
-              <div className="space-y-2 md:col-span-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
-                <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
-              </div>
-              <div className="pt-6">
+
+              <div className="pt-2">
                 <button onClick={() => {
                   const c = document.getElementById(`sC-${deptId}`).value;
                   const n = document.getElementById(`sN-${deptId}`).value;
+                  
+                  const validProfs = tempProfs.filter(p => p.name.trim() !== '');
+                  if (validProfs.length === 0) {
+                     showToast("Please add at least one professor.", "error");
+                     return;
+                  }
+
+                  // Background Compiler: Turns the dynamic boxes into the perfect string for the Smart Parser
+                  const compiledProfString = validProfs.map(p => {
+                     const secs = p.sections.trim();
+                     return secs ? `${p.name.trim()} (${secs.toUpperCase()})` : p.name.trim();
+                  }).join(', ');
+
                   if (c && n) {
-                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n }] } });
+                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: [...(subjects[selectedYear] || []), { code: c.toUpperCase(), name: n, prof: compiledProfString }] } });
                     document.getElementById(`sC-${deptId}`).value = '';
                     document.getElementById(`sN-${deptId}`).value = '';
+                    setTempProfs([{ name: '', sections: '' }]); // Reset boxes back to 1
                     showToast(`Subject ${c.toUpperCase()} added.`);
                   } else {
-                    showToast("Missing subject details.", "error");
+                    showToast("Please fill all subject details.", "error");
                   }
-                }} className="w-full h-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                  <Plus size={14}/> Add Subject
+                }} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 flex items-center justify-center gap-2 transition-all">
+                  <Plus size={16}/> Add Subject to Curriculum
                 </button>
               </div>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {(subjects[selectedYear] || []).map((s, i) => (
                 <div key={i} className="group flex justify-between p-6 bg-white border-2 border-slate-50 rounded-3xl items-center transition-all hover:border-blue-100 hover:shadow-lg">
                   <div className="flex items-center gap-4">
                     <div className="bg-blue-50 p-3 rounded-xl text-blue-600 font-black text-xs">{s.code}</div>
-                    <span className="text-slate-600 font-black text-xs uppercase tracking-tight">{s.name}</span>
+                    <div className="flex flex-col">
+                      <span className="text-slate-600 font-black text-xs uppercase tracking-tight">{s.name}</span>
+                      <span className="text-slate-400 font-bold text-[9px] uppercase tracking-widest flex items-center gap-1 mt-1"><Users size={10}/> Prof. {s.prof}</span>
+                    </div>
                   </div>
-                  <button onClick={() => {
-                    onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
-                    showToast(`Removed ${s.code}`);
-                  }}>
-                    <Trash2 size={18} className="text-slate-200 group-hover:text-rose-500 transition-colors" />
-                  </button>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => {
+                        const parsedProfs = parseSubjectProfs(s.prof).map(p => ({ name: p.name, sections: p.sections.join(',') }));
+                        if (parsedProfs.length === 0) parsedProfs.push({name: '', sections: ''});
+                        setEditSubjectModal({ isOpen: true, originalCode: s.code, year: selectedYear, code: s.code, name: s.name, tempProfs: parsedProfs });
+                    }} className="p-2 bg-white border border-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Edit Subject & Teachers">
+                      <Edit3 size={16} />
+                    </button>
+                    <button onClick={() => {
+                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
+                      showToast(`Removed ${s.code}`);
+                    }} className="p-2 bg-white border border-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors shadow-sm" title="Delete Subject">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -833,9 +1455,12 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {activeDeptProctors.map(p => {
                 const logs = globalAvailability.filter(a => a.proctor_id === p.id);
+                // --- NEW: Filters out logs that are in the past ---
+                const activeLogs = logs.filter(a => !isPast(a.exam_date, a.end_time));
+
                 return (
                   <div key={p.id} className="p-8 border-2 border-slate-50 rounded-[3rem] bg-white hover:border-emerald-100 shadow-sm transition-all group">
-                    <div className="flex justify-between items-start mb-6">
+                  <div className="flex justify-between items-start mb-6">
                       <div>
                         <p className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">
                           <Users size={16} className="text-emerald-500"/> {p.full_name}
@@ -843,13 +1468,18 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest mt-1 block">Account Verified</span>
                       </div>
                       
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${logs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
-                        {logs.length > 0 ? `${logs.length} Slots Available` : 'Waiting for Logs'}
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => onEditProctor && onEditProctor(p)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-emerald-100" title="Edit Proctor Details">
+                          <Edit3 size={16}/>
+                        </button>
+                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${activeLogs.length > 0 ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                          {activeLogs.length > 0 ? `${activeLogs.length} Slots Available` : 'Waiting for Logs'}
+                        </div>
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      {logs.length > 0 ? logs.map((log, idx) => (
+                      {activeLogs.length > 0 ? activeLogs.map((log, idx) => (
                         <div key={idx} className="bg-slate-50/50 p-4 rounded-2xl flex justify-between items-center border border-slate-100 hover:bg-white transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="bg-white p-2 rounded-xl shadow-sm text-emerald-600">
@@ -869,7 +1499,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       )) : (
                         <div className="py-4 text-center border-2 border-dashed border-slate-50 rounded-2xl">
                           <p className="text-[10px] font-black text-slate-300 uppercase italic tracking-widest">
-                            No specific hours logged yet
+                            No active hours logged
                           </p>
                         </div>
                       )}
@@ -881,36 +1511,48 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
           </div>
         )}
 
-        {/* ROOMS TAB */}
+     {/* ROOMS TAB */}
         {activeTab === 'rooms' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
             <div className="flex flex-col md:flex-row gap-4 bg-amber-50/50 p-8 rounded-[3rem] border border-amber-100 shadow-inner">
-              <input value={roomNum} onChange={e => setRoomNum(e.target.value)} placeholder="ROOM NO. OR HALL NAME" className="flex-1 p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
+              <input value={roomNum} onChange={e => setRoomNum(e.target.value)} placeholder="ROOM NO. OR HALL" className="flex-[2] p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
+              <input value={roomCap} onChange={e => setRoomCap(e.target.value)} placeholder="CAPACITY (e.g. 40-50)" className="flex-1 p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
               <select value={roomType} onChange={e => setRoomType(e.target.value)} className="bg-white px-8 rounded-3xl font-black text-[10px] uppercase outline-none shadow-sm border-2 border-amber-50 appearance-none">
                 <option value="Department">Internal Resource</option>
                 <option value="Global">Global Pool</option>
               </select>
               <button onClick={() => {
-                if (roomNum) {
-                  onUpdate('rooms', { ...dept, rooms: [...rooms, { id: Date.now(), number: roomNum.toUpperCase(), type: roomType }] });
+                if (roomNum && roomCap) {
+                  onUpdate('rooms', { ...dept, rooms: [...rooms, { id: Date.now(), number: roomNum.toUpperCase(), type: roomType, capacity: roomCap }] });
                   showToast(`Room ${roomNum.toUpperCase()} added.`);
                   setRoomNum("");
+                  setRoomCap("");
                 } else {
-                  showToast("Room number required.", "error");
+                  showToast("Room number and capacity are required.", "error");
                 }
               }} className="bg-amber-600 text-white px-10 py-5 rounded-3xl font-black uppercase text-[10px] shadow-lg active:scale-95">
                 Add Room
               </button>
             </div>
+            
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {rooms.map(r => (
                 <div key={r.id} className="p-8 bg-white border-2 border-slate-50 rounded-[3rem] text-center relative group shadow-sm hover:border-amber-200 transition-all">
                   <span className="font-black text-2xl text-slate-800 tracking-tighter">{r.number}</span>
                   <span className={`block text-[8px] font-black uppercase mt-2 tracking-widest ${r.type === 'Global' ? 'text-blue-500' : 'text-amber-500'}`}>{r.type} Source</span>
-                  <button className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-rose-500 transition-opacity" onClick={() => {
-                    onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
-                    showToast(`Room ${r.number} removed.`);
-                  }}><Trash2 size={16}/></button>
+                  <span className="block text-[9px] font-bold text-slate-400 uppercase mt-1">Cap: {r.capacity || 'N/A'}</span>
+                  
+                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                    <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" onClick={() => setEditRoomModal({ isOpen: true, id: r.id, number: r.number, type: r.type, capacity: r.capacity || '' })}>
+                      <Edit3 size={14}/>
+                    </button>
+                    <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" onClick={() => {
+                      onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
+                      showToast(`Room ${r.number} removed.`);
+                    }}>
+                      <Trash2 size={14}/>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -957,11 +1599,11 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       <label className="text-[9px] font-black text-slate-500 uppercase ml-4 mb-2 block">Total Exam Days</label>
                       <input type="number" value={examDays || ''} onChange={e => handleExamDayChange(e.target.value)} placeholder="0" className="w-full bg-slate-800/50 p-6 rounded-[2rem] text-3xl font-black text-blue-400 border-2 border-slate-700 focus:border-blue-500 outline-none" />
                     </div>
-                    <div className="space-y-3 max-h-48 overflow-y-auto pr-4 custom-scrollbar">
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-4 custom-scrollbar">
                       {examDates.map((d, i) => (
                         <div key={i} className="flex items-center bg-slate-800 p-4 rounded-2xl border border-slate-700 group hover:border-blue-500/50 transition-all">
                           <span className="text-blue-500 font-black text-[10px] w-14">DAY {String(i+1).padStart(2, '0')}</span>
-                          <input type="date" value={d} onChange={e => { const updated = [...examDates]; updated[i] = e.target.value; setExamDates(updated); }} className="w-full bg-transparent text-xs font-black outline-none text-white cursor-pointer" />
+                          <input type="date" min={todayString} value={d} onChange={e => { const updated = [...examDates]; updated[i] = e.target.value; setExamDates(updated); }} className="w-full bg-transparent text-xs font-black outline-none text-white cursor-pointer" />
                         </div>
                       ))}
                     </div>
@@ -983,20 +1625,46 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                           {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-2">
+                     
+<div className="space-y-2">
                         <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Total Sections</label>
-                        <input type="number" value={sectionCount || ''} onChange={e => setSectionCount(parseInt(e.target.value) || 0)} placeholder="0" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none" />
+                        <input type="number" min="0" max="26" value={sectionCount || ''} onChange={e => setSectionCount(parseInt(e.target.value) || 0)} placeholder="0" className="w-full bg-slate-800/50 p-5 rounded-2xl font-black text-emerald-400 border-2 border-slate-700 outline-none focus:border-emerald-500 transition-colors" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 pt-4">
-                      <button onClick={() => setProctorSource(proctorSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
+                    
+                    {/* --- DYNAMIC SECTION HEADCOUNT BOXES --- */}
+                    {sectionCount > 0 && (
+                      <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[9px] font-black text-slate-500 uppercase ml-4">Enrolled Students Per Section</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {Array.from({ length: Math.min(sectionCount, 26) }).map((_, idx) => {
+                            const letter = String.fromCharCode(65 + idx);
+                            return (
+                              <div key={letter} className="flex items-center bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden focus-within:border-emerald-500 transition-colors shadow-inner">
+                                <span className="bg-slate-700 text-emerald-400 font-black text-[10px] px-3 py-4 w-10 text-center">{letter}</span>
+                                <input 
+                                  type="number" 
+                                  value={sectionSizes[letter] || ''} 
+                                  onChange={e => setSectionSizes({...sectionSizes, [letter]: e.target.value})} 
+                                  placeholder="Capacity" 
+                                  className="w-full bg-transparent p-3 text-xs font-black text-emerald-400 outline-none" 
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                   <div className="grid grid-cols-1 gap-3 pt-4">
+                      <button onClick={toggleProctorSource} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
                         <span className="flex items-center gap-3">
                           {proctorSource === "Department" ? <Home size={16} className="text-blue-500"/> : <Globe size={16} className="text-blue-500"/>}
                           Staff Source: {proctorSource}
                         </span>
                         <ChevronRight size={14}/>
                       </button>
-                      <button onClick={() => setRoomSource(roomSource === "Department" ? "Global" : "Department")} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
+                      <button onClick={toggleRoomSource} className="bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center border border-slate-700 transition-all group">
                         <span className="flex items-center gap-3">
                           {roomSource === "Department" ? <Home size={16} className="text-emerald-500"/> : <Globe size={16} className="text-emerald-500"/>}
                           Room Source: {roomSource}
@@ -1004,8 +1672,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <ChevronRight size={14}/>
                       </button>
                       <button
-                        onClick={() => { onClearSchedule(deptCode, selectedYear); showToast("Year draft cleared."); }}
-                        className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center text-rose-500 transition-all group mt-2"
+  onClick={() => onClearSchedule(deptCode, selectedYear)}
+
+className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 p-5 rounded-2xl text-[10px] font-black uppercase flex justify-between items-center text-rose-500 transition-all group mt-2"
                       >
                         <span className="flex items-center gap-3"><RefreshCw size={16} /> Wipe Current Year Draft</span>
                         <span className="opacity-40 tracking-widest text-[8px]">RESET</span>
@@ -1066,36 +1735,54 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Section Grid Summary</p>
                       </div>
                     </div>
-                    <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-900 text-white">
-                            <th className="p-5 text-[9px] font-black uppercase">Section</th>
-                            <th className="p-5 text-[9px] font-black uppercase">Room</th>
-                            <th className="p-5 text-[9px] font-black uppercase">Subjects & Proctors</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tablesByYearAndDay[year][date].map((row, idx) => (
-                            <tr key={idx} className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors">
-                              <td className="p-5 font-black text-xs text-blue-600">{row.section}</td>
-                              <td className="p-5 font-black text-[10px] text-slate-800 uppercase italic">{row.room}</td>
-                              <td className="p-5">
-                                {row.subs.map((s, si) => (
-                                  <div key={si} className={`mb-2 last:mb-0 flex justify-between items-center bg-slate-50 p-2 rounded-xl ${s.flagged ? 'border border-orange-300 bg-orange-50' : ''}`}>
-                                    <div>
-                                      <span className="text-[10px] font-black text-slate-900 uppercase mr-2">{s.code}</span>
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase italic leading-none">{s.slot}</span>
-                                    </div>
-                                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>{s.proctor}</span>
+             <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                      {/* Desktop Header (Hidden on Mobile) */}
+                      <div className="hidden md:grid grid-cols-[15%_25%_60%] bg-slate-900 text-white">
+                        <div className="p-5 text-[9px] font-black uppercase">Section</div>
+                        <div className="p-5 text-[9px] font-black uppercase">Room</div>
+                        <div className="p-5 text-[9px] font-black uppercase">Subjects & Proctors</div>
+                      </div>
+                      
+                      <div className="flex flex-col">
+                        {tablesByYearAndDay[year][date].map((row, idx) => (
+                          <div key={idx} className="flex flex-col md:grid md:grid-cols-[15%_25%_60%] border-b border-slate-100 hover:bg-blue-50/50 transition-colors p-4 md:p-0">
+                            
+                            {/* Mobile Label & Section */}
+                            <div className="md:p-5 flex justify-between md:block items-center mb-2 md:mb-0">
+                               <span className="md:hidden text-[9px] font-black text-slate-400 uppercase">Section</span>
+                               <span className="font-black text-sm md:text-xs text-blue-600">{row.section}</span>
+                            </div>
+                            
+                            {/* Mobile Label & Room */}
+                            <div className="md:p-5 flex justify-between md:block items-center mb-4 md:mb-0 pb-4 md:pb-0 border-b md:border-none border-slate-100">
+                               <span className="md:hidden text-[9px] font-black text-slate-400 uppercase">Assigned Room</span>
+                               <span className="font-black text-[10px] text-slate-800 uppercase italic bg-slate-100 md:bg-transparent px-3 py-1 md:p-0 rounded-lg">{row.room}</span>
+                            </div>
+                            
+                            {/* Subjects List */}
+                            <div className="md:p-5">
+                              {row.subs.map((s, si) => (
+                                <div key={si} className={`mb-2 last:mb-0 flex justify-between items-center bg-slate-50 p-3 md:p-2 rounded-xl ${s.flagged ? 'border border-orange-300 bg-orange-50' : ''}`}>
+                                  <div>
+                                    <span className="text-[10px] font-black text-slate-900 uppercase mr-2">{s.code}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase italic leading-none block md:inline mt-1 md:mt-0">{s.slot}</span>
                                   </div>
-                                ))}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded flex items-center gap-1.5 ${s.isManualProctor ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>
+                                    {s.proctor}
+                                    {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
+                                       <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[7px] shadow-sm">GUEST</span>
+                                    ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
+                                       <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[7px] animate-pulse shadow-sm">TBC</span>
+                                    ) : null)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                          </div>
+                        ))}
+                      </div>
+                    </div>     
                   </div>
                 ))}
               </div>
@@ -1130,8 +1817,15 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       {row.subs.map((s, idx) => (
-                        <div key={idx} className={`bg-white p-6 rounded-3xl border-2 transition-all flex flex-col justify-between hover:shadow-md ${s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 group-hover:border-blue-100'}`}>
-                          <div className="flex justify-between items-start">
+
+<div 
+  id={`block-${s.code}`}
+  className={`bg-white p-6 rounded-3xl border-2 transition-all duration-300 flex flex-col justify-between ${
+    highlightTarget === s.code ? 'ring-[4px] ring-rose-500 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] scale-105 z-10' : 
+    s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 hover:border-blue-100 hover:shadow-md'
+  }`}
+>
+<div className="flex justify-between items-start">
                             <div className="flex-1 mr-2">
                               <select 
                                 value={s.code} 
@@ -1151,8 +1845,16 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                           </div>
                           <p className="text-[11px] font-black text-slate-800 uppercase mt-4 leading-snug">{s.name}</p>
                           <div className={`mt-4 pt-4 border-t flex justify-between items-center ${s.flagged ? 'border-orange-200' : 'border-slate-100'}`}>
-                       <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       <Users size={12}/> <span className="truncate max-w-[80px]">{s.proctor}</span> <Edit3 size={10}/>
-                            </button>
+                       <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       
+                          <Users size={12}/> 
+                          <span className="truncate max-w-[80px]">{s.proctor}</span>
+                          {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
+                             <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[7px] shadow-sm ml-1">GUEST</span>
+                          ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
+                             <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[7px] animate-pulse shadow-sm ml-1">TBC</span>
+                          ) : null)}
+                          <Edit3 size={10} className="ml-1"/>
+                       </button>
                             <button onClick={() => setFlagModal({ isOpen: true, targetId: s.id, note: s.flagNote })} className={`p-1.5 rounded-lg transition-colors ${s.flagged ? 'bg-orange-100 text-orange-600' : 'hover:bg-slate-100 text-slate-300 hover:text-orange-500'}`}>
                               <AlertTriangle size={14}/>
                             </button>
@@ -1255,13 +1957,22 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-      {proctorModal.isOpen && proctorModal.targetSub && (() => {
+ {proctorModal.isOpen && proctorModal.targetSub && (() => {
         const t = proctorModal.targetSub;
-        const targetProctors = proctorModal.pool === 'Department' ? activeDeptProctors : globalProctorPool;
         
-        const filteredList = targetProctors.filter(p => 
-          (p.full_name || p.name || "").toLowerCase().includes(proctorSearchTerm.toLowerCase()) && 
-          (p.full_name || p.name || "") !== t.proctor
+        // --- SMART GLOBAL AUTO-SEARCH & TOGGLE FIX ---
+        const isSearching = proctorSearchTerm.trim().length > 0;
+        const targetProctors = isSearching ? globalProctorPool : (proctorModal.pool === 'Global' ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors);
+        
+        const filteredList = targetProctors.filter(p => {
+          const pName = p.full_name || p.name || "";
+          if (pName === t.proctor) return false;
+          if (!isSearching) return true; 
+          return checkNameMatch(proctorSearchTerm.trim(), pName) || pName.toLowerCase().includes(proctorSearchTerm.trim().toLowerCase());
+        });
+
+        const exactMatchExists = allProfiles.some(p => 
+          (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()
         );
 
         return (
@@ -1274,80 +1985,110 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                     Target: {t.section} | {t.subject_code || 'Manual Entry'}
                   </p>
                 </div>
-                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({ isOpen: false, targetSub: null }); }} className="p-2 hover:bg-slate-100 rounded-full">
+                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({ isOpen: false, targetSub: null, pool: 'Department' }); }} className="p-2 hover:bg-slate-100 rounded-full">
                   <X size={20} className="text-slate-400" />
                 </button>
               </div>
 
-              <div className="relative mb-6">
+              <div className="relative mb-4">
                 <input autoFocus type="text" placeholder="Search Proctor Name or Type New..." value={proctorSearchTerm} onChange={(e) => setProctorSearchTerm(e.target.value)} className="w-full p-5 pl-12 rounded-3xl text-xs font-black border-2 border-slate-100 focus:border-blue-500 outline-none transition-all" />
                 <Users className="absolute left-5 top-5 text-slate-400" size={16} />
               </div>
+              
+              <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button onClick={() => { setProctorSearchTerm(""); setProctorModal({...proctorModal, pool: 'Department'}) }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!isSearching && proctorModal.pool === 'Department' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Internal Dept</button>
+                <button onClick={() => setProctorModal({...proctorModal, pool: 'Global'})} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${isSearching || proctorModal.pool === 'Global' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>Global System</button>
+              </div>
 
               <div className="max-h-80 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                {proctorSearchTerm.trim().length > 0 && !filteredList.some(p => (p.full_name || p.name || "").toLowerCase() === proctorSearchTerm.trim().toLowerCase()) && (
-                  <div className="p-4 rounded-3xl border-2 border-dashed border-blue-300 bg-blue-50/50">
-                    <div className="flex justify-between items-center mb-3 px-1">
-                      <div className="flex flex-col">
-                        <span className="font-black text-xs text-blue-800 uppercase">{proctorSearchTerm.trim()}</span>
-                        <div className="flex items-center gap-1 mt-1 text-blue-500">
-                          <Info size={10} />
-                          <span className="text-[7px] font-black uppercase tracking-widest">
-                            External / Manual Entry
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-blue-200 text-[8px] font-black uppercase text-blue-600 hover:bg-blue-600 hover:text-white transition-colors">Subject Only</button>
-                      <button onClick={() => handleProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-blue-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-blue-700 transition-all">Whole Session</button>
-                    </div>
-                  </div>
-                )}
-
-                {filteredList.map((p, idx) => {
+               {/* 1. REGISTERED SUGGESTIONS APPEAR FIRST */}
+               {filteredList.map((p, idx) => {
                   const pName = p.full_name || p.name;
+                  const bookedSection = getProctorDoubleBookedSection(pName, t.date || t.exam_date, t.startTime || t.start_time, t.endTime || t.end_time, t.id || t.tempId);
                   
+                  const yearSubs = subjects[t.year_level] || [];
+                  const isTeacherForSection = yearSubs.some(sub => {
+                     const profList = parseSubjectProfs(sub.prof);
+                     const sectionLetter = t.section.slice(-1);
+                     return profList.some(profObj => {
+                         const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                         const nameMatch = checkNameMatch(profObj.name, pName);
+                         return appliesToThisSection && nameMatch;
+                     });
+                  });
+
                   const hasLoggedAvailability = globalAvailability?.some(entry => {
                     const safeLogStart = entry.start_time.substring(0, 5);
                     const safeLogEnd = entry.end_time.substring(0, 5);
-                    
                     const subStart = t.start_time || t.startTime;
                     const subEnd = t.end_time || t.endTime;
-
-                    return entry.proctor_id === p.id && 
-                           entry.exam_date === (t.date || t.exam_date) &&
-                           (subStart >= safeLogStart && subEnd <= safeLogEnd);
+                    return entry.proctor_id === p.id && entry.exam_date === (t.date || t.exam_date) && (subStart >= safeLogStart && subEnd <= safeLogEnd);
                   });
 
                   return (
                     <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
+                      bookedSection ? 'border-rose-200 bg-rose-50/40 opacity-70 grayscale-[30%]' :
+                      isTeacherForSection ? 'border-orange-200 bg-orange-50/30' :
                       hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
                     }`}>
                       <div className="flex justify-between items-center mb-3 px-1">
                         <div className="flex flex-col">
-                          <span className="font-black text-xs text-slate-800 uppercase">{pName}</span>
-                          <div className={`flex items-center gap-1 mt-1 ${hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            <ShieldCheck size={10} />
+                          <span className={`font-black text-xs uppercase flex items-center gap-2 ${bookedSection ? 'text-rose-800' : isTeacherForSection ? 'text-orange-600' : 'text-slate-800'}`}>
+                            {pName}
+                            {p.assigned_dept && p.assigned_dept !== deptCode && (
+                               <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
+                                 {p.assigned_dept}
+                               </span>
+                            )}
+                          </span>
+                          <div className={`flex items-center gap-1 mt-1 ${bookedSection ? 'text-rose-600' : isTeacherForSection ? 'text-orange-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {bookedSection ? <AlertCircle size={10} /> : isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
                             <span className="text-[7px] font-black uppercase tracking-widest">
-                              {hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                              {bookedSection ? `DOUBLE-BOOKED: IN SECTION ${bookedSection}` : isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button onClick={() => handleProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
-                        <button onClick={() => handleProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability ? 'bg-blue-600' : 'bg-slate-900'}`}>Whole Session</button>
-                      </div>
+                      {bookedSection ? (
+                        <div className="flex gap-2">
+                           <button disabled className="flex-1 py-3 rounded-xl bg-slate-100/50 text-[8px] font-black uppercase text-slate-400 cursor-not-allowed border border-slate-200">Unavailable (Time Conflict)</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={() => confirmProctorSwitch(pName, 'subject')} className="flex-1 py-3 rounded-xl bg-slate-100 text-[8px] font-black uppercase text-slate-600 hover:text-blue-600 transition-colors">Subject Only</button>
+                          <button onClick={() => confirmProctorSwitch(pName, 'session')} className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Whole Session</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
+
+                {/* 2. GUEST PROCTOR FALLBACK AT THE BOTTOM */}
+                {isSearching && !exactMatchExists && (
+                  <div className="p-4 rounded-3xl border-2 border-dashed border-purple-300 bg-purple-50/50 mt-4">
+                    <div className="flex justify-between items-center mb-3 px-1">
+                      <div className="flex flex-col">
+                        <span className="font-black text-xs text-purple-800 uppercase">{proctorSearchTerm.trim()}</span>
+                        <div className="flex items-center gap-1.5 mt-1 text-purple-600">
+                          <Info size={12} />
+                          <span className="text-[8px] font-black uppercase tracking-widest">
+                            "{proctorSearchTerm.trim()}" is not a registered account.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'subject')} className="flex-1 py-3 rounded-xl bg-white border border-purple-200 text-[8px] font-black uppercase text-purple-600 hover:bg-purple-600 hover:text-white transition-colors">Add Guest (Subject)</button>
+                      <button onClick={() => confirmProctorSwitch(proctorSearchTerm.trim(), 'session')} className="flex-1 py-3 rounded-xl bg-purple-600 text-[8px] font-black uppercase text-white shadow-sm hover:bg-purple-700 transition-all">Add Guest (Session)</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
-      })()}
+      })()}   
 
       {roomModal.isOpen && roomModal.targetBlock && (() => {
         const tb = roomModal.targetBlock;
@@ -1373,7 +2114,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                 {availableList.length === 0 && <p className="col-span-3 text-center text-[10px] font-bold text-slate-400 py-8 uppercase">No rooms available in this pool.</p>}
                 {availableList.map((rNum, idx) => (
-                  <div key={idx} onClick={() => handleRoomSwitch(rNum)} className={`text-center p-4 rounded-2xl border-2 transition-all font-black text-lg cursor-pointer ${rNum === tb.room ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-50 hover:border-blue-500 hover:bg-slate-50 text-slate-800'}`}>{rNum}</div>
+                  <div key={idx} onClick={() => confirmRoomSwitch(rNum)} className={`text-center p-4 rounded-2xl border-2 transition-all font-black text-lg cursor-pointer ${rNum === tb.room ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-50 hover:border-blue-500 hover:bg-slate-50 text-slate-800'}`}>{rNum}</div>
                 ))}
               </div>
               <div className="mt-6 pt-6 border-t-2 border-slate-50">
@@ -1404,7 +2145,512 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setSummaryModalIsOpen(false)} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Back to Editing</button>
-              <button onClick={handleApproveAndLock} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">I Confirm - Lock Schedule</button>
+<button onClick={handleApproveAndLock} disabled={isProcessing} className="flex-1 p-5 rounded-2xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 shadow-lg transition-colors">
+  {isProcessing ? 'Processing...' : 'I Confirm - Lock Schedule'}
+</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {unverifiedModal.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+              <Users size={32} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Reliever Override</h3>
+            </div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed">
+              {unverifiedModal.assignments.length} assignments involve proctors who have not logged availability for their assigned times.
+            </p>
+            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-8">
+               <p className="text-amber-800 text-xs font-bold leading-relaxed">
+                 Proceeding will lock the schedule and automatically send a <strong className="font-black">Reliever Request</strong> to these proctors, asking them to Accept or Decline the assignment.
+               </p>
+            </div>
+            
+            {/* Optional Reason for the Audit Log */}
+            <input
+              type="text"
+              placeholder="Admin Override Reason (Optional)"
+              value={unverifiedModal.reason}
+              onChange={e => setUnverifiedModal({...unverifiedModal, reason: e.target.value})}
+              className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 mb-8 transition-all"
+            />
+            
+            <div className="flex gap-4">
+              <button onClick={() => setUnverifiedModal({ isOpen: false, assignments: [], reason: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+<button onClick={() => { executeSave(unverifiedModal.reason, unverifiedModal.assignments); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Send Requests & Lock</button>
+            </div>
+          </div>
+        </div>
+      )}
+     
+    {proctorWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-10 rounded-[3.5rem] shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+              <AlertTriangle size={32} />
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Proctor Shortage</h3>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6">
+               <p className="text-[11px] font-black text-amber-800 uppercase tracking-widest leading-relaxed">
+                 Action Required for Section: <strong className="text-rose-600 text-sm">{proctorWarningModal.sectionID}</strong>
+               </p>
+               <p className="text-[9px] font-bold text-amber-700 uppercase mt-1">
+                 Date: {proctorWarningModal.dayDate} | Source: {proctorWarningModal.source} Pool
+               </p>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
+              All eligible proctors are currently exhausted or double-booked for this specific section block.
+            </p>
+            
+            <div className="space-y-4">
+               {proctorWarningModal.hasFallback && (
+                  <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
+                     <p className="text-[10px] font-black text-blue-800 uppercase mb-2">Cross-Pool Assignment Available</p>
+                     <p className="text-[9px] font-bold text-blue-600 mb-3">Available proctors in the {proctorWarningModal.fallbackPoolName}:</p>
+                     
+                     <div className="space-y-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
+                        {globalProctorPool
+                           .filter(p => p.assigned_dept !== deptCode)
+                           // FIX APPLIED HERE: Added proctorWarningModal.currentDraft
+                           .filter(p => !isProctorDoubleBooked(p.full_name || p.name, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null, proctorWarningModal.currentDraft))
+                           .map((fp, idx) => (
+                              <div key={idx} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-400 flex justify-between items-center transition-all shadow-sm">
+                                 <span className="font-black text-[10px] uppercase text-slate-800">{fp.full_name || fp.name}</span>
+                                 <button onClick={() => {
+                                    if(typeof showToast === 'function') showToast(`Successfully assigned ${fp.full_name || fp.name}!`, "success");
+                                    proctorWarningModal.resolve({ type: 'manual', name: fp.full_name || fp.name });
+                                    setManualProctorInput("");
+                                    setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                                 }} className="bg-blue-100 hover:bg-blue-600 text-blue-700 hover:text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all cursor-pointer">
+                                    Select
+                                 </button>
+                              </div>
+                           ))
+                        }
+                     </div>
+                  </div>
+               )}
+
+               <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl">
+                  <p className="text-[10px] font-black text-slate-800 uppercase mb-2">Manual / Guest Assignment</p>
+                  <p className="text-[9px] font-bold text-slate-500 mb-3">Type any name. Unverified users will receive a Reliever Request.</p>
+                  
+                  <div className="flex bg-white p-1 rounded-xl mb-3 border border-slate-200">
+                    <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Department' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${(!proctorWarningModal.viewPool || proctorWarningModal.viewPool === 'Department') ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Internal Dept</button>
+                    <button onClick={() => setProctorWarningModal(prev => ({ ...prev, viewPool: 'Global' }))} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${proctorWarningModal.viewPool === 'Global' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Global System</button>
+                  </div>
+
+                  <div className="flex gap-2 mb-2">
+                     <input 
+                       value={manualProctorInput} 
+                       onChange={e => setManualProctorInput(e.target.value)} 
+                       placeholder="Search or Type new..." 
+                       className="flex-1 bg-white border border-slate-200 p-3 rounded-xl text-xs font-black outline-none focus:border-amber-500 transition-all" 
+                     />
+                     <button onClick={() => {
+                        const trimmed = manualProctorInput.trim();
+                        if(trimmed) {
+                           if(typeof showToast === 'function') showToast(`Forced assignment for ${trimmed}!`, "success");
+                           proctorWarningModal.resolve({ type: 'manual', name: trimmed });
+                           setManualProctorInput("");
+                           setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                        } else {
+                           if(typeof showToast === 'function') showToast("Please enter a name first.", "error");
+                        }
+                     }} className="bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-amber-600 transition-all cursor-pointer">Force Assign</button>
+                  </div>
+
+                <div className="max-h-56 overflow-y-auto pr-2 custom-scrollbar mb-2 space-y-2 mt-3">
+                     {(() => {
+                        const searchTerm = manualProctorInput.trim();
+                        const isGlobal = proctorWarningModal.viewPool === 'Global';
+                        const poolToSearch = isGlobal 
+                           ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) 
+                           : activeDeptProctors;
+                        
+                        const filteredWarningList = poolToSearch.filter(p => {
+                           const pName = p.full_name || p.name || "";
+                           if (!searchTerm) return true;
+                           return checkNameMatch(searchTerm, pName) || pName.toLowerCase().includes(searchTerm.toLowerCase());
+                        });
+
+                        return filteredWarningList.map((p, idx) => {
+                           const pName = p.full_name || p.name;
+
+                           // FIX APPLIED HERE: Added proctorWarningModal.currentDraft
+                           const bookedSection = getProctorDoubleBookedSection(pName, proctorWarningModal.dayDate, proctorWarningModal.startTime, proctorWarningModal.endTime, null, proctorWarningModal.currentDraft);
+                           
+                           // Evaluate Badges
+                           const targetYear = proctorWarningModal.sectionID.replace(deptCode, '').charAt(0);
+                           const yearSubs = subjects[targetYear] || [];
+                           const isTeacherForSection = yearSubs.some(sub => {
+                              const profList = parseSubjectProfs(sub.prof);
+                              const sectionLetter = proctorWarningModal.sectionID.slice(-1);
+                              return profList.some(profObj => {
+                                  const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                                  return appliesToThisSection && checkNameMatch(profObj.name, pName);
+                              });
+                           });
+
+                           const hasLoggedAvailability = globalAvailability?.some(entry => {
+                             const safeLogStart = entry.start_time.substring(0, 5);
+                             const safeLogEnd = entry.end_time.substring(0, 5);
+                             const subStart = proctorWarningModal.startTime.substring(0, 5);
+                             const subEnd = proctorWarningModal.endTime.substring(0, 5);
+                             return entry.proctor_id === p.id && entry.exam_date === proctorWarningModal.dayDate && (subStart >= safeLogStart && subEnd <= safeLogEnd);
+                           });
+
+                           return (
+                             <div key={idx} className={`p-4 rounded-3xl border-2 transition-all ${
+                               bookedSection ? 'border-rose-200 bg-rose-50/40 opacity-70 grayscale-[30%]' :
+                               isTeacherForSection ? 'border-orange-200 bg-orange-50/30' :
+                               hasLoggedAvailability ? 'border-slate-50 bg-white hover:border-blue-100' : 'border-slate-100 bg-slate-50/50 opacity-80'
+                             }`}>
+                               <div className="flex justify-between items-center mb-3 px-1">
+                                 <div className="flex flex-col">
+                                   <span className={`font-black text-xs uppercase flex items-center gap-2 ${bookedSection ? 'text-rose-800' : isTeacherForSection ? 'text-orange-600' : 'text-slate-800'}`}>
+                                     {pName}
+                                     {p.assigned_dept && p.assigned_dept !== deptCode && (
+                                        <span className="text-[8px] font-black tracking-widest text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">
+                                          {p.assigned_dept}
+                                        </span>
+                                     )}
+                                   </span>
+                                   <div className={`flex items-center gap-1 mt-1 ${bookedSection ? 'text-rose-600' : isTeacherForSection ? 'text-orange-500' : hasLoggedAvailability ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                     {bookedSection ? <AlertCircle size={10} /> : isTeacherForSection ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}
+                                     <span className="text-[7px] font-black uppercase tracking-widest">
+                                       {bookedSection ? `DOUBLE-BOOKED: IN SECTION ${bookedSection}` : isTeacherForSection ? "Conflict: Subject Teacher (Override Allowed)" : hasLoggedAvailability ? "Verified Availability" : "No Logged Time"}
+                                     </span>
+                                   </div>
+                                 </div>
+                               </div>
+
+                               {bookedSection ? (
+                                   <button disabled className="w-full py-3 rounded-xl bg-slate-100/50 text-[8px] font-black uppercase text-slate-400 cursor-not-allowed border border-slate-200">
+                                     Unavailable
+                                   </button>
+                               ) : (
+                                   <button onClick={() => {
+                                      if(typeof showToast === 'function') showToast(`Successfully assigned ${pName}!`, "success");
+                                      proctorWarningModal.resolve({ type: 'manual', name: pName });
+                                      setManualProctorInput("");
+                                      setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                                   }} className={`w-full py-3 rounded-xl text-[8px] font-black uppercase text-white shadow-sm transition-all cursor-pointer ${hasLoggedAvailability && !isTeacherForSection ? 'bg-blue-600 hover:bg-blue-700' : isTeacherForSection ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
+                                     Assign Proctor
+                                   </button>
+                               )}
+                             </div>
+                           );
+                        });
+                     })()}
+                  </div> 
+
+                  {manualProctorInput.trim().length > 1 && (() => {
+                     const typedName = manualProctorInput.trim();
+                     const matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+
+                     if (matches.length === 0) {
+                        return (
+                           <div className="mt-2 p-3 border border-purple-200 bg-purple-50 rounded-xl flex justify-between items-center">
+                              <div className="flex flex-col">
+                                 <span className="text-[10px] font-black text-purple-800 uppercase">{typedName}</span>
+                                 <span className="text-[7px] font-black text-purple-600 uppercase flex items-center gap-1 mt-1">
+                                   <Info size={10}/> Guest (No system account)
+                                 </span>
+                              </div>
+                              <button onClick={() => {
+                                 if(typeof showToast === 'function') showToast(`Added Guest Proctor!`, "success");
+                                 proctorWarningModal.resolve({ type: 'manual', name: typedName });
+                                 setManualProctorInput("");
+                                 setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+                              }} className="bg-purple-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase shadow-sm hover:bg-purple-700 cursor-pointer">
+                                 Add Guest
+                              </button>
+                           </div>
+                        );
+                     }
+                     return null;
+                  })()}
+               </div>
+            </div>
+            
+            <button onClick={() => {
+               if(typeof showToast === 'function') showToast("Generation Halted.", "error");
+               proctorWarningModal.resolve({ type: 'halt' });
+               setProctorWarningModal(prev => ({ ...prev, isOpen: false }));
+            }} className="w-full mt-6 p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer">
+              Halt Generation
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* --- MISSING ROOM CAPACITY WARNING MODAL --- */}
+    {/* --- UPGRADED ROOM CAPACITY WARNING MODAL --- */}
+      {roomWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-lg p-8 rounded-[3.5rem] shadow-2xl">
+            <div className="flex items-center gap-4 text-amber-500 mb-6">
+               <AlertTriangle size={32} />
+               <div>
+                  <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Capacity & Logic Warning</h3>
+                  <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mt-1 italic">
+                    Action Required for Section: <strong className="text-rose-600 text-sm">{roomWarningModal.sectionID}</strong>
+                  </p>
+               </div>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
+              <span>Section Enrolled: <strong className="text-slate-800 text-sm block">{roomWarningModal.targetHeadcount} Students</strong></span>
+              <AlertCircle size={20} className="text-amber-400"/>
+            </p>
+
+            <div className="space-y-4 mb-6 text-left max-h-[55vh] overflow-y-auto pr-2 custom-scrollbar">
+               
+               {/* OPTION 1: FORCE SEQUENCE */}
+               <button onClick={() => {
+                  if(typeof showToast === 'function') showToast(`Forced into Room ${roomWarningModal.nextRoom?.number}`, "success");
+                  roomWarningModal.resolve({ type: 'force' });
+                  setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+               }} className="w-full p-4 rounded-2xl border-2 border-rose-100 hover:border-rose-500 bg-white hover:bg-rose-50 flex justify-between items-center group transition-all cursor-pointer">
+                  <div className="flex flex-col">
+                     <span className="font-black text-xs uppercase text-slate-800 group-hover:text-rose-800">1. Force Sequence</span>
+                     <span className="text-[9px] font-bold text-slate-500 uppercase mt-1">
+                       Squeeze into Room {roomWarningModal.nextRoom?.number} (Cap: <strong className="text-rose-500">{roomWarningModal.nextCap}</strong>)
+                     </span>
+                  </div>
+                  <ChevronRight size={16} className="text-rose-400 group-hover:text-rose-600"/>
+               </button>
+
+               {/* OPTION 2: INTERNAL BEST FITS */}
+               {roomWarningModal.internalFits?.length > 0 && (
+                 <div className="bg-emerald-50 border-2 border-emerald-100 p-5 rounded-2xl">
+                    <p className="text-[10px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2"><Home size={14}/> Primary Source Options</p>
+                    <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                       {roomWarningModal.internalFits.map(r => {
+                          const cap = parseInt(String(r.capacity || '0').split('-').pop().trim()) || 0;
+                          const fits = cap >= roomWarningModal.targetHeadcount;
+                          return (
+                             <div key={r.number} onClick={() => {
+                                if(typeof showToast === 'function') showToast(`Skipped to Room ${r.number}`, "success");
+                                roomWarningModal.resolve({ type: 'select', room: r });
+                                setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+                             }} className="p-3 bg-white border border-emerald-100 rounded-xl hover:border-emerald-500 cursor-pointer flex justify-between items-center group transition-all">
+                                <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-emerald-700">Room {r.number}</span>
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${fits ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                   Cap: {cap}
+                                </span>
+                             </div>
+                          );
+                       })}
+                    </div>
+                 </div>
+               )}
+
+               {/* OPTION 3: GLOBAL BEST FITS */}
+               {roomWarningModal.globalFits?.length > 0 && (
+                 <div className="bg-blue-50 border-2 border-blue-100 p-5 rounded-2xl">
+                    <p className="text-[10px] font-black text-blue-800 uppercase mb-3 flex items-center gap-2"><Globe size={14}/> Borrow Global Options</p>
+                    <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                       {roomWarningModal.globalFits.map(r => {
+                          const cap = parseInt(String(r.capacity || '0').split('-').pop().trim()) || 0;
+                          const fits = cap >= roomWarningModal.targetHeadcount;
+                          return (
+                             <div key={r.number} onClick={() => {
+                                if(typeof showToast === 'function') showToast(`Borrowed Global Room ${r.number}`, "success");
+                                roomWarningModal.resolve({ type: 'select', room: r });
+                                setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+                             }} className="p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-500 cursor-pointer flex justify-between items-center group transition-all">
+                                <span className="font-black text-[10px] uppercase text-slate-800 group-hover:text-blue-700">Room {r.number}</span>
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${fits ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                   Cap: {cap}
+                                </span>
+                             </div>
+                          );
+                       })}
+                    </div>
+                 </div>
+               )}
+
+               {/* OPTION 4: MANUAL ENTRY */}
+               <div className="w-full p-5 rounded-2xl border-2 border-purple-100 bg-purple-50 flex flex-col transition-all">
+                  <span className="font-black text-xs uppercase text-purple-800 mb-1">Manual Overflow Room</span>
+                  <span className="text-[9px] font-bold text-purple-600 uppercase mb-3">Type a temporary room/hall (e.g. GYM)</span>
+                  <div className="flex gap-2">
+                     <input 
+                        value={roomWarningModal.manualInput || ''}
+                        onChange={e => setRoomWarningModal(prev => ({...prev, manualInput: e.target.value}))}
+                        placeholder="Room code..."
+                        className="flex-1 bg-white border border-purple-200 p-3 rounded-xl text-xs font-black outline-none focus:border-purple-500"
+                     />
+                     <button onClick={() => {
+                        const val = (roomWarningModal.manualInput || '').trim();
+                        if(val) {
+                           if(typeof showToast === 'function') showToast(`Assigned to ${val}`, "success");
+                           roomWarningModal.resolve({ type: 'manual', room: val });
+                           setRoomWarningModal(prev => ({ ...prev, isOpen: false, manualInput: '' }));
+                        } else {
+                           if(typeof showToast === 'function') showToast("Please enter a room code.", "error");
+                        }
+                     }} className="bg-purple-600 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm hover:bg-purple-700 transition-all cursor-pointer">Assign</button>
+                  </div>
+               </div>
+            </div>
+
+            <button onClick={() => {
+               if(typeof showToast === 'function') showToast("Generation Halted.", "error");
+               roomWarningModal.resolve({ type: 'halt' });
+               setRoomWarningModal(prev => ({ ...prev, isOpen: false }));
+            }} className="w-full p-4 rounded-2xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer">
+              Halt Generation
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* --- EDIT ROOM MODAL --- */}
+      {editRoomModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl">
+            <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6 flex items-center gap-3"><DoorOpen className="text-amber-500"/> Edit Room</h3>
+           <div className="space-y-4 mb-6">
+              <input value={editRoomModal.number} onChange={e => setEditRoomModal({...editRoomModal, number: e.target.value})} placeholder="Room Number" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 transition-all uppercase" />
+              <input value={editRoomModal.capacity || ''} onChange={e => setEditRoomModal({...editRoomModal, capacity: e.target.value})} placeholder="Capacity (e.g. 40-50)" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-amber-500 transition-all" />
+              <select value={editRoomModal.type} onChange={e => setEditRoomModal({...editRoomModal, type: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-amber-500 transition-all cursor-pointer appearance-none uppercase">
+                <option value="Department">Internal Resource</option>
+                <option value="Global">Global Pool</option>
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department', capacity: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                 if (editRoomModal.number && editRoomModal.capacity) {
+                    const updatedRooms = rooms.map(r => r.id === editRoomModal.id ? { ...r, number: editRoomModal.number.toUpperCase(), type: editRoomModal.type, capacity: editRoomModal.capacity } : r);
+                    onUpdate('rooms', { ...dept, rooms: updatedRooms });
+                    showToast(`Room updated successfully.`);
+                    setEditRoomModal({ isOpen: false, id: null, number: '', type: 'Department', capacity: '' });
+                 } else {
+                    showToast(`Room number and capacity required.`, "error");
+                 }
+              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-amber-500 hover:bg-amber-600 shadow-lg transition-colors">Save Changes</button> 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT SUBJECT MODAL --- */}
+      {editSubjectModal.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-xl p-8 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-2 flex items-center gap-3"><BookOpen className="text-blue-600"/> Edit Subject (Year {editSubjectModal.year})</h3>
+            
+            <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 mb-6 space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Subject Code</label>
+                    <input value={editSubjectModal.code} onChange={e => setEditSubjectModal({...editSubjectModal, code: e.target.value})} placeholder="e.g. CS101" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Description</label>
+                    <input value={editSubjectModal.name} onChange={e => setEditSubjectModal({...editSubjectModal, name: e.target.value})} placeholder="Full Name" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Assigned Professor(s) & Sections</label>
+                 {editSubjectModal.tempProfs.map((p, idx) => {
+                      const typedName = p.name.trim();
+                      let matches = [];
+                      // LIVE SEARCH: Use our Smart Engine to find matches as they type
+                      if (typedName.length > 1) {
+                         matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                      }
+
+                      return (
+                      <div key={idx} className="flex flex-col bg-white p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
+                         <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                           <input
+                             placeholder="Prof Name (e.g. Jane Doe)"
+                             value={p.name}
+                             onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                             className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                           />
+                           <input
+                             placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                             value={p.sections}
+                             onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].sections = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                             className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
+                           />
+                           {editSubjectModal.tempProfs.length > 1 && (
+                             <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                               <Trash2 size={18}/>
+                             </button>
+                           )}
+                         </div>
+                         
+                         {/* --- NEW: LIVE NAME VALIDATOR UI FOR EDIT MODAL --- */}
+                         {typedName.length > 1 && (
+                           <div className="mt-3 px-2 flex items-center">
+                              {matches.length === 0 ? (
+                                 <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                                   <Info size={12}/> External Teacher (No system account found)
+                                 </span>
+                              ) : matches.length === 1 ? (
+                                 <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                                   <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                                 </span>
+                              ) : (
+                                 <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                   <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                                 </span>
+                              )}
+                           </div>
+                         )}
+                      </div>
+                  )})}
+                  <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: [...editSubjectModal.tempProfs, { name: '', sections: '' }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2 mt-2 px-2 hover:text-blue-800 transition-colors w-max">
+                      <Plus size={14}/> Add Co-Teacher
+                  </button>
+                </div>
+            </div>
+
+            <div className="flex gap-4 pt-4 border-t-2 border-slate-50">
+              <button onClick={() => setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={() => {
+                  const validProfs = editSubjectModal.tempProfs.filter(p => p.name.trim() !== '');
+                  if (validProfs.length === 0) return showToast("Add at least one professor.", "error");
+                  if (!editSubjectModal.code || !editSubjectModal.name) return showToast("Fill all details.", "error");
+
+                  const compiledProfString = validProfs.map(p => p.sections.trim() ? `${p.name.trim()} (${p.sections.trim().toUpperCase()})` : p.name.trim()).join(', ');
+                  const yearSubs = [...(subjects[editSubjectModal.year] || [])];
+                  const subIndex = yearSubs.findIndex(s => s.code === editSubjectModal.originalCode);
+                  
+                  if (subIndex !== -1) {
+                      yearSubs[subIndex] = { code: editSubjectModal.code.toUpperCase(), name: editSubjectModal.name, prof: compiledProfString };
+                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [editSubjectModal.year]: yearSubs } });
+                      showToast(`Subject updated successfully.`);
+                      setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+                  }
+              }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Subject</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- NEW: DECISION ENGINE MODAL --- */}
+      {decisionModal.isOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center">
+            <Info className={`mx-auto mb-6 ${decisionModal.type === 'amber' ? 'text-amber-500' : 'text-blue-500'}`} size={48} />
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">{decisionModal.title}</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">{decisionModal.message}</p>
+            <div className="flex gap-4">
+              <button onClick={() => setDecisionModal({ isOpen: false, title: '', message: '', type: 'info', action: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={decisionModal.action} className={`flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors ${decisionModal.type === 'amber' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-500'}`}>Confirm</button>
             </div>
           </div>
         </div>
