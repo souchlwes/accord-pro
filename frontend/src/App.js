@@ -1395,9 +1395,40 @@ function App() {
       if (payload.length > 0) {
         await supabase.from('notifications').insert(payload);
       }
+
+      // THE MISSING TRIGGER: Real-time email routing
+      let targetEmails = new Set();
+      
+      allProfiles.forEach(p => {
+          if (p.status !== 'ACTIVE' || !p.email) return;
+          
+          if (targetUserId && p.id === targetUserId) {
+              targetEmails.add(p.email);
+          } else if (targetDept && targetRole) {
+              if (p.assigned_dept === targetDept && p.role === targetRole) targetEmails.add(p.email);
+          } else if (targetRole && !targetDept) {
+              if (p.role === targetRole) targetEmails.add(p.email);
+          } else if (targetDept && !targetRole) {
+              if (p.assigned_dept === targetDept) targetEmails.add(p.email);
+          }
+          
+          if (targetDept && targetRole !== 'HEAD_ADMIN' && p.role === 'HEAD_ADMIN') {
+              targetEmails.add(p.email);
+          }
+      });
+
+      const emailArray = Array.from(targetEmails);
+      if (emailArray.length > 0) {
+         fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: emailArray, title, message })
+         }).catch(err => console.error("Email API failed:", err));
+      }
+
     } catch (e) { console.error("Notification Failed", e); }
   };
-
+  
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
@@ -1706,7 +1737,7 @@ useEffect(() => {
     setCreateModal({ isOpen: true, name: '', email: '', pass: '', dept: '' });
   };
 
-  const executeCreateAccount = async (e) => {
+ const executeCreateAccount = async (e) => {
     e.preventDefault();
     const { name, email, pass, dept } = createModal;
     let d = isHeadAdmin ? dept : profile.assigned_dept;
@@ -1716,18 +1747,29 @@ useEffect(() => {
     if (error) {
       setAppToast({ message: error.message, type: 'error' });
     } else if (data.user) {
+      // 1. SAVE TO DATABASE
       await supabase.from('profiles').upsert([{ 
-        id: data.user.id, 
-        full_name: name, 
+        id: data.user.id, full_name: name, email: email, 
         role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
-        assigned_dept: d, 
-        status: 'ACTIVE',
-        university: profile.university // <-- FIX: STAMP ADDED HERE
+        assigned_dept: d, status: 'ACTIVE', university: profile.university
       }]);
+
+      // 2. FIRE THE EMAIL IMMEDIATELY (Before the UI can crash)
+      fetch('/api/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, name: name, mode: 'invited', role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', dept: d })
+      }).catch(err => console.error("Email error:", err));
+
+      // 3. SEND DATABASE NOTIFICATION
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
-      setAppToast({ message: "Account successfully created!", type: 'success' });
-      setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-      fetchProfiles();
+
+      // 4. DELAY UI UPDATES (Protects the email fetch from Safari thread crashes)
+      setTimeout(() => {
+        setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
+        setAppToast({ message: "Account successfully created!", type: 'success' });
+        fetchProfiles();
+      }, 100);
     }
   };
 
@@ -1838,12 +1880,30 @@ const executeRegistration = async () => {
     finally { setLoading(false); }
   };
 
-  const handleApproveUser = async (id) => {
+ const handleApproveUser = async (id) => {
+    // 1. UPDATE DATABASE
     await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
+    const { data: user } = await supabase.from('profiles').select('email, full_name, role, assigned_dept').eq('id', id).single();
+
+    // 2. FIRE THE EMAIL IMMEDIATELY
+    if (user && user.email) {
+      fetch('/api/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, name: user.full_name, mode: 'approved', role: user.role, dept: user.assigned_dept })
+      }).catch(err => console.error("Email error:", err));
+    }
+
+    // 3. SEND DATABASE NOTIFICATION
     await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
-    setAppToast({ message: "Account approved successfully.", type: "success" });
-    fetchProfiles();
+    
+    // 4. DELAY UI UPDATES
+    setTimeout(() => {
+      setAppToast({ message: "Account approved & welcome email sent.", type: "success" });
+      fetchProfiles();
+    }, 100);
   };
+
 
   const handleDeclineUser = async (id) => {
     await supabase.from('profiles').delete().eq('id', id);
