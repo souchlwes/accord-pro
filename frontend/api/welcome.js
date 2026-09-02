@@ -3,7 +3,8 @@ import nodemailer from 'nodemailer';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const { email, name, mode, role, dept } = req.body;
+  // 1. ADDED 'password' TO THIS LINE
+  const { email, name, mode, role, dept, password } = req.body;
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -17,6 +18,15 @@ export default async function handler(req, res) {
   const humanMessage = mode === 'invited' 
     ? `Welcome to the team! You have been officially added to the system by your Administrator as a <strong>${readableRole}</strong>${deptContext}. Your account is fully verified, properly routed, and ready for action.`
     : `Great news! Your registration request has been reviewed and approved. You are now officially verified and have full access to your workspace as a <strong>${readableRole}</strong>${deptContext}. We are thrilled to have you on board!`;
+
+  // 2. CREATED THE PASSWORD UI BLOCK
+  const passwordSection = password ? `
+    <div style="background-color: #f1f5f9; border: 2px dashed #94a3b8; padding: 20px; border-radius: 16px; text-align: center; margin-bottom: 30px;">
+      <p style="margin: 0 0 8px 0; font-size: 11px; color: #475569; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Your Temporary Password</p>
+      <p style="letter-spacing: 4px; color: #2563eb; margin: 0; font-family: 'Courier New', monospace; font-size: 26px; font-weight: 900;">${password}</p>
+      <p style="margin: 12px 0 0 0; font-size: 11px; color: #ef4444; font-weight: 800; text-transform: uppercase;">⚠️ Please change this via Settings upon login</p>
+    </div>
+  ` : '';
 
   const htmlTemplate = `
     <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 40px 20px; color: #0f172a;">
@@ -36,7 +46,11 @@ export default async function handler(req, res) {
           ${humanMessage}
         </p>
         
-        <a href="https://your-vercel-deployment-url.vercel.app" style="display: block; width: 100%; text-align: center; background-color: #2563eb; color: #ffffff; padding: 18px 0; border-radius: 16px; text-decoration: none; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">
+        <!-- 3. INJECTED THE PASSWORD BLOCK RIGHT HERE -->
+        ${passwordSection}
+        
+        <!-- 4. FIXED YOUR VERCEL LINK HERE -->
+        <a href="https://accord-pro.vercel.app/" style="display: block; width: 100%; text-align: center; background-color: #2563eb; color: #ffffff; padding: 18px 0; border-radius: 16px; text-decoration: none; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">
           Log In To Dashboard
         </a>
       </div>
@@ -45,7 +59,7 @@ export default async function handler(req, res) {
 
   try {
     await transporter.sendMail({
-      from: `"Accord Pro System" <${process.env.GMAIL_USER}>`,
+      from: `"ACCORD PRO - Here we go!" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: mode === 'invited' ? "Welcome to Accord Pro - Account Created" : "Accord Pro - Access Approved",
       html: htmlTemplate
