@@ -9,7 +9,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, Settings
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -1366,6 +1366,10 @@ function App() {
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main' });
   const [appToast, setAppToast] = useState(null);
+ const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ 
+    newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' 
+  });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
   const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
@@ -1743,35 +1747,77 @@ useEffect(() => {
     let d = isHeadAdmin ? dept : profile.assigned_dept;
     if (!name || !email || !pass) return;
     
-    const { data, error } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
-    if (error) {
-      setAppToast({ message: error.message, type: 'error' });
-    } else if (data.user) {
-      // 1. SAVE TO DATABASE
-      await supabase.from('profiles').upsert([{ 
-        id: data.user.id, full_name: name, email: email, 
-        role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
-        assigned_dept: d, status: 'ACTIVE', university: profile.university
-      }]);
+    try {
+      // 1. Create verified account silently via Admin API
+      const res = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass, name, role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', dept: d, university: profile.university })
+      });
 
-      // 2. FIRE THE EMAIL IMMEDIATELY (Before the UI can crash)
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed to create user');
+
+      // 2. Fire the custom email template using your EXACT existing UI
       fetch('/api/welcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, name: name, mode: 'invited', role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', dept: d })
+        body: JSON.stringify({ email, name, mode: 'invited', role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', dept: d, password: pass })
       }).catch(err => console.error("Email error:", err));
 
-      // 3. SEND DATABASE NOTIFICATION
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
-
-      // 4. DELAY UI UPDATES (Protects the email fetch from Safari thread crashes)
+      
+      // 3. Delay UI updates to prevent Safari crash
       setTimeout(() => {
         setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-        setAppToast({ message: "Account successfully created!", type: 'success' });
+        setAppToast({ message: "Account created and welcome email sent!", type: 'success' });
         fetchProfiles();
       }, 100);
+
+    } catch (error) {
+      setAppToast({ message: error.message, type: 'error' });
     }
   };
+
+  const handleRequestPasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPass !== passwordForm.confirmPass) {
+      return setAppToast({ message: "Passwords do not match.", type: 'error' });
+    }
+    if (passwordForm.newPass.length < 6) {
+      return setAppToast({ message: "Password must be at least 6 characters.", type: 'error' });
+    }
+
+    // 1. Generate 6-digit OTP and show next screen
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setPasswordForm({ ...passwordForm, otpSent: true, generatedOtp: otp });
+    setAppToast({ message: "Sending OTP to your email...", type: 'success' });
+
+    // 2. Fire the email
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: session.user.email, otp: otp })
+    }).catch(err => console.error("OTP email error:", err));
+  };
+
+  const handleVerifyOtpAndUpdate = async (e) => {
+    e.preventDefault();
+    if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
+      return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
+    }
+
+    // 3. OTP matches! Safely update the password in Supabase
+    const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+
+    if (error) {
+      setAppToast({ message: error.message, type: 'error' });
+    } else {
+      setAppToast({ message: "Password successfully updated!", type: 'success' });
+      setShowPasswordModal(false);
+      setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' });
+    }
+  };
+
 
   const executeEditStaff = async (e) => {
     e.preventDefault();
@@ -2469,8 +2515,18 @@ const executeAddDepartment = async (e) => {
           <HelpCircle size={24} className="md:w-7 md:h-7" />
         </button>
         
-        <div className="md:mt-auto">
-          <button onClick={handleHardReset} className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all">
+        <div className="md:mt-auto flex flex-row md:flex-col gap-1 md:gap-4">
+          {/* SETTINGS / CHANGE PASSWORD */}
+          <button 
+            onClick={() => setShowPasswordModal(true)} 
+            className="p-3 md:p-5 text-slate-500 hover:bg-white/10 hover:text-white rounded-2xl transition-all active:scale-90"
+            title="Change Password"
+          >
+            <Settings size={24} className="md:w-7 md:h-7" />
+          </button>
+
+          {/* LOGOUT */}
+          <button onClick={handleHardReset} className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all active:scale-90">
             <LogOut size={24} className="md:w-7 md:h-7" />
           </button>
         </div>
@@ -2927,6 +2983,47 @@ const executeAddDepartment = async (e) => {
             </div>
           </div>
         )}
+
+       {/* CHANGE PASSWORD MODAL */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-96 p-6">
+            <h2 className="text-xl font-bold mb-4">Change Password</h2>
+            
+            {!passwordForm.otpSent ? (
+              <form onSubmit={handleRequestPasswordChange}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input type="password" required className="w-full px-3 py-2 border rounded-md"
+                    value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <input type="password" required className="w-full px-3 py-2 border rounded-md"
+                    value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' }); }} className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50">Cancel</button>
+                  <button type="submit" className="px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Send OTP</button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtpAndUpdate}>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Enter 6-Digit OTP</label>
+                  <p className="text-xs text-gray-500 mb-3">We sent a verification code to <strong>{session.user.email}</strong>.</p>
+                  <input type="text" required maxLength="6" className="w-full px-3 py-2 border rounded-md text-center text-lg tracking-widest font-mono"
+                    value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50">Back</button>
+                  <button type="submit" className="px-4 py-2 text-white bg-emerald-600 rounded-md hover:bg-emerald-700">Verify & Update</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       </main>
     </div>
