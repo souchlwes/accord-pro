@@ -921,7 +921,7 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
 
   useEffect(() => {
@@ -1095,7 +1095,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       )}
 
-      <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+     <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
         <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
           <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
@@ -1116,7 +1116,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           <div className="flex gap-2">
             {!isViewMode && (
               <>
-<button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
+                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
                   <MessageSquare size={18} />
                   {unreadMessageCount > 0 && (
                     <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] font-black text-white shadow-lg animate-bounce">
@@ -1129,6 +1129,11 @@ const [dashboardView, setDashboardView] = useState('upcoming');
                   <Bell size={18} />
                   {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
                 </button>
+                
+                {/* --- INJECTED SETTINGS ICON --- */}
+                <button onClick={onShowPassword} className="bg-white/10 hover:bg-slate-500 text-white p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
+                  <Settings size={18} />
+                </button>
               </>
             )}
             {isViewMode ? (
@@ -1139,7 +1144,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           </div>
         </div>
       </nav>
-
+      
       <main className="container mx-auto px-4 md:px-6 max-w-7xl">
         {!isViewMode && (
           <div className="bg-white rounded-3xl md:rounded-[2rem] p-4 md:p-5 mb-6 md:mb-8 border-2 border-slate-100 shadow-xl flex flex-col md:flex-row items-center gap-4 relative z-40 animate-in slide-in-from-top-4">
