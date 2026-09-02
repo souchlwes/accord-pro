@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     <div style="background-color: #f1f5f9; border: 2px dashed #94a3b8; padding: 20px; border-radius: 16px; text-align: center; margin-bottom: 30px;">
       <p style="margin: 0 0 8px 0; font-size: 11px; color: #475569; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Your Temporary Password</p>
       <p style="letter-spacing: 4px; color: #2563eb; margin: 0; font-family: 'Courier New', monospace; font-size: 26px; font-weight: 900;">${password}</p>
-      <p style="margin: 12px 0 0 0; font-size: 11px; color: #ef4444; font-weight: 800; text-transform: uppercase;">⚠️ Please change this via Settings upon login</p>
+      <p style="margin: 12px 0 0 0; font-size: 11px; color: #ef4444; font-weight: 800; text-transform: uppercase;">Please change this via Settings upon login</p>
     </div>
   ` : '';
 
