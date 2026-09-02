@@ -1395,9 +1395,40 @@ function App() {
       if (payload.length > 0) {
         await supabase.from('notifications').insert(payload);
       }
+
+      // THE MISSING TRIGGER: Real-time email routing
+      let targetEmails = new Set();
+      
+      allProfiles.forEach(p => {
+          if (p.status !== 'ACTIVE' || !p.email) return;
+          
+          if (targetUserId && p.id === targetUserId) {
+              targetEmails.add(p.email);
+          } else if (targetDept && targetRole) {
+              if (p.assigned_dept === targetDept && p.role === targetRole) targetEmails.add(p.email);
+          } else if (targetRole && !targetDept) {
+              if (p.role === targetRole) targetEmails.add(p.email);
+          } else if (targetDept && !targetRole) {
+              if (p.assigned_dept === targetDept) targetEmails.add(p.email);
+          }
+          
+          if (targetDept && targetRole !== 'HEAD_ADMIN' && p.role === 'HEAD_ADMIN') {
+              targetEmails.add(p.email);
+          }
+      });
+
+      const emailArray = Array.from(targetEmails);
+      if (emailArray.length > 0) {
+         fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: emailArray, title, message })
+         }).catch(err => console.error("Email API failed:", err));
+      }
+
     } catch (e) { console.error("Notification Failed", e); }
   };
-
+  
   const markNotificationRead = async (id) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
@@ -1838,10 +1869,32 @@ const executeRegistration = async () => {
     finally { setLoading(false); }
   };
 
-  const handleApproveUser = async (id) => {
+ const handleApproveUser = async (id) => {
     await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
+    
+    // FETCH UPGRADE: Pull role and assigned_dept so the email can display them
+    const { data: user } = await supabase.from('profiles').select('email, full_name, role, assigned_dept').eq('id', id).single();
+
     await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
-    setAppToast({ message: "Account approved successfully.", type: "success" });
+    
+    // THE MISSING TRIGGER: This fires the email to Vercel
+    if (user && user.email) {
+      try {
+        await fetch('/api/welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: user.email, 
+            name: user.full_name,
+            mode: 'approved',
+            role: user.role,
+            dept: user.assigned_dept
+          })
+        });
+      } catch (err) { console.error("Failed to send email", err); }
+    }
+
+    setAppToast({ message: "Account approved & welcome email sent.", type: "success" });
     fetchProfiles();
   };
 
