@@ -2403,6 +2403,8 @@ const executeAddDepartment = async (e) => {
           allProfiles={allProfiles}
           onViewProctor={(p) => setViewingProctor(p)}
           highlightTarget={targetHighlight}
+          onShowPassword={() => setShowPasswordModal(true)} 
+          onLogout={handleHardReset}
         />
 
         
