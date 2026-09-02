@@ -1747,35 +1747,29 @@ useEffect(() => {
     if (error) {
       setAppToast({ message: error.message, type: 'error' });
     } else if (data.user) {
+      // 1. SAVE TO DATABASE
       await supabase.from('profiles').upsert([{ 
-        id: data.user.id, 
-        full_name: name, 
-        email: email, // <-- FIX: SAVES EMAIL TO SUPABASE
+        id: data.user.id, full_name: name, email: email, 
         role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
-        assigned_dept: d, 
-        status: 'ACTIVE',
-        university: profile.university // <-- FIX: STAMP ADDED HERE
+        assigned_dept: d, status: 'ACTIVE', university: profile.university
       }]);
 
-      // <-- NEW: FIRES THE WELCOME EMAIL AUTOMATICALLY
-      try {
-        await fetch('/api/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email: email, 
-            name: name, 
-            mode: 'invited', 
-            role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
-            dept: d 
-          })
-        });
-      } catch (err) { console.error("Failed to send welcome email", err); }
+      // 2. FIRE THE EMAIL IMMEDIATELY (Before the UI can crash)
+      fetch('/api/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, name: name, mode: 'invited', role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', dept: d })
+      }).catch(err => console.error("Email error:", err));
 
+      // 3. SEND DATABASE NOTIFICATION
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
-      setAppToast({ message: "Account successfully created!", type: 'success' });
-      setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-      fetchProfiles();
+
+      // 4. DELAY UI UPDATES (Protects the email fetch from Safari thread crashes)
+      setTimeout(() => {
+        setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
+        setAppToast({ message: "Account successfully created!", type: 'success' });
+        fetchProfiles();
+      }, 100);
     }
   };
 
@@ -1887,33 +1881,29 @@ const executeRegistration = async () => {
   };
 
  const handleApproveUser = async (id) => {
+    // 1. UPDATE DATABASE
     await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
-    
-    // FETCH UPGRADE: Pull role and assigned_dept so the email can display them
     const { data: user } = await supabase.from('profiles').select('email, full_name, role, assigned_dept').eq('id', id).single();
 
-    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
-    
-    // THE MISSING TRIGGER: This fires the email to Vercel
+    // 2. FIRE THE EMAIL IMMEDIATELY
     if (user && user.email) {
-      try {
-        await fetch('/api/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email: user.email, 
-            name: user.full_name,
-            mode: 'approved',
-            role: user.role,
-            dept: user.assigned_dept
-          })
-        });
-      } catch (err) { console.error("Failed to send email", err); }
+      fetch('/api/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, name: user.full_name, mode: 'approved', role: user.role, dept: user.assigned_dept })
+      }).catch(err => console.error("Email error:", err));
     }
 
-    setAppToast({ message: "Account approved & welcome email sent.", type: "success" });
-    fetchProfiles();
+    // 3. SEND DATABASE NOTIFICATION
+    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
+    
+    // 4. DELAY UI UPDATES
+    setTimeout(() => {
+      setAppToast({ message: "Account approved & welcome email sent.", type: "success" });
+      fetchProfiles();
+    }, 100);
   };
+
 
   const handleDeclineUser = async (id) => {
     await supabase.from('profiles').delete().eq('id', id);
