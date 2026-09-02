@@ -1737,7 +1737,7 @@ useEffect(() => {
     setCreateModal({ isOpen: true, name: '', email: '', pass: '', dept: '' });
   };
 
-  const executeCreateAccount = async (e) => {
+ const executeCreateAccount = async (e) => {
     e.preventDefault();
     const { name, email, pass, dept } = createModal;
     let d = isHeadAdmin ? dept : profile.assigned_dept;
@@ -1750,11 +1750,28 @@ useEffect(() => {
       await supabase.from('profiles').upsert([{ 
         id: data.user.id, 
         full_name: name, 
+        email: email, // <-- FIX: SAVES EMAIL TO SUPABASE
         role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
         assigned_dept: d, 
         status: 'ACTIVE',
         university: profile.university // <-- FIX: STAMP ADDED HERE
       }]);
+
+      // <-- NEW: FIRES THE WELCOME EMAIL AUTOMATICALLY
+      try {
+        await fetch('/api/welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: email, 
+            name: name, 
+            mode: 'invited', 
+            role: isHeadAdmin ? 'DEPT_ADMIN' : 'PROCTOR', 
+            dept: d 
+          })
+        });
+      } catch (err) { console.error("Failed to send welcome email", err); }
+
       sendNotification(null, 'HEAD_ADMIN', null, 'Account Created', `Created account for ${name}.`);
       setAppToast({ message: "Account successfully created!", type: 'success' });
       setCreateModal({ isOpen: false, name: '', email: '', pass: '', dept: '' });
