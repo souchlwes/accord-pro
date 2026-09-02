@@ -1840,29 +1840,8 @@ const executeRegistration = async () => {
 
   const handleApproveUser = async (id) => {
     await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
-    
-    // FETCH UPGRADE: Pull role and assigned_dept so the email can display them
-    const { data: user } = await supabase.from('profiles').select('email, full_name, role, assigned_dept').eq('id', id).single();
-
     await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
-    
-    if (user && user.email) {
-      try {
-        await fetch('/api/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email: user.email, 
-            name: user.full_name,
-            mode: 'approved', // Tells the email this was an approval, not a forced invite
-            role: user.role,
-            dept: user.assigned_dept
-          })
-        });
-      } catch (err) { console.error("Failed to send email", err); }
-    }
-
-    setAppToast({ message: "Account approved & welcome email sent.", type: "success" });
+    setAppToast({ message: "Account approved successfully.", type: "success" });
     fetchProfiles();
   };
 
