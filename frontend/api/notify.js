@@ -42,7 +42,7 @@ export default async function handler(req, res) {
 
   try {
     await transporter.sendMail({
-      from: `"Accord Alerts" <${process.env.GMAIL_USER}>`,
+      from: `"ACCORD PRO ALERTS" <${process.env.GMAIL_USER}>`,
       to: emails,
       subject: `Accord Pro: ${title}`,
       html: htmlTemplate
