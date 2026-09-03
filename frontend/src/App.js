@@ -1936,13 +1936,14 @@ const executeRegistration = async () => {
         const targetUni = regMode === 'new' ? regUni.toUpperCase().trim() : regUni.trim();
         const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN').eq('university', targetUni);
         
-       if (count === 0) {
-          await supabase.from('profiles').upsert([{ id: data.user.id, email: email, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
+      if (count === 0) {
+          await supabase.from('profiles').upsert([{ id: data.user.id, email: email, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
           setAppToast({ message: "First user auto-promoted to Head Admin for this University!", type: "success" });
           setTimeout(() => window.location.reload(), 2000);
         } else {
+          // ADD 'email: email' HERE TO FIX THE PENDING QUEUE
           await supabase.from('profiles').upsert([{ 
-            id: data.user.id, full_name: fullName, role: regRole, assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), university: targetUni, status: 'PENDING' 
+            id: data.user.id, email: email, full_name: fullName, role: regRole, assigned_dept: regRole === 'HEAD_ADMIN' ? null : regDept.toUpperCase(), university: targetUni, status: 'PENDING' 
           }]);
           
           if (regRole === 'PROCTOR') await sendNotification(regDept.toUpperCase(), 'DEPT_ADMIN', null, 'New Proctor Request', `${fullName} requested to join ${regDept.toUpperCase()}.`, 'info');
