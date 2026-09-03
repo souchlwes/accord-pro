@@ -1892,7 +1892,7 @@ useEffect(() => {
             body: JSON.stringify({ 
               emails: profileObj.email, 
               title: 'Account Terminated', 
-              message: `Your Accord Pro account (${profileObj.role}) has been permanently deleted by an Administrator. You may now register a new account with this email address if needed.`
+              message: `Your ACCORD PRO account (${profileObj.role}) has been permanently deleted by an Administrator. We hate to see you go... contact your Administrator why this happened.`
             })
           }).catch(err => console.error("Termination email failed:", err));
         }
