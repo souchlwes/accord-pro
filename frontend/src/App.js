@@ -646,7 +646,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                  </div>
                  <div className="flex flex-wrap justify-end gap-2 pt-4 border-t-2 border-slate-100/50">
                     {p.status === 'PENDING' && (isHead || p.assigned_dept === currentUserDept) && (
-                      <button onClick={() => onApprove(p.id)} className="flex-1 p-3 bg-white hover:bg-emerald-500 hover:text-white rounded-xl border-2 border-emerald-100 transition-all text-emerald-500 shadow-sm flex justify-center"><CheckCircle2 size={16} /></button>
+                      <button onClick={() => onApprove(p)} className="flex-1 p-3 bg-white hover:bg-emerald-500 hover:text-white rounded-xl border-2 border-emerald-100 transition-all text-emerald-500 shadow-sm flex justify-center"><CheckCircle2 size={16} /></button>
                     )}
                     {p.role?.trim().toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE' && (
                       <button onClick={() => onView(p)} className="flex-1 p-3 bg-white hover:bg-blue-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400 flex justify-center"><LayoutDashboard size={16} /></button>
@@ -700,7 +700,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                   <td className="bg-slate-50 p-6 rounded-r-[2rem] border-y-2 border-r-2 border-slate-100 text-right">
                     <div className="flex justify-end gap-2">
                       {p.status === 'PENDING' && (isHead || p.assigned_dept === currentUserDept) && (
-                        <button onClick={() => onApprove(p.id)} className="p-3 bg-white hover:bg-emerald-500 hover:text-white rounded-xl border-2 border-emerald-100 transition-all text-emerald-500 shadow-sm" title="Approve Request"><CheckCircle2 size={16} /></button>
+                        <button onClick={() => onApprove(p)} className="p-3 bg-white hover:bg-emerald-500 hover:text-white rounded-xl border-2 border-emerald-100 transition-all text-emerald-500 shadow-sm" title="Approve Request"><CheckCircle2 size={16} /></button>
                       )}
                       {p.role?.trim().toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE' && (
                         <button onClick={() => onView(p)} className="p-3 bg-white hover:bg-blue-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="View Dashboard"><LayoutDashboard size={16} /></button>
@@ -1958,22 +1958,27 @@ const executeRegistration = async () => {
     finally { setLoading(false); }
   };
 
- const handleApproveUser = async (id) => {
+ const handleApproveUser = async (profileObj) => {
     // 1. UPDATE DATABASE
-    await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', id);
-    const { data: user } = await supabase.from('profiles').select('email, full_name, role, assigned_dept').eq('id', id).single();
+    await supabase.from('profiles').update({ status: 'ACTIVE' }).eq('id', profileObj.id);
 
-    // 2. FIRE THE EMAIL IMMEDIATELY
-    if (user && user.email) {
+    // 2. FIRE THE EMAIL USING DATA ALREADY ON THE SCREEN
+    if (profileObj.email) {
       fetch('/api/welcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, name: user.full_name, mode: 'approved', role: user.role, dept: user.assigned_dept })
+        body: JSON.stringify({ 
+          email: profileObj.email, 
+          name: profileObj.full_name || profileObj.name || 'Team Member', 
+          mode: 'approved', 
+          role: profileObj.role, 
+          dept: profileObj.assigned_dept 
+        })
       }).catch(err => console.error("Email error:", err));
     }
 
     // 3. SEND DATABASE NOTIFICATION
-    await sendNotification(null, null, id, 'Account Approved', 'Your account has been approved. You can now access the system.');
+    await sendNotification(null, null, profileObj.id, 'Account Approved', 'Your account has been approved. You can now access the system.');
     
     // 4. DELAY UI UPDATES
     setTimeout(() => {
