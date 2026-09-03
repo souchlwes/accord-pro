@@ -2952,7 +2952,7 @@ const executeAddDepartment = async (e) => {
                    setApprovalModal({ isOpen: false, profile: null });
                 }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-rose-600 bg-rose-50 hover:bg-rose-500 hover:text-white transition-colors">Decline & Remove</button>
                 <button onClick={() => {
-                   handleApproveUser(approvalModal.profile.id);
+                   handleApproveUser(approvalModal.profile);
                    setApprovalModal({ isOpen: false, profile: null });
                 }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg transition-colors">Approve Access</button>
               </div>
