@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     });
 
     await transporter.sendMail({
-      from: `"Accord Pro Security" <${process.env.GMAIL_USER}>`,
+      from: `"ACCORD PRO SECURITY" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: 'Accord Pro - Password Change Verification Code',
       html: `
