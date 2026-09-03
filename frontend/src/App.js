@@ -2449,12 +2449,53 @@ const executeAddDepartment = async (e) => {
           </div>
         )}
 
-        {/* --- GLOBAL APP TOAST (For Save Confirmation) --- */}
+       {/* --- GLOBAL APP TOAST (For Save Confirmation) --- */}
         {appToast && (
           <div className={`fixed bottom-4 md:bottom-10 right-4 md:right-10 z-[600] p-4 md:p-6 rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 text-white font-black text-[10px] md:text-xs uppercase tracking-widest animate-in slide-in-from-bottom-10 md:slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
             {appToast.type === 'error' ? <AlertCircle size={20}/> : <CheckCircle2 size={20} className="text-emerald-400"/>}
             <span>{appToast.message}</span>
             <button onClick={() => setAppToast(null)} className="ml-auto"><X size={16} className="opacity-50 hover:opacity-100"/></button>
+          </div>
+        )}
+
+        {/* --- CHANGE PASSWORD MODAL FOR PROCTORS --- */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
+              <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6">Change Password</h2>
+              
+              {!passwordForm.otpSent ? (
+                <form onSubmit={handleRequestPasswordChange}>
+                  <div className="mb-4">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Confirm New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Send OTP</button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtpAndUpdate}>
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
+                    <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session.user.email}</strong>.</p>
+                    <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
+                      value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         )}
       </>
