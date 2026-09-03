@@ -655,7 +655,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                       <>
                         <button onClick={() => onEdit(p)} className="flex-1 p-3 bg-white hover:bg-indigo-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400 flex justify-center"><Edit2 size={16} /></button>
                         <button onClick={() => onBlock(p.id, p.status)} className="flex-1 p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400 flex justify-center"><Lock size={16} /></button>
-                        <button onClick={() => onDelete(p.id)} className="flex-1 p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400 flex justify-center"><Trash2 size={16} /></button>
+                        <button onClick={() => onDelete(p)} className="flex-1 p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400 flex justify-center"><Trash2 size={16} /></button>
                       </>
                     )}
                  </div>
@@ -709,7 +709,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
                         <>
                           <button onClick={() => onEdit(p)} className="p-3 bg-white hover:bg-indigo-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="Edit Account Details"><Edit2 size={16} /></button>
                           <button onClick={() => onBlock(p.id, p.status)} className="p-3 bg-white hover:bg-orange-500 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title={p.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}><Lock size={16} /></button>
-                          <button onClick={() => onDelete(p.id)} className="p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="Delete User"><Trash2 size={16} /></button>
+                          <button onClick={() => onDelete(p)} className="p-3 bg-white hover:bg-rose-600 hover:text-white rounded-xl border-2 border-slate-100 transition-all text-slate-400" title="Delete User"><Trash2 size={16} /></button>
                         </>
                       )}
                     </div>
@@ -1878,18 +1878,38 @@ useEffect(() => {
     fetchProfiles();
   };
 
-  const handleDeleteUser = (id) => {
+ const handleDeleteUser = (profileObj) => {
     setConfirmModal({
       isOpen: true,
       title: "Delete account permanently?",
-      text: "This action is permanent. All associated logs and availability data will be destroyed.",
+      text: `This will completely remove ${profileObj.full_name}'s account and allow them to re-register with their email.`,
       action: async () => {
-        // 1. Delete their profile and availability logs
-        await supabase.from('profiles').delete().eq('id', id);
-        await supabase.from('proctor_availability').delete().eq('proctor_id', id);
+        // 1. FIRE THE TERMINATION EMAIL FIRST
+        if (profileObj.email) {
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              emails: profileObj.email, 
+              title: 'Account Terminated', 
+              message: `Your Accord Pro account (${profileObj.role}) has been permanently deleted by an Administrator. You may now register a new account with this email address if needed.`
+            })
+          }).catch(err => console.error("Termination email failed:", err));
+        }
 
-        // 2. Notify and Sync
-        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `A system account was permanently deleted.`, 'urgent');
+        // 2. WIPE PUBLIC DATABASE RECORDS
+        await supabase.from('profiles').delete().eq('id', profileObj.id);
+        await supabase.from('proctor_availability').delete().eq('proctor_id', profileObj.id);
+
+        // 3. PURGE FROM HIDDEN AUTH TO FREE UP THE EMAIL
+        await fetch('/api/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: profileObj.id })
+        }).catch(err => console.error("Auth wipe failed:", err));
+
+        // 4. NOTIFY ADMINS & SYNC
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Account Deleted', `The account for ${profileObj.full_name} was permanently deleted.`, 'urgent');
         await fetchAllData(false);
         setAppToast({ message: "Account permanently deleted.", type: "success" });
       }
