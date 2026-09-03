@@ -60,7 +60,7 @@ export default async function handler(req, res) {
 
   try {
     await transporter.sendMail({
-      from: `"Accord Pro Team" <${process.env.GMAIL_USER}>`,
+      from: `"ACCORD PRO TEAM" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: mode === 'invited' ? "Welcome to Accord Pro - Account Created" : "Accord Pro - Access Approved",
       html: htmlTemplate
