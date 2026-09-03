@@ -163,6 +163,29 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         }
       }
     }
+
+    // --- NEW: FIRE NOTIFY API FOR CHAT ---
+        let chatEmails = [];
+        if (chatMode === 'global' && !activeThread) {
+           chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
+        } else if (chatMode === 'dm' && dmTarget?.email) {
+           chatEmails = [dmTarget.email];
+        }
+
+        if (chatEmails.length > 0) {
+           fetch('/api/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                emails: chatEmails.join(', '), 
+                title: chatMode === 'dm' ? `New Direct Message from ${profile.full_name}` : `Campus Announcement from ${profile.full_name}`, 
+                message: text 
+              })
+           }).catch(err => console.error("Chat Email API failed:", err));
+        }
+        // -------------------------------------
+        
+  
     setText(""); 
   };
     
@@ -1426,12 +1449,16 @@ function App() {
           }
       });
 
-      const emailArray = Array.from(targetEmails);
+     const emailArray = Array.from(targetEmails);
       if (emailArray.length > 0) {
          fetch('/api/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ emails: emailArray, title, message })
+            body: JSON.stringify({ 
+              emails: emailArray.join(', '), 
+              title: title, 
+              message: message 
+            })
          }).catch(err => console.error("Email API failed:", err));
       }
 
@@ -1909,8 +1936,8 @@ const executeRegistration = async () => {
         const targetUni = regMode === 'new' ? regUni.toUpperCase().trim() : regUni.trim();
         const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'HEAD_ADMIN').eq('university', targetUni);
         
-        if (count === 0) {
-          await supabase.from('profiles').upsert([{ id: data.user.id, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
+       if (count === 0) {
+          await supabase.from('profiles').upsert([{ id: data.user.id, email: email, full_name: fullName, role: 'HEAD_ADMIN', university: targetUni, status: 'ACTIVE' }]);
           setAppToast({ message: "First user auto-promoted to Head Admin for this University!", type: "success" });
           setTimeout(() => window.location.reload(), 2000);
         } else {
