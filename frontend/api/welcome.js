@@ -13,6 +13,9 @@ export default async function handler(req, res) {
   const readableRole = role === 'HEAD_ADMIN' ? 'Global Head Admin' : role === 'DEPT_ADMIN' ? 'Department Head' : 'Proctor';
   const deptContext = dept && dept !== 'GLOBAL' && dept !== 'N/A' ? ` for the <strong>${dept}</strong> department` : '';
 
+  // PROTECTS AGAINST CRASHES IF NAME IS NULL
+  const safeFirstName = name ? name.split(' ')[0] : 'there';
+
   const humanMessage = mode === 'invited' 
     ? `You have been officially added to the system by your Administrator as a <strong>${readableRole}</strong>${deptContext}. Your account is fully verified, properly routed, and ready for action.`
     : `Your registration request has been reviewed and approved. You are now officially verified and have full access to your workspace as a <strong>${readableRole}</strong>${deptContext}.`;
@@ -35,7 +38,7 @@ export default async function handler(req, res) {
     </div>
 
     <div style="background-color: #ffffff; padding: 40px; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center;">
-      <h2 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #10b981;">You're In, ${name.split(' ')[0]}!</h2>
+      <h2 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #10b981;">You're In, ${safeFirstName}!</h2>
       <p style="margin: 0 0 30px 0; font-size: 14px; line-height: 1.6; color: #475569;">
         ${humanMessage}
       </p>
