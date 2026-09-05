@@ -78,7 +78,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       }
 
       const { data: userData } = await supabase.from('profiles')
-        .select('id, full_name, role, assigned_dept')
+        .select('id, full_name, role, assigned_dept, email')
         .neq('id', profile.id)
         .order('full_name', { ascending: true });
       if (userData) setSystemUsers(userData);
@@ -1428,23 +1428,33 @@ function App() {
         await supabase.from('notifications').insert(payload);
       }
 
-      // THE MISSING TRIGGER: Real-time email routing
+     // THE FIX: Restrict email routing strictly to intended targets and Admins
       let targetEmails = new Set();
       
       allProfiles.forEach(p => {
           if (p.status !== 'ACTIVE' || !p.email) return;
           
+          // 1. Direct Alerts (e.g., Account Approved, Reliever Requests)
           if (targetUserId && p.id === targetUserId) {
               targetEmails.add(p.email);
-          } else if (targetDept && targetRole) {
+          } 
+          // 2. Specific Role in a Department
+          else if (targetDept && targetRole) {
               if (p.assigned_dept === targetDept && p.role === targetRole) targetEmails.add(p.email);
-          } else if (targetRole && !targetDept) {
+          } 
+          // 3. Global Roles (e.g., All Head Admins)
+          else if (targetRole && !targetDept) {
               if (p.role === targetRole) targetEmails.add(p.email);
-          } else if (targetDept && !targetRole) {
-              if (p.assigned_dept === targetDept) targetEmails.add(p.email);
+          } 
+          // 4. Department-Wide Alerts (e.g., Availability Updates, Flags) -> SEND TO DEPT HEAD ONLY
+          else if (targetDept && !targetRole) {
+              if (p.assigned_dept === targetDept && p.role === 'DEPT_ADMIN') {
+                  targetEmails.add(p.email);
+              }
           }
           
-          if (targetDept && targetRole !== 'HEAD_ADMIN' && p.role === 'HEAD_ADMIN') {
+          // 5. Head Admin Omni-Sight (CC Head Admin on all Dept-level alerts)
+          if (targetDept && p.role === 'HEAD_ADMIN') {
               targetEmails.add(p.email);
           }
       });
