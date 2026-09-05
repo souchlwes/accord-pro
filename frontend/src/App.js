@@ -39,7 +39,6 @@ const formatRelativeTime = (dateString) => {
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
 const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   const [messages, setMessages] = useState([]);
-  const [systemUsers, setSystemUsers] = useState([]);
   const [text, setText] = useState("");
   const [chatMode, setChatMode] = useState("global"); 
   const [dmTarget, setDmTarget] = useState(null);
@@ -51,8 +50,11 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
   // Session-based Unread Tracker for DMs
   const [unreadDMs, setUnreadDMs] = useState({}); 
   
+  // REAL-TIME DIRECTORY (Replaces isolated state)
+  const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
+  
   const inputRef = useRef(null);
-  const messagesEndRef = useRef(null); 
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     const fetchChatData = async () => {
@@ -64,7 +66,6 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       if (msgData) {
         setMessages(msgData);
         
-        // --- NEW: CALCULATE PERSISTENT UNREAD BADGES ---
         const initialUnread = {};
         msgData.forEach(m => {
           if (m.receiver_id === profile.id) {
@@ -76,12 +77,6 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
         });
         setUnreadDMs(initialUnread);
       }
-
-      const { data: userData } = await supabase.from('profiles')
-        .select('id, full_name, role, assigned_dept, email')
-        .neq('id', profile.id)
-        .order('full_name', { ascending: true });
-      if (userData) setSystemUsers(userData);
     };
     fetchChatData();
 
@@ -117,8 +112,7 @@ const ChatPanel = ({ profile, onClose, onViewProctor }) => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile.id, chatMode, dmTarget]);
- 
+  }, [profile?.id, chatMode, dmTarget]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -2387,9 +2381,9 @@ const executeAddDepartment = async (e) => {
     return (
       <>
         {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
-        {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
-        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+      {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
+      {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+      {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
         <ProctorDashboard
    
