@@ -2442,8 +2442,8 @@ const executeAddDepartment = async (e) => {
         {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
         {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-        {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
-
+        {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+     
       <ProctorDashboard
           profile={profile} 
           globalSchedule={globalSchedule} 
@@ -2566,7 +2566,7 @@ const executeAddDepartment = async (e) => {
     {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
-      {showChat && <ChatPanel profile={profile} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+      {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
       {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
