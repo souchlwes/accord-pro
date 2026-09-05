@@ -37,8 +37,8 @@ const formatRelativeTime = (dateString) => {
 };
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
-const ChatPanel = ({ profile, onClose, onViewProctor }) => {
-  const [messages, setMessages] = useState([]);
+const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
+const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [chatMode, setChatMode] = useState("global"); 
   const [dmTarget, setDmTarget] = useState(null);
@@ -2380,11 +2380,10 @@ const executeAddDepartment = async (e) => {
    if (viewingProctor) {
     return (
       <>
-        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
+       {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
       {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
       {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
-
         <ProctorDashboard
    
           profile={viewingProctor} 
