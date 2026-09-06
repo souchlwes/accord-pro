@@ -1,4 +1,4 @@
-import accordLogo from './accord.png';
+\import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 import jsPDF from 'jspdf';
@@ -1001,9 +1001,10 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
+const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
+
 
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -1497,9 +1498,9 @@ const [dashboardView, setDashboardView] = useState('upcoming');
 // --- 4. MAIN APP COMPONENT ---
 function App() {
   // --- GLOBAL STATES ---
-  const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null); 
+  const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null); 
   const [activeTab, setActiveTab] = useState("dashboard"); 
