@@ -1258,9 +1258,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
               <Edit3 size={20} />
             </button>
-            <button onClick={() => { onDeleteDept(deptId, deptCode); showToast("Department Removed."); }} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
-              <Trash2 size={20} />
-            </button>
+<button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
+  <Trash2 size={20} />
+</button>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 mt-3">
@@ -1432,8 +1432,16 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       <Edit3 size={16} />
                     </button>
                     <button onClick={() => {
-                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
-                      showToast(`Removed ${s.code}`);
+                      setDecisionModal({
+                        isOpen: true,
+                        title: "Delete Subject?",
+                        message: `Are you sure you want to remove ${s.code} from the curriculum?`,
+                        type: 'amber',
+                        action: () => {
+                          onUpdate('subjects', { ...dept, subjects: { ...subjects, [selectedYear]: subjects[selectedYear].filter((_, idx) => idx !== i) } });
+                          setDecisionModal({ isOpen: false, title: '', message: '', type: 'info', action: null });
+                        }
+                      });
                     }} className="p-2 bg-white border border-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors shadow-sm" title="Delete Subject">
                       <Trash2 size={16} />
                     </button>
@@ -1547,8 +1555,16 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                       <Edit3 size={14}/>
                     </button>
                     <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" onClick={() => {
-                      onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
-                      showToast(`Room ${r.number} removed.`);
+                      setDecisionModal({
+                        isOpen: true,
+                        title: "Delete Room?",
+                        message: `Are you sure you want to permanently remove Room ${r.number}?`,
+                        type: 'amber',
+                        action: () => {
+                          onUpdate('rooms', { ...dept, rooms: rooms.filter(item => item.id !== r.id) });
+                          setDecisionModal({ isOpen: false, title: '', message: '', type: 'info', action: null });
+                        }
+                      });
                     }}>
                       <Trash2 size={14}/>
                     </button>
