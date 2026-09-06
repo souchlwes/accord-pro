@@ -2904,42 +2904,53 @@ const executeAddDepartment = async (e) => {
           </div>
         ) : (
           <>
-           {activeTab === "dashboard" ? (
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-16 md:px-6 gap-4 md:gap-0">
-                  <div>
-                    <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-1">{profile?.university || 'University System'}</p>
-                    <h2 className="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic">Control <span className="text-blue-600">Center</span></h2>
-                    <div className={`mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 px-4 md:px-6 py-2 rounded-full border-2 text-[9px] md:text-[10px] font-black uppercase ${conflictCount > 0 ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500'}`}>
-                      <Activity size={12} className={`md:w-3.5 md:h-3.5 ${conflictCount > 0 ? 'animate-pulse' : ''}`} />
+          {activeTab === "dashboard" ? (
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10 space-y-8 md:space-y-12">
+                
+                {/* --- 1. EXECUTIVE METRICS HERO --- */}
+                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-8 md:p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border border-slate-700/50">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
+                  
+                  <div className="z-10">
+                    <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-2">{profile?.university || 'University System'}</p>
+                    <h2 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic">Control <span className="text-blue-500">Center</span></h2>
+                    
+                    <div className={`mt-4 inline-flex items-center gap-2 md:gap-3 px-5 py-2.5 rounded-full border border-white/10 text-[9px] md:text-[10px] font-black uppercase shadow-lg backdrop-blur-md ${conflictCount > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
+                      <Activity size={14} className={conflictCount > 0 ? 'animate-pulse' : ''} />
                       {conflictCount > 0 ? `${conflictCount} Conflicts Detected` : 'Global System Optimized'}
                     </div>
                   </div>
+
                   {isHeadAdmin && (
-                    <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl hover:bg-blue-600 transition-all active:scale-95">
-                      + Add Department
+                    <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all z-10 flex items-center justify-center gap-2">
+                      <Plus size={16} /> Add Workspace
                     </button>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-8 md:gap-12 mb-16 md:mb-20">
-                  <ConflictTable schedule={globalSchedule} />
-                  <GlobalResourceMonitor 
-                    allDepartments={departments} 
-                    globalSchedule={globalSchedule} 
-                    allProfiles={allProfiles}
-                    onViewProctor={(p) => setViewingProctor(p)}
-                  />
+                {/* --- 2. GLOBAL RESOURCES & CONFLICTS (FROSTED BENTO) --- */}
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
+                    <ConflictTable schedule={globalSchedule} />
+                  </div>
+                  <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
+                    <GlobalResourceMonitor 
+                      allDepartments={departments} 
+                      globalSchedule={globalSchedule} 
+                      allProfiles={allProfiles}
+                      onViewProctor={(p) => setViewingProctor(p)}
+                    />
+                  </div>
                 </div>
 
-                 {/* --- SMART WORKSPACE ROUTER --- */}
+                {/* --- 3. SMART WORKSPACE ROUTER --- */}
                 {visibleDepartments.length === 0 ? (
-                  <div className="text-center py-32 bg-white rounded-[3rem] border-4 border-dashed border-slate-200 mt-8 shadow-sm animate-in fade-in duration-500">
+                  <div className="text-center py-32 bg-white/60 backdrop-blur-md rounded-[3rem] border-4 border-dashed border-slate-200 mt-8 shadow-sm animate-in fade-in duration-500">
                     <Layers size={64} className="mx-auto text-slate-300 mb-6" />
                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">No Workspaces Found</h3>
                     <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2 max-w-md mx-auto leading-relaxed">
                       {isHeadAdmin 
-                         ? "Click '+ Add Department' above to initialize your university campus." 
+                         ? "Click '+ Add Workspace' above to initialize your university campus." 
                          : "You are not assigned to any active department workspace. Please contact your Head Administrator."}
                     </p>
                   </div>
@@ -2955,7 +2966,6 @@ const executeAddDepartment = async (e) => {
                     ).sort(([a], [b]) => a.localeCompare(b)).map(([campusName, depts]) => (
                       <div key={campusName} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                         
-                        {/* --- CAMPUS HEADER --- */}
                         <div className="flex items-center gap-3 mb-6">
                            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md"><Layers size={20}/></div>
                            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{campusName}</h3>
@@ -2964,7 +2974,7 @@ const executeAddDepartment = async (e) => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {depts.map(dept => (
-                            <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white p-8 rounded-[2rem] border border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col">
+                            <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/80 hover:border-blue-500 hover:-translate-y-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer group flex flex-col">
                               <div className="flex justify-between items-start mb-6">
                                 <div>
                                   <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
@@ -2977,11 +2987,11 @@ const executeAddDepartment = async (e) => {
                               </div>
                               
                               <div className="flex gap-4 mt-auto">
-                                <div className="bg-slate-50 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                                <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
                                   <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
                                   <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
                                 </div>
-                                <div className="bg-slate-50 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                                <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
                                   <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
                                   <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
                                 </div>
@@ -2994,9 +3004,8 @@ const executeAddDepartment = async (e) => {
                   </div>
                 ) : (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-                    {/* Only show the Back button for Head Admins who have multiple departments */}
                     {visibleDepartments.length > 1 && (
-                      <button onClick={() => setActiveDeptId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-200 w-max transition-all active:scale-95">
+                      <button onClick={() => setActiveDeptId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-slate-200/80 w-max transition-all active:scale-95">
                         <ArrowLeft size={14} /> Back to Department Grid
                       </button>
                     )}
@@ -3008,7 +3017,7 @@ const executeAddDepartment = async (e) => {
                         allDepartments={departments} onUpdate={handleDepartmentUpdate}
                         onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
                         onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
-                        onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
+                        onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '', currentAvatar: p.avatar_url })}
                         onClearSchedule={(dCode, yLevel) => {
                           setConfirmModal({
                             isOpen: true,
@@ -3030,19 +3039,18 @@ const executeAddDepartment = async (e) => {
                   </div>
                 )}                     
                        
-
-                {/* --- COLLAPSIBLE MASTER TIMELINE --- */}
-                <div className="mt-10 md:mt-16 pt-8 md:pt-10 border-t border-slate-200">
+                {/* --- 4. COLLAPSIBLE MASTER TIMELINE (GLASS BENTO) --- */}
+                <div className="pt-8">
                   <div 
                     onClick={() => setShowMasterTimeline(!showMasterTimeline)}
-                    className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-xl transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
+                    className="bg-white/90 backdrop-blur-xl p-6 md:p-8 rounded-[2.5rem] border border-slate-200/80 hover:border-blue-500 shadow-lg hover:shadow-2xl transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
                     <div className="relative z-10">
                       <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Master <span className="text-blue-600">Timeline</span></h2>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click to {showMasterTimeline ? 'collapse' : 'expand'} university-wide schedule</p>
                     </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors relative z-10">
+                    <div className="bg-slate-50 p-4 rounded-2xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors relative z-10 shadow-sm border border-slate-100">
                       {showMasterTimeline ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
                     </div>
                   </div>
@@ -3050,7 +3058,7 @@ const executeAddDepartment = async (e) => {
                   {showMasterTimeline && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 mt-6">
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 px-2 md:px-6 gap-4 md:gap-0">
-                        <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 shadow-xl hover:bg-blue-600 active:scale-95 transition-all ml-auto">
+                        <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 shadow-xl hover:bg-blue-600 active:scale-95 transition-all ml-auto border border-slate-700">
                           <Printer size={16} className="md:w-5 md:h-5" /> Export Global PDF
                         </button>
                       </div>
@@ -3061,7 +3069,7 @@ const executeAddDepartment = async (e) => {
                         </div>
                       )}
 
-                      <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-200 overflow-x-auto custom-scrollbar">
+                      <div className="bg-white/90 backdrop-blur-xl p-2 md:p-6 rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-200/80 overflow-x-auto custom-scrollbar">
                         {globalSchedule.length > 0 ? (
                           <div className="min-w-[800px] pr-4">
                             <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
@@ -3077,7 +3085,6 @@ const executeAddDepartment = async (e) => {
                 </div>
               </div>
             ) : (
-             
              <div className="mt-6 md:mt-10">
                 <UserRegistry
                   profiles={[
@@ -3113,14 +3120,14 @@ const executeAddDepartment = async (e) => {
                   onApprove={handleApproveUser}
                   onEdit={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
                   currentRole={safeRole}
-                  currentUserDept={profile?.assigned_dept}
+                 currentUserDept={profile?.assigned_dept}
                   onView={(proctorData) => setViewingProctor(proctorData)}
                 />
               </div>
             )}
           </>
         )}
-
+        
         {/* --- STAFF REGISTRATION MODAL --- */}
         {createModal.isOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
