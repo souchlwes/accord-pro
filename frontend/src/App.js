@@ -2112,40 +2112,25 @@ const handleVerifyOtpAndUpdate = async (e) => {
         setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
       }
     } else if (passwordForm.tab === 'email') {
-      const oldEmail = session.user.email;
-      const newEmail = passwordForm.newEmail;
+      
+      // 1. Verify the native Supabase OTP
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: passwordForm.newEmail,
+        token: passwordForm.userOtpInput,
+        type: 'email_change'
+      });
 
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
-
-      if (error) {
-        setAppToast({ message: error.message, type: 'error' });
-      } else {
-        // Fire confirmation to OLD email
-        fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            emails: oldEmail, 
-            title: 'Security Alert: Email Address Changed', 
-            message: `Your Accord Pro account email was successfully changed to ${newEmail}. If you did not authorize this, please contact your Administrator immediately.` 
-          })
-        }).catch(err => console.error("Notify error:", err));
-
-        // Fire confirmation to NEW email
-        fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            emails: newEmail, 
-            title: 'Email Update Successful', 
-            message: `You have successfully verified and linked this email address to your ACCORD PRO account.` 
-          })
-        }).catch(err => console.error("Notify error:", err));
-
-        setAppToast({ message: "Email successfully updated!", type: 'success' });
-        setShowPasswordModal(false);
-        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      if (verifyError) {
+        return setAppToast({ message: "Invalid code: " + verifyError.message, type: 'error' });
       }
+
+      // 2. Force the public profiles table to update so the Registry syncs instantly
+      await supabase.from('profiles').update({ email: passwordForm.newEmail }).eq('id', session.user.id);
+      setProfile(prev => ({ ...prev, email: passwordForm.newEmail })); 
+
+      setAppToast({ message: "Email successfully updated!", type: 'success' });
+      setShowPasswordModal(false);
+      setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
     }
   };
 
@@ -2155,17 +2140,17 @@ const handleRequestEmailChange = async (e) => {
       return setAppToast({ message: "Please enter a new, valid email address.", type: 'error' });
     }
 
-    // 1. Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    setPasswordForm({ ...passwordForm, otpSent: true, generatedOtp: otp });
-    setAppToast({ message: "Sending OTP to your new email...", type: 'success' });
-
-    // 2. Fire OTP to the NEW email address
-    fetch('/api/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: passwordForm.newEmail, otp: otp })
-    }).catch(err => console.error("OTP email error:", err));
+    setLoading(true);
+    // Triggers Supabase's native "Confirm Email Change" template
+    const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
+    
+    if (error) {
+      setAppToast({ message: error.message, type: 'error' });
+    } else {
+      setPasswordForm({ ...passwordForm, otpSent: true });
+      setAppToast({ message: "Sending OTP to your NEW email...", type: 'success' });
+    }
+    setLoading(false);
   };
 
   const executeEditStaff = async (e) => {
@@ -3040,7 +3025,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3072,7 +3057,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3727,7 +3712,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3759,7 +3744,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
