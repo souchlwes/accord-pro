@@ -13,6 +13,38 @@ import {
   RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, Settings
 } from 'lucide-react';
 
+
+// --- GLOBAL THEME ENGINE ---
+export const THEME_OPTIONS = [
+  'blue', 'emerald', 'rose', 'amber', 'purple', 
+  'cyberpunk', 'sunset', 'ocean', 'matcha', 'lavender', 
+  'cherry', 'midnight', 'camcorder', 'hacker'
+];
+
+export const getTheme = (pref) => {
+  const themes = {
+    blue: { bg: 'bg-blue-600', hover: 'hover:bg-blue-500', text: 'text-blue-400', border: 'border-blue-500', glow: 'bg-blue-500/20', gradient: 'from-slate-900 via-blue-950 to-indigo-950' },
+    emerald: { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-500', text: 'text-emerald-400', border: 'border-emerald-500', glow: 'bg-emerald-500/20', gradient: 'from-slate-900 via-teal-950 to-emerald-950' },
+    rose: { bg: 'bg-rose-600', hover: 'hover:bg-rose-500', text: 'text-rose-400', border: 'border-rose-500', glow: 'bg-rose-500/20', gradient: 'from-slate-900 via-pink-950 to-rose-950' },
+    amber: { bg: 'bg-amber-500', hover: 'hover:bg-amber-400', text: 'text-amber-400', border: 'border-amber-400', glow: 'bg-amber-500/20', gradient: 'from-slate-900 via-orange-950 to-amber-950' },
+    purple: { bg: 'bg-purple-600', hover: 'hover:bg-purple-500', text: 'text-purple-400', border: 'border-purple-500', glow: 'bg-purple-500/20', gradient: 'from-slate-900 via-violet-950 to-purple-950' },
+    
+    // --- PREMIUM COMBINATIONS ---
+    cyberpunk: { bg: 'bg-fuchsia-600', hover: 'hover:bg-fuchsia-500', text: 'text-cyan-400', border: 'border-cyan-400', glow: 'bg-cyan-500/30', gradient: 'from-indigo-950 via-purple-900 to-fuchsia-950' },
+    sunset: { bg: 'bg-orange-500', hover: 'hover:bg-orange-400', text: 'text-orange-400', border: 'border-rose-500', glow: 'bg-orange-500/30', gradient: 'from-rose-950 via-orange-900 to-amber-950' },
+    ocean: { bg: 'bg-cyan-500', hover: 'hover:bg-cyan-400', text: 'text-cyan-400', border: 'border-blue-500', glow: 'bg-cyan-500/30', gradient: 'from-sky-950 via-cyan-900 to-teal-950' },
+    matcha: { bg: 'bg-lime-600', hover: 'hover:bg-lime-500', text: 'text-lime-400', border: 'border-green-500', glow: 'bg-lime-500/30', gradient: 'from-stone-950 via-green-900 to-lime-950' },
+    lavender: { bg: 'bg-indigo-400', hover: 'hover:bg-indigo-300', text: 'text-indigo-300', border: 'border-purple-400', glow: 'bg-indigo-400/30', gradient: 'from-slate-950 via-indigo-900 to-pink-950' },
+    cherry: { bg: 'bg-red-600', hover: 'hover:bg-red-500', text: 'text-red-400', border: 'border-rose-500', glow: 'bg-red-500/30', gradient: 'from-stone-950 via-red-900 to-rose-950' },
+    
+    // --- AESTHETIC VIBES ---
+    midnight: { bg: 'bg-slate-700', hover: 'hover:bg-slate-600', text: 'text-slate-300', border: 'border-slate-500', glow: 'bg-slate-600/30', gradient: 'from-black via-slate-900 to-slate-800' },
+    camcorder: { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-400', text: 'text-yellow-500', border: 'border-yellow-500', glow: 'bg-yellow-500/20', gradient: 'from-zinc-950 via-stone-900 to-black' },
+    hacker: { bg: 'bg-green-500', hover: 'hover:bg-green-400', text: 'text-green-400', border: 'border-green-500', glow: 'bg-green-500/20', gradient: 'from-black via-green-950 to-black' },
+  };
+  return themes[pref] || themes.blue;
+};
+
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
 const formatTime = (timeStr) => {
   if (!timeStr) return "";
@@ -969,6 +1001,7 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
+const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
 
@@ -1022,23 +1055,9 @@ const [dashboardView, setDashboardView] = useState('upcoming');
     return "Good Evening";
   };
 
-  const getTheme = (pref) => {
-    const themes = {
-      blue: { bg: 'bg-blue-600', hover: 'hover:bg-blue-500', text: 'text-blue-600', light: 'bg-blue-50 text-blue-600', border: 'border-blue-500', glow: 'bg-blue-500/10', gradient: 'from-blue-900 to-indigo-950' },
-      emerald: { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-500', text: 'text-emerald-600', light: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-500', glow: 'bg-emerald-500/10', gradient: 'from-emerald-900 to-teal-950' },
-      rose: { bg: 'bg-rose-600', hover: 'hover:bg-rose-500', text: 'text-rose-600', light: 'bg-rose-50 text-rose-600', border: 'border-rose-500', glow: 'bg-rose-500/10', gradient: 'from-rose-900 to-pink-950' },
-      amber: { bg: 'bg-amber-500', hover: 'hover:bg-amber-400', text: 'text-amber-500', light: 'bg-amber-50 text-amber-600', border: 'border-amber-400', glow: 'bg-amber-500/10', gradient: 'from-amber-900 to-orange-950' },
-      purple: { bg: 'bg-purple-600', hover: 'hover:bg-purple-500', text: 'text-purple-600', light: 'bg-purple-50 text-purple-600', border: 'border-purple-500', glow: 'bg-purple-500/10', gradient: 'from-purple-900 to-violet-950' },
-      cyan: { bg: 'bg-cyan-600', hover: 'hover:bg-cyan-500', text: 'text-cyan-600', light: 'bg-cyan-50 text-cyan-600', border: 'border-cyan-500', glow: 'bg-cyan-500/10', gradient: 'from-cyan-900 to-sky-950' },
-      fuchsia: { bg: 'bg-fuchsia-600', hover: 'hover:bg-fuchsia-500', text: 'text-fuchsia-600', light: 'bg-fuchsia-50 text-fuchsia-600', border: 'border-fuchsia-500', glow: 'bg-fuchsia-500/10', gradient: 'from-fuchsia-900 to-purple-950' },
-      slate: { bg: 'bg-slate-700', hover: 'hover:bg-slate-600', text: 'text-slate-700', light: 'bg-slate-100 text-slate-700', border: 'border-slate-600', glow: 'bg-slate-500/10', gradient: 'from-slate-800 to-slate-950' },
-      camcorder: { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-400', text: 'text-yellow-500', light: 'bg-black text-yellow-500', border: 'border-yellow-500', glow: 'bg-yellow-500/20', gradient: 'from-zinc-900 to-black' } // High-contrast retro tech vibe
-    };
-    return themes[pref || 'blue'];
-  };
   
-  // Call it once per render for the active profile
-  const activeTheme = getTheme(profile?.theme_pref);
+  
+  
 
   const nextAssignment = confirmedAssignments
     .filter(s => !isPast(s.exam_date, s.end_time))
@@ -1478,6 +1497,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
 // --- 4. MAIN APP COMPONENT ---
 function App() {
   // --- GLOBAL STATES ---
+  const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null); 
   const [loading, setLoading] = useState(true);
@@ -2776,28 +2796,31 @@ const executeAddDepartment = async (e) => {
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 overflow-hidden relative">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Personalization & Security</h2>
+                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Personalization</h2>
                 <button onClick={() => setShowPasswordModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200"><X size={16}/></button>
               </div>
 
               <div className="space-y-8">
-                {/* Theme Selector */}
+                {/* Premium Gradient Wheel */}
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Dashboard Theme</label>
-                  <div className="flex flex-wrap gap-3 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
-                    {['blue', 'emerald', 'rose', 'amber', 'purple', 'cyan', 'fuchsia', 'slate', 'camcorder'].map(color => (
-                      <button 
-                        key={color} 
-                        onClick={async () => {
-                           await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
-                           setProfile({...profile, theme_pref: color});
-                        }}
-                        className={`w-10 h-10 rounded-full shadow-sm transition-all flex items-center justify-center border-4 ${profile?.theme_pref === color ? 'scale-110 border-slate-900' : 'border-transparent hover:scale-105'} ${getTheme(color).bg}`}
-                        title={color.charAt(0).toUpperCase() + color.slice(1)}
-                      >
-                        {profile?.theme_pref === color && <CheckCircle2 size={16} className={color === 'camcorder' || color === 'slate' ? 'text-black' : 'text-white'} />}
-                      </button>
-                    ))}
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Dashboard Theme Palette</label>
+                  <div className="flex overflow-x-auto custom-scrollbar pb-4 gap-4 snap-x p-2">
+                    {THEME_OPTIONS.map(color => {
+                      const t = getTheme(color);
+                      return (
+                        <button 
+                          key={color} 
+                          onClick={async () => {
+                             await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
+                             setProfile({...profile, theme_pref: color});
+                          }}
+                          className={`shrink-0 snap-center w-16 h-16 rounded-full shadow-lg transition-all flex items-center justify-center border-4 bg-gradient-to-br ${t.gradient} ${profile?.theme_pref === color ? 'border-indigo-500 scale-110 shadow-indigo-500/50 ring-4 ring-indigo-100' : 'border-slate-800 hover:scale-105'}`}
+                          title={color.charAt(0).toUpperCase() + color.slice(1)}
+                        >
+                          {profile?.theme_pref === color && <CheckCircle2 size={24} className="text-white drop-shadow-md" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -3425,33 +3448,36 @@ const executeAddDepartment = async (e) => {
         )}
 
       {/* --- CHANGE PASSWORD MODAL --- */}
-       {/* --- PREMIUM SETTINGS HUB --- */}
+     {/* --- PREMIUM SETTINGS HUB --- */}
         {showPasswordModal && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 overflow-hidden relative">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Personalization & Security</h2>
+                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Personalization</h2>
                 <button onClick={() => setShowPasswordModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200"><X size={16}/></button>
               </div>
 
               <div className="space-y-8">
-                {/* Theme Selector */}
+                {/* Premium Gradient Wheel */}
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Dashboard Theme</label>
-                  <div className="flex flex-wrap gap-3 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
-                    {['blue', 'emerald', 'rose', 'amber', 'purple', 'cyan', 'fuchsia', 'slate', 'camcorder'].map(color => (
-                      <button 
-                        key={color} 
-                        onClick={async () => {
-                           await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
-                           setProfile({...profile, theme_pref: color});
-                        }}
-                        className={`w-10 h-10 rounded-full shadow-sm transition-all flex items-center justify-center border-4 ${profile?.theme_pref === color ? 'scale-110 border-slate-900' : 'border-transparent hover:scale-105'} ${getTheme(color).bg}`}
-                        title={color.charAt(0).toUpperCase() + color.slice(1)}
-                      >
-                        {profile?.theme_pref === color && <CheckCircle2 size={16} className={color === 'camcorder' || color === 'slate' ? 'text-black' : 'text-white'} />}
-                      </button>
-                    ))}
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Dashboard Theme Palette</label>
+                  <div className="flex overflow-x-auto custom-scrollbar pb-4 gap-4 snap-x p-2">
+                    {THEME_OPTIONS.map(color => {
+                      const t = getTheme(color);
+                      return (
+                        <button 
+                          key={color} 
+                          onClick={async () => {
+                             await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
+                             setProfile({...profile, theme_pref: color});
+                          }}
+                          className={`shrink-0 snap-center w-16 h-16 rounded-full shadow-lg transition-all flex items-center justify-center border-4 bg-gradient-to-br ${t.gradient} ${profile?.theme_pref === color ? 'border-indigo-500 scale-110 shadow-indigo-500/50 ring-4 ring-indigo-100' : 'border-slate-800 hover:scale-105'}`}
+                          title={color.charAt(0).toUpperCase() + color.slice(1)}
+                        >
+                          {profile?.theme_pref === color && <CheckCircle2 size={24} className="text-white drop-shadow-md" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
