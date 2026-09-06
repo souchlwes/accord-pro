@@ -1519,6 +1519,12 @@ const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   // --- AUTH & REGISTRATION STATES ---
   const [email, setEmail] = useStickyState('', 'draft_email');
   const [password, setPassword] = useState('');
+  
+  // --- PASSWORD RECOVERY STATES ---
+  const [forgotStep, setForgotStep] = useState('email'); 
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
+
   const [fullName, setFullName] = useStickyState('', 'draft_name'); 
   const [regRole, setRegRole] = useStickyState('PROCTOR', 'draft_role'); 
   const [regDept, setRegDept] = useStickyState('', 'draft_dept'); 
@@ -1798,13 +1804,16 @@ const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
       loadUserSession(initialSession);
     });
 
-    // 3. Listen for Auth State Changes (Login / Logout / Expiry)
+   // 3. Listen for Auth State Changes (Login / Logout / Expiry / Recovery)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!isMounted) return;
       
-      // We ignore INITIAL_SESSION here because getSession() already handled it!
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         loadUserSession(currentSession);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Automatically pop open the reset modal when they click the email link
+        setShowPasswordModal(true);
+        setPasswordForm(prev => ({ ...prev, tab: 'password' }));
       } else if (event === 'SIGNED_OUT') {
         setSession(null); setProfile(null); setDepartments([]); setGlobalSchedule([]); setGlobalAvailability([]); setLoading(false);
       }
@@ -1964,6 +1973,65 @@ useEffect(() => {
     });
   };
 
+const handleForgotSendOtp = async (e) => {
+    e.preventDefault();
+    if (!email) return setAppToast({ message: "Please enter your email.", type: 'error' });
+    setLoading(true);
+    
+    // Supabase native OTP recovery trigger
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    
+    if (error) {
+      setAppToast({ message: error.message, type: 'error' });
+    } else {
+      setAppToast({ message: "6-Digit OTP sent to your email!", type: 'success' });
+      setForgotStep('otp');
+    }
+    setLoading(false);
+  };
+
+  const handleForgotVerifyAndSave = async (e) => {
+    e.preventDefault();
+    if (forgotOtp.length < 6 || !forgotNewPass) {
+      return setAppToast({ message: "Please enter the OTP and a new password.", type: 'error' });
+    }
+    setLoading(true);
+
+    // 1. Verify OTP (Securely authenticates the recovery session)
+    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: forgotOtp, type: 'recovery' });
+    
+    if (verifyError) {
+      setAppToast({ message: verifyError.message, type: 'error' });
+      setLoading(false);
+      return;
+    }
+
+    // 2. Apply the new password
+    const { error: updateError } = await supabase.auth.updateUser({ password: forgotNewPass });
+
+    if (updateError) {
+      setAppToast({ message: updateError.message, type: 'error' });
+    } else {
+      // 3. Fire the success notification
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          emails: email, 
+          title: 'Security Alert: Password Recovered', 
+          message: `Your Accord Pro account password was successfully reset. If you did not authorize this, contact an Admin immediately.` 
+        })
+      }).catch(err => console.error("Notify error:", err));
+
+      setAppToast({ message: "Password recovered successfully!", type: 'success' });
+      setAuthMode('login');
+      setForgotStep('email');
+      setForgotOtp('');
+      setForgotNewPass('');
+    }
+    setLoading(false);
+  };
+
   const handleCreateAccount = () => {
     setCreateModal({ isOpen: true, name: '', email: '', pass: '', dept: '' });
   };
@@ -2033,11 +2101,22 @@ const handleVerifyOtpAndUpdate = async (e) => {
       return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
     }
 
-    if (passwordForm.tab === 'password') {
+   if (passwordForm.tab === 'password') {
       const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
       if (error) {
         setAppToast({ message: error.message, type: 'error' });
       } else {
+        // Fire confirmation to the user's email
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            emails: session?.user?.email, 
+            title: 'Security Alert: Password Changed', 
+            message: `Your Accord Pro account password was successfully updated. If you did not authorize this change, please contact your Administrator immediately.` 
+          })
+        }).catch(err => console.error("Notify error:", err));
+
         setAppToast({ message: "Password successfully updated!", type: 'success' });
         setShowPasswordModal(false);
         setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
@@ -2531,18 +2610,60 @@ const executeAddDepartment = async (e) => {
                 const {error}=await supabase.auth.signInWithPassword({email,password}); 
                 if(error) setAppToast({ message: error.message, type: "error" });
               }}>
-                <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                
-                <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
-                  Sign In
-                </button>
-              </form>
+               <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+
+{/* Changed mb-8 to mb-4 to make room for the link */}
+<input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-4 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+
+<div className="flex justify-end mb-6">
+  <button type="button" onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-blue-600 uppercase hover:underline">
+    Forgot Password?
+  </button>
+</div>
+
+<button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
+  Sign In
+</button>
+</form>
               
               <div className="pt-6 border-t-2 border-slate-50">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
                 <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-100 transition-all active:scale-95">
                   Create New Account
+                </button>
+              </div>
+            </div>
+
+           ) : authMode === 'forgot' ? (
+            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 text-center">Account Recovery</p>
+              
+              {forgotStep === 'email' ? (
+                <form onSubmit={handleForgotSendOtp}>
+                  <input type="email" placeholder="Enter your registered email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-6 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all text-center"/>
+                  
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all mb-6 shadow-xl active:scale-95 disabled:opacity-50">
+                    {loading ? "Sending..." : "Send OTP Code"}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleForgotVerifyAndSave}>
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6 text-center">
+                     <p className="text-[10px] font-bold text-blue-800">OTP sent to <strong>{email}</strong></p>
+                  </div>
+                  
+                  <input type="text" maxLength="6" placeholder="6-Digit OTP" value={forgotOtp} onChange={e=>setForgotOtp(e.target.value.toUpperCase())} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-black text-xl text-center tracking-[0.5em] border-2 border-transparent focus:border-blue-500 outline-none transition-all uppercase"/>
+                  <input type="password" placeholder="Create New Password" value={forgotNewPass} onChange={e=>setForgotNewPass(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-6 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all text-center"/>
+                  
+                  <button type="submit" disabled={loading || forgotOtp.length < 6} className="w-full bg-emerald-500 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 transition-all shadow-xl active:scale-95">
+                    {loading ? "Verifying..." : "Verify & Save Password"}
+                  </button>
+                </form>
+              )}
+              
+              <div className="pt-6 border-t-2 border-slate-50">
+                <button onClick={() => { setAuthMode('login'); setForgotStep('email'); }} className="w-full bg-slate-50 text-slate-500 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <ArrowLeft size={14}/> Back to Login
                 </button>
               </div>
             </div>
