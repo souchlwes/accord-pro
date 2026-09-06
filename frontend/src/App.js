@@ -2027,21 +2027,56 @@ useEffect(() => {
     }).catch(err => console.error("OTP email error:", err));
   };
 
-  const handleVerifyOtpAndUpdate = async (e) => {
+const handleVerifyOtpAndUpdate = async (e) => {
     e.preventDefault();
     if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
       return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
     }
 
-    // 3. OTP matches! Safely update the password in Supabase
-    const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+    if (passwordForm.tab === 'password') {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+      if (error) {
+        setAppToast({ message: error.message, type: 'error' });
+      } else {
+        setAppToast({ message: "Password successfully updated!", type: 'success' });
+        setShowPasswordModal(false);
+        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      }
+    } else if (passwordForm.tab === 'email') {
+      const oldEmail = session.user.email;
+      const newEmail = passwordForm.newEmail;
 
-    if (error) {
-      setAppToast({ message: error.message, type: 'error' });
-    } else {
-      setAppToast({ message: "Password successfully updated!", type: 'success' });
-      setShowPasswordModal(false);
-      setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' });
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+
+      if (error) {
+        setAppToast({ message: error.message, type: 'error' });
+      } else {
+        // Fire confirmation to OLD email
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            emails: oldEmail, 
+            title: 'Security Alert: Email Address Changed', 
+            message: `Your Accord Pro account email was successfully changed to ${newEmail}. If you did not authorize this, please contact your Administrator immediately.` 
+          })
+        }).catch(err => console.error("Notify error:", err));
+
+        // Fire confirmation to NEW email
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            emails: newEmail, 
+            title: 'Email Update Successful', 
+            message: `You have successfully verified and linked this email address to your ACCORD PRO account.` 
+          })
+        }).catch(err => console.error("Notify error:", err));
+
+        setAppToast({ message: "Email successfully updated!", type: 'success' });
+        setShowPasswordModal(false);
+        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      }
     }
   };
 
@@ -2050,17 +2085,18 @@ const handleRequestEmailChange = async (e) => {
     if (!passwordForm.newEmail || passwordForm.newEmail === session?.user?.email) {
       return setAppToast({ message: "Please enter a new, valid email address.", type: 'error' });
     }
-    
-    // Supabase built-in secure email change trigger
-    const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
-    
-    if (error) {
-      setAppToast({ message: error.message, type: 'error' });
-    } else {
-      setAppToast({ message: "Verification link sent! Check your new inbox.", type: 'success' });
-      setShowPasswordModal(false);
-      setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
-    }
+
+    // 1. Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setPasswordForm({ ...passwordForm, otpSent: true, generatedOtp: otp });
+    setAppToast({ message: "Sending OTP to your new email...", type: 'success' });
+
+    // 2. Fire OTP to the NEW email address
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: passwordForm.newEmail, otp: otp })
+    }).catch(err => console.error("OTP email error:", err));
   };
 
   const executeEditStaff = async (e) => {
@@ -2489,16 +2525,19 @@ const executeAddDepartment = async (e) => {
             </div>
           ) : authMode === 'login' ? (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
-              <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-              <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-              
-              <button onClick={async () => {
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
                 const {error}=await supabase.auth.signInWithPassword({email,password}); 
                 if(error) setAppToast({ message: error.message, type: "error" });
-              }} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
-                Sign In
-              </button>
+              }}>
+                <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-8 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                
+                <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
+                  Sign In
+                </button>
+              </form>
               
               <div className="pt-6 border-t-2 border-slate-50">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
@@ -2513,11 +2552,11 @@ const executeAddDepartment = async (e) => {
                  {otpMode ? "Verify Your Email" : "Staff Registration"}
               </p>
               
-              {!otpMode ? (
-                <>
+             {!otpMode ? (
+                <form onSubmit={(e) => { e.preventDefault(); executeRegistration(); }}>
                   <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                    <button onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'join' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Join Workspace</button>
-                    <button onClick={() => { setRegMode('new'); setRegRole('HEAD_ADMIN'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'new' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>New University</button>
+                    <button type="button" onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'join' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Join Workspace</button>
+                    <button type="button" onClick={() => { setRegMode('new'); setRegRole('HEAD_ADMIN'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'new' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>New University</button>
                   </div>
 
                   <div className="space-y-3 mb-6">
@@ -2538,21 +2577,21 @@ const executeAddDepartment = async (e) => {
                     )}
                   </div>
                   
-                  <button onClick={executeRegistration} disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
                     {loading ? "Processing..." : "Send Verification Code"}
                   </button>
-                </>
+                </form>
               ) : (
-                <div className="space-y-4 mb-6">
+                <form onSubmit={(e) => { e.preventDefault(); executeVerifyOtp(); }} className="space-y-4 mb-6">
                   <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
                      <p className="text-[10px] font-bold text-blue-800 text-center">We sent a 6-digit code to <strong>{email}</strong></p>
                   </div>
                   <input type="text" maxLength="6" placeholder="Enter 6-Digit Code" value={otpCode} onChange={e=>setOtpCode(e.target.value)} className="w-full bg-slate-50 p-6 rounded-2xl font-black text-2xl text-center tracking-[0.5em] border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
                   
-                  <button onClick={executeVerifyOtp} disabled={loading || otpCode.length < 6} className="w-full bg-emerald-500 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 transition-all shadow-xl active:scale-95">
+                  <button type="submit" disabled={loading || otpCode.length < 6} className="w-full bg-emerald-500 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 transition-all shadow-xl active:scale-95">
                     {loading ? "Verifying..." : "Verify & Complete"}
                   </button>
-                </div>
+                </form>
               )}
               
               <div className="pt-6 border-t-2 border-slate-50">
@@ -2902,23 +2941,37 @@ const executeAddDepartment = async (e) => {
                 )
               ) : (
                 /* Email Change Tab */
-                <form onSubmit={handleRequestEmailChange}>
-                  <div className="mb-4">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
-                    <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
-                      value={session?.user?.email || ''} />
-                  </div>
-                  <div className="mb-6">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
-                    <input type="email" required placeholder="new@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
-                      value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
-                    <p className="text-[9px] font-bold text-slate-400 mt-2 ml-2 leading-snug">Supabase will send a secure verification link to this new inbox.</p>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Update Email</button>
-                  </div>
-                </form>
+                !passwordForm.otpSent ? (
+                  <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
+                      <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
+                        value={session?.user?.email || ''} />
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
+                      <input type="email" required placeholder="new@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                        value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtpAndUpdate}>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
+                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+                      <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
+                        value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                    </div>
+                  </form>
+                )
               )}
             </div>
           </div>
@@ -3528,7 +3581,7 @@ const executeAddDepartment = async (e) => {
         )}
 
       {/* --- CHANGE PASSWORD MODAL --- */}
-       {/* --- ACCOUNT SETTINGS MODAL --- */}
+      {/* --- ACCOUNT SETTINGS MODAL --- */}
         {showPasswordModal && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
@@ -3576,23 +3629,37 @@ const executeAddDepartment = async (e) => {
                 )
               ) : (
                 /* Email Change Tab */
-                <form onSubmit={handleRequestEmailChange}>
-                  <div className="mb-4">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
-                    <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
-                      value={session?.user?.email || ''} />
-                  </div>
-                  <div className="mb-6">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
-                    <input type="email" required placeholder="new@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
-                      value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
-                    <p className="text-[9px] font-bold text-slate-400 mt-2 ml-2 leading-snug">Supabase will send a secure verification link to this new inbox.</p>
-                  </div>
-                  <div className="flex justify-end gap-4 pt-2">
-                    <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Update Email</button>
-                  </div>
-                </form>
+                !passwordForm.otpSent ? (
+                  <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
+                      <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
+                        value={session?.user?.email || ''} />
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
+                      <input type="email" required placeholder="new@accord.edu" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                        value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtpAndUpdate}>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
+                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+                      <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
+                        value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                    </div>
+                  </form>
+                )
               )}
             </div>
           </div>
