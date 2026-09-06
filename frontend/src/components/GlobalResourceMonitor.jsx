@@ -5,7 +5,7 @@ import {
   ShieldAlert, Tag, RotateCcw, LayoutDashboard, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-const ITEMS_PER_PAGE = 8; // Adjust this number to show more/fewer items per page
+const ITEMS_PER_PAGE = 8; 
 
 const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, onViewProctor }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,6 +16,17 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
   const [proctorPage, setProctorPage] = useState(1);
   const [roomPage, setRoomPage] = useState(1);
 
+  // Sorting States
+  const [sortMode, setSortMode] = useState("A-Z");
+  const [isSortOpen, setIsSortOpen] = useState(false);
+
+  const sortOptions = [
+    { id: 'A-Z', label: 'A-Z / 1-9 (Ascend)' },
+    { id: 'Z-A', label: 'Z-A / 9-1 (Descend)' },
+    { id: 'NEWEST', label: 'Newest First' },
+    { id: 'OLDEST', label: 'Oldest First' }
+  ];
+
   // --- DATA PREPARATION ---
   const allProctors = useMemo(() => {
     return (allProfiles || [])
@@ -23,31 +34,55 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
       .map(p => ({
         id: p.id,
         name: p.full_name || p.name,
-        deptCode: p.assigned_dept || 'GLOBAL'
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+        deptCode: p.assigned_dept || 'GLOBAL',
+        created_at: p.created_at // Needed for newest/oldest sort
+      }));
   }, [allProfiles]);
 
   const allRooms = useMemo(() => {
     return allDepartments.flatMap(d => d.rooms.map(r => ({ ...r, deptCode: d.code })));
   }, [allDepartments]);
 
-  // --- SEARCH FILTERING ---
+  // --- SEARCH & SORT ENGINE ---
   const filteredProctors = useMemo(() => {
-    if (!searchTerm) return allProctors;
-    return allProctors.filter(p => p.name.toUpperCase().includes(searchTerm));
-  }, [allProctors, searchTerm]);
+    let filtered = allProctors;
+    if (searchTerm) {
+      filtered = filtered.filter(p => p.name.toUpperCase().includes(searchTerm));
+    }
+    return [...filtered].sort((a, b) => {
+       if (sortMode === 'A-Z') return a.name.localeCompare(b.name);
+       if (sortMode === 'Z-A') return b.name.localeCompare(a.name);
+       
+       const dateA = new Date(a.created_at || 0).getTime();
+       const dateB = new Date(b.created_at || 0).getTime();
+       if (sortMode === 'NEWEST') return dateB - dateA;
+       if (sortMode === 'OLDEST') return dateA - dateB;
+       return 0;
+    });
+  }, [allProctors, searchTerm, sortMode]);
 
   const filteredRooms = useMemo(() => {
-    if (!searchTerm) return allRooms;
-    return allRooms.filter(r => r.number.toUpperCase().includes(searchTerm));
-  }, [allRooms, searchTerm]);
+    let filtered = allRooms;
+    if (searchTerm) {
+      filtered = filtered.filter(r => r.number.toUpperCase().includes(searchTerm));
+    }
+    return [...filtered].sort((a, b) => {
+       // {numeric: true} allows "Room 2" to properly sort before "Room 10"
+       if (sortMode === 'A-Z') return String(a.number).localeCompare(String(b.number), undefined, {numeric: true});
+       if (sortMode === 'Z-A') return String(b.number).localeCompare(String(a.number), undefined, {numeric: true});
+       
+       // Room IDs act as creation timestamps in the system
+       if (sortMode === 'NEWEST') return b.id - a.id;
+       if (sortMode === 'OLDEST') return a.id - b.id;
+       return 0;
+    });
+  }, [allRooms, searchTerm, sortMode]);
 
-  // Reset pagination when search changes so user doesn't get stuck on an empty page
+  // Reset pagination when search or filters change
   React.useEffect(() => {
     setProctorPage(1);
     setRoomPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, sortMode]);
 
   // --- PAGINATION LOGIC ---
   const paginatedProctors = filteredProctors.slice((proctorPage - 1) * ITEMS_PER_PAGE, proctorPage * ITEMS_PER_PAGE);
@@ -109,20 +144,54 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
             <h2 className="text-3xl font-black uppercase italic text-slate-900 tracking-tighter">Global <span className="text-blue-600">Resource</span> Monitor</h2>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Live Deployment & Dashboard Launcher</p>
         </div>
-        <div className="relative w-full md:w-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
-            <input 
-                type="text" 
-                placeholder="Search to locate & view..." 
-                className="pl-10 pr-6 py-3 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase w-full md:w-72 focus:border-blue-500 outline-none transition-all shadow-sm"
-                onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
-                value={searchTerm}
-            />
-            {searchTerm && (
-               <button onClick={() => setSearchTerm("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
-                  <RotateCcw size={12}/>
-               </button>
+        
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          {/* SEARCH BAR */}
+          <div className="relative w-full md:w-auto">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+              <input 
+                  type="text" 
+                  placeholder="Search to locate & view..." 
+                  className="pl-10 pr-8 py-3 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase w-full md:w-64 focus:border-blue-500 outline-none transition-all shadow-sm"
+                  onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
+                  value={searchTerm}
+              />
+              {searchTerm && (
+                 <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
+                    <RotateCcw size={12}/>
+                 </button>
+              )}
+          </div>
+          
+          {/* SORT DROPDOWN */}
+          <div className="relative w-full md:w-auto z-20">
+            <button 
+              onClick={() => setIsSortOpen(!isSortOpen)} 
+              className={`flex items-center justify-between gap-3 bg-white border-2 rounded-2xl p-3 min-w-[160px] w-full md:w-auto transition-all active:scale-95 h-full shadow-sm ${isSortOpen ? 'border-blue-500 text-blue-600' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}
+            >
+              <span className="text-[9px] font-black uppercase tracking-widest mt-0.5">
+                {sortOptions.find(o => o.id === sortMode)?.label}
+              </span>
+              <ChevronDown size={14} className={`transition-transform duration-300 ${isSortOpen ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} />
+            </button>
+
+            {isSortOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsSortOpen(false)}></div>
+                <div className="absolute top-full right-0 mt-2 w-full min-w-[160px] bg-white border-2 border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  {sortOptions.map(opt => (
+                    <button 
+                      key={opt.id}
+                      onClick={() => { setSortMode(opt.id); setIsSortOpen(false); }}
+                      className={`w-full text-left px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all hover:bg-blue-50 hover:text-blue-600 ${sortMode === opt.id ? 'bg-blue-50 text-blue-600' : 'text-slate-500'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
+          </div>
         </div>
       </div>
 
