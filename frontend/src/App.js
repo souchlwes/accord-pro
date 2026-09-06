@@ -2111,26 +2111,27 @@ const handleVerifyOtpAndUpdate = async (e) => {
         setShowPasswordModal(false);
         setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
       }
-    } else if (passwordForm.tab === 'email') {
+   } else if (passwordForm.tab === 'email') {
       
-      // 1. Verify the native Supabase OTP
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email: passwordForm.newEmail,
-        token: passwordForm.userOtpInput,
-        type: 'email_change'
-      });
-
-      if (verifyError) {
-        return setAppToast({ message: "Invalid code: " + verifyError.message, type: 'error' });
+      // 1. Verify custom OTP
+      if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
+        return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
       }
 
-      // 2. Force the public profiles table to update so the Registry syncs instantly
-      await supabase.from('profiles').update({ email: passwordForm.newEmail }).eq('id', session.user.id);
-      setProfile(prev => ({ ...prev, email: passwordForm.newEmail })); 
+      // 2. Update Auth (Instantly applied because native confirmation is OFF)
+      const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
 
-      setAppToast({ message: "Email successfully updated!", type: 'success' });
-      setShowPasswordModal(false);
-      setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      if (error) {
+        setAppToast({ message: error.message, type: 'error' });
+      } else {
+        // 3. Sync Public Registry instantly
+        await supabase.from('profiles').update({ email: passwordForm.newEmail }).eq('id', session.user.id);
+        setProfile(prev => ({ ...prev, email: passwordForm.newEmail })); 
+
+        setAppToast({ message: "Email successfully updated!", type: 'success' });
+        setShowPasswordModal(false);
+        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      }
     }
   };
 
@@ -2140,17 +2141,21 @@ const handleRequestEmailChange = async (e) => {
       return setAppToast({ message: "Please enter a new, valid email address.", type: 'error' });
     }
 
-    setLoading(true);
-    // Triggers Supabase's native "Confirm Email Change" template
-    const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
-    
-    if (error) {
-      setAppToast({ message: error.message, type: 'error' });
-    } else {
-      setPasswordForm({ ...passwordForm, otpSent: true });
-      setAppToast({ message: "Sending OTP to your NEW email...", type: 'success' });
-    }
-    setLoading(false);
+    // 1. Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setPasswordForm({ ...passwordForm, otpSent: true, generatedOtp: otp });
+    setAppToast({ message: "Sending OTP to your CURRENT email...", type: 'success' });
+
+    // 2. Fire OTP to CURRENT email using your custom Accord Pro template
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        emails: session.user.email, 
+        title: 'Email Update Verification Code', 
+        message: `You requested to change your Accord Pro email to ${passwordForm.newEmail}. Enter this 6-digit OTP to verify your identity: ${otp}` 
+      })
+    }).catch(err => console.error("OTP email error:", err));
   };
 
   const executeEditStaff = async (e) => {
@@ -3025,7 +3030,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3057,7 +3062,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3712,7 +3717,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
@@ -3744,7 +3749,7 @@ const executeAddDepartment = async (e) => {
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
+<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
