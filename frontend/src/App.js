@@ -1561,7 +1561,7 @@ const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   const [appToast, setAppToast] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ 
-    tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' 
+    tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' 
   });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
@@ -2112,50 +2112,81 @@ const handleVerifyOtpAndUpdate = async (e) => {
         setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
       }
    } else if (passwordForm.tab === 'email') {
-      
-      // 1. Verify custom OTP
-      if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
-        return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
+      const oldEmail = session.user.email;
+      const newEmail = passwordForm.newEmail;
+
+      // 1. Verify the OTP sent to the new email
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: newEmail,
+        token: passwordForm.userOtpInput,
+        type: 'email_change'
+      });
+
+      if (verifyError) {
+        return setAppToast({ message: "Invalid code: " + verifyError.message, type: 'error' });
       }
 
-      // 2. Update Auth (Instantly applied because native confirmation is OFF)
-      const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
+      // 2. Sync Public Registry instantly
+      await supabase.from('profiles').update({ email: newEmail }).eq('id', session.user.id);
+      setProfile(prev => ({ ...prev, email: newEmail })); 
 
-      if (error) {
-        setAppToast({ message: error.message, type: 'error' });
-      } else {
-        // 3. Sync Public Registry instantly
-        await supabase.from('profiles').update({ email: passwordForm.newEmail }).eq('id', session.user.id);
-        setProfile(prev => ({ ...prev, email: passwordForm.newEmail })); 
+      // 3. Fire hijack-alert to OLD email
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          emails: oldEmail, 
+          title: 'Security Alert: Email Address Changed', 
+          message: `Your Accord Pro account email was just changed to ${newEmail}. If you did not authorize this, contact an Admin immediately.` 
+        })
+      }).catch(err => console.error(err));
 
-        setAppToast({ message: "Email successfully updated!", type: 'success' });
-        setShowPasswordModal(false);
-        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
-      }
+      // 4. Fire confirmation to NEW email
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          emails: newEmail, 
+          title: 'Email Update Successful', 
+          message: `You have successfully verified and linked this email address to your Accord Pro account.` 
+        })
+      }).catch(err => console.error(err));
+
+      setAppToast({ message: "Email successfully updated!", type: 'success' });
+      setShowPasswordModal(false);
+      setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
     }
   };
 
 const handleRequestEmailChange = async (e) => {
     e.preventDefault();
+    if (!passwordForm.currentPass) return setAppToast({ message: "Please enter your current password.", type: 'error' });
     if (!passwordForm.newEmail || passwordForm.newEmail === session?.user?.email) {
-      return setAppToast({ message: "Please enter a new, valid email address.", type: 'error' });
+      return setAppToast({ message: "Please enter a valid new email address.", type: 'error' });
     }
 
-    // 1. Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    setPasswordForm({ ...passwordForm, otpSent: true, generatedOtp: otp });
-    setAppToast({ message: "Sending OTP to your CURRENT email...", type: 'success' });
+    setLoading(true);
+    // 1. Verify current password securely before allowing the change
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: session.user.email,
+      password: passwordForm.currentPass
+    });
 
-    // 2. Fire OTP to CURRENT email using your custom Accord Pro template
-    fetch('/api/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        emails: session.user.email, 
-        title: 'Email Update Verification Code', 
-        message: `You requested to change your Accord Pro email to ${passwordForm.newEmail}. Enter this 6-digit OTP to verify your identity: ${otp}` 
-      })
-    }).catch(err => console.error("OTP email error:", err));
+    if (authError) {
+      setLoading(false);
+      return setAppToast({ message: "Incorrect current password.", type: 'error' });
+    }
+
+    // 2. Trigger native OTP to the new email
+    const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
+    
+    if (error) {
+      setAppToast({ message: error.message, type: 'error' });
+    } else {
+      setPasswordForm({ ...passwordForm, otpSent: true });
+      setAppToast({ message: "Sending OTP to your NEW email...", type: 'success' });
+    }
+    setLoading(false);
   };
 
   const executeEditStaff = async (e) => {
@@ -3043,10 +3074,11 @@ const executeAddDepartment = async (e) => {
               ) : (
                 /* Email Change Tab */
                 !passwordForm.otpSent ? (
-                  <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
-                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
+                 <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Password</label>
+                      <input type="password" required placeholder="Verify your identity" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                        value={passwordForm.currentPass || ''} onChange={(e) => setPasswordForm({ ...passwordForm, currentPass: e.target.value })} />
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
@@ -3054,7 +3086,7 @@ const executeAddDepartment = async (e) => {
                         value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
-                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                       <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
                     </div>
                   </form>
@@ -3730,10 +3762,11 @@ const executeAddDepartment = async (e) => {
               ) : (
                 /* Email Change Tab */
                 !passwordForm.otpSent ? (
-                  <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
-                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
+                <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Password</label>
+                      <input type="password" required placeholder="Verify your identity" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                        value={passwordForm.currentPass || ''} onChange={(e) => setPasswordForm({ ...passwordForm, currentPass: e.target.value })} />
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
@@ -3741,7 +3774,7 @@ const executeAddDepartment = async (e) => {
                         value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
-                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                       <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
                     </div>
                   </form>
