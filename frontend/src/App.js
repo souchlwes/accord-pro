@@ -1561,7 +1561,7 @@ const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   const [appToast, setAppToast] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ 
-    tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' 
+    tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' 
   });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
@@ -2097,25 +2097,28 @@ const handleForgotSendOtp = async (e) => {
 
 const handleVerifyOtpAndUpdate = async (e) => {
     e.preventDefault();
-    if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
-      return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
-    }
 
-   if (passwordForm.tab === 'password') {
+    if (passwordForm.tab === 'password') {
+      
+      // 1. Only check the custom generated OTP for password resets
+      if (passwordForm.userOtpInput !== passwordForm.generatedOtp) {
+        return setAppToast({ message: "Incorrect OTP code. Please try again.", type: 'error' });
+      }
+
       const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
       if (error) {
         setAppToast({ message: error.message, type: 'error' });
       } else {
-        // Removed the redundant /api/notify call here so it doesn't send twice!
         setAppToast({ message: "Password successfully updated!", type: 'success' });
         setShowPasswordModal(false);
-        setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+        setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
       }
-   } else if (passwordForm.tab === 'email') {
+
+    } else if (passwordForm.tab === 'email') {
       const oldEmail = session.user.email;
       const newEmail = passwordForm.newEmail;
 
-      // 1. Verify the OTP sent to the new email
+      // 1. Verify the native OTP sent to the new email
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: newEmail,
         token: passwordForm.userOtpInput,
@@ -2154,31 +2157,37 @@ const handleVerifyOtpAndUpdate = async (e) => {
 
       setAppToast({ message: "Email successfully updated!", type: 'success' });
       setShowPasswordModal(false);
-      setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
+      setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
     }
   };
-
-const handleRequestEmailChange = async (e) => {
+  
+const handleVerifyCurrentPassword = async (e) => {
     e.preventDefault();
     if (!passwordForm.currentPass) return setAppToast({ message: "Please enter your current password.", type: 'error' });
+    
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: session.user.email,
+      password: passwordForm.currentPass
+    });
+    setLoading(false);
+
+    if (error) {
+      return setAppToast({ message: "Incorrect current password.", type: 'error' });
+    }
+    
+    setPasswordForm({ ...passwordForm, passVerified: true });
+  };
+
+  const handleRequestEmailChange = async (e) => {
+    e.preventDefault();
     if (!passwordForm.newEmail || passwordForm.newEmail === session?.user?.email) {
       return setAppToast({ message: "Please enter a valid new email address.", type: 'error' });
     }
 
     setLoading(true);
-    // 1. Verify current password securely before allowing the change
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: session.user.email,
-      password: passwordForm.currentPass
-    });
-
-    if (authError) {
-      setLoading(false);
-      return setAppToast({ message: "Incorrect current password.", type: 'error' });
-    }
-
-    // 2. Trigger native OTP to the new email
     const { error } = await supabase.auth.updateUser({ email: passwordForm.newEmail });
+    setLoading(false);
     
     if (error) {
       setAppToast({ message: error.message, type: 'error' });
@@ -2186,7 +2195,6 @@ const handleRequestEmailChange = async (e) => {
       setPasswordForm({ ...passwordForm, otpSent: true });
       setAppToast({ message: "Sending OTP to your NEW email...", type: 'success' });
     }
-    setLoading(false);
   };
 
   const executeEditStaff = async (e) => {
@@ -3073,12 +3081,23 @@ const executeAddDepartment = async (e) => {
                 )
               ) : (
                 /* Email Change Tab */
-                !passwordForm.otpSent ? (
-                 <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Password</label>
-                      <input type="password" required placeholder="Verify your identity" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                !passwordForm.passVerified ? (
+                  <form onSubmit={handleVerifyCurrentPassword}>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Verify Identity</label>
+                      <input type="password" required placeholder="Enter Current Password" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
                         value={passwordForm.currentPass || ''} onChange={(e) => setPasswordForm({ ...passwordForm, currentPass: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors disabled:opacity-50">Continue</button>
+                    </div>
+                  </form>
+                ) : !passwordForm.otpSent ? (
+                  <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
+                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
@@ -3086,25 +3105,26 @@ const executeAddDepartment = async (e) => {
                         value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
-                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors disabled:opacity-50">Send OTP</button>
                     </div>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
+                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
                       <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
-                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors disabled:opacity-50">Verify & Update</button>
                     </div>
                   </form>
                 )
               )}
+              
             </div>
           </div>
       
@@ -3759,14 +3779,26 @@ const executeAddDepartment = async (e) => {
                     </div>
                   </form>
                 )
-              ) : (
+              
+               ) : (
                 /* Email Change Tab */
-                !passwordForm.otpSent ? (
-                <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Password</label>
-                      <input type="password" required placeholder="Verify your identity" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                !passwordForm.passVerified ? (
+                  <form onSubmit={handleVerifyCurrentPassword}>
+                    <div className="mb-6">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Verify Identity</label>
+                      <input type="password" required placeholder="Enter Current Password" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
                         value={passwordForm.currentPass || ''} onChange={(e) => setPasswordForm({ ...passwordForm, currentPass: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-2">
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors disabled:opacity-50">Continue</button>
+                    </div>
+                  </form>
+                ) : !passwordForm.otpSent ? (
+                  <form onSubmit={handleRequestEmailChange}>
+                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
+                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
@@ -3774,21 +3806,21 @@ const executeAddDepartment = async (e) => {
                         value={passwordForm.newEmail} onChange={(e) => setPasswordForm({ ...passwordForm, newEmail: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
-                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Send OTP</button>
+                      <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ tab: 'password', currentPass: '', passVerified: false, newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors disabled:opacity-50">Send OTP</button>
                     </div>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyOtpAndUpdate}>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
-<p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session?.user?.email}</strong>.</p>
+                      <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{passwordForm.newEmail}</strong>.</p>
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-4 pt-2">
                       <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
-                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors disabled:opacity-50">Verify & Update</button>
                     </div>
                   </form>
                 )
