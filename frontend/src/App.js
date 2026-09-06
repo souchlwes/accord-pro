@@ -36,6 +36,22 @@ const formatRelativeTime = (dateString) => {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true });
 };
 
+// --- DYNAMIC ZERO-STORAGE AVATAR ---
+const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
+  const formattedName = fullName ? fullName.replace(/\s+/g, '+') : 'User';
+  const letterAvatar = `https://ui-avatars.com/api/?name=${formattedName}&background=2563eb&color=fff&rounded=true&bold=true`;
+  const imageSource = avatarUrl || letterAvatar;
+
+  return (
+    <img 
+      src={imageSource} 
+      alt={`${fullName}'s Avatar`} 
+      style={{ width: size, height: size, minWidth: size, borderRadius: '50%', objectFit: 'cover' }} 
+      className="shadow-sm border-2 border-slate-100 bg-white"
+    />
+  );
+};
+
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
 const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 const [messages, setMessages] = useState([]);
@@ -228,10 +244,14 @@ const [messages, setMessages] = useState([]);
         </div>
       )}
 
-     {!activeThread && chatMode === 'dm' && dmTarget && (
+    {!activeThread && chatMode === 'dm' && dmTarget && (
         <div className="bg-white p-4 border-b-2 flex justify-between items-center shadow-sm z-10">
           <div className="flex items-center gap-3">
             <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
+            
+            {/* --- NEW: ADDED AVATAR TO HEADER --- */}
+            <UserAvatar fullName={dmTarget.full_name} avatarUrl={dmTarget.avatar_url} size={32} />
+            
             <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
           </div>
           <button onClick={() => {
@@ -324,15 +344,25 @@ const [messages, setMessages] = useState([]);
             const aLatest = aMsgs.length > 0 ? new Date(aMsgs[aMsgs.length - 1].created_at).getTime() : 0;
             const bLatest = bMsgs.length > 0 ? new Date(bMsgs[bMsgs.length - 1].created_at).getTime() : 0;
             return bLatest - aLatest || (a.full_name || "").localeCompare(b.full_name || "");
-          }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => ( 
+        }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => ( 
             <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b flex justify-between items-center group transition-all">
-              <div><h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4><span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span></div>
+           
+              {/* --- NEW: WRAPPED IN A FLEX CONTAINER WITH AVATAR --- */}
+              <div className="flex items-center gap-3">
+                <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={32} />
+                <div>
+                  <h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4>
+                  <span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span>
+                </div>
+              </div>
+
               <div className="flex gap-2 items-center">
                  {unreadDMs[u.id] > 0 && (
                    <span className="bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-full mr-2 shadow-sm animate-pulse">
                      {unreadDMs[u.id]} NEW
                    </span>
                  )}
+
                  <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
                <button onClick={() => { 
                     setDmTarget(u); 
@@ -1118,17 +1148,24 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           ACCORD <span className="text-blue-500 italic">PROCTOR</span>
         </div>
 
-        <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
-         <div className="text-left md:text-right mr-auto md:mr-4">
-            <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
-            <div className="flex items-center gap-2 justify-start md:justify-end">
-                <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
-                <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1.5 rounded-lg transition-all" title="Edit Profile">
-                   <Edit2 size={12} />
-                </button>
-            </div>
-            {profile?.assigned_dept && <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">{profile.assigned_dept} DEPARTMENT</p>}
-          </div>
+       <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
+  
+  {/* --- NEW: WRAPPED IN A FLEX ROW TO HOLD AVATAR AND TEXT TOGETHER --- */}
+  <div className="flex items-center gap-3 md:gap-4 mr-auto md:mr-4">
+    
+    <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={42} />
+    
+    <div className="text-left md:text-right">
+      <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
+      <div className="flex items-center gap-2 justify-start md:justify-end">
+        <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
+        <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1.5 rounded-lg transition-all" title="Edit Profile">
+          <Edit2 size={12} />
+        </button>
+      </div>
+      {profile?.assigned_dept && <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">{profile.assigned_dept} DEPARTMENT</p>}
+    </div>
+  </div>
           
           <div className="flex gap-2">
             {!isViewMode && (
@@ -1394,7 +1431,7 @@ function App() {
   });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
-  const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '' });
+const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null });
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
@@ -1857,12 +1894,33 @@ useEffect(() => {
 
   const executeEditStaff = async (e) => {
     e.preventDefault();
-    const { id, name, role, dept } = editStaffModal;
+    const { id, name, role, dept, newAvatarBase64, newAvatarType, currentAvatar } = editStaffModal;
+    let finalAvatarUrl = currentAvatar;
+
+    // If a new image was selected, upload it to R2 first
+    if (newAvatarBase64) {
+      try {
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: newAvatarBase64, mimeType: newAvatarType, userId: id })
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadRes.ok) finalAvatarUrl = uploadData.url;
+        else throw new Error(uploadData.error);
+      } catch (err) {
+        setAppToast({ message: "Image upload failed: " + err.message, type: "error" });
+        return; // Halt save if upload fails
+      }
+    }
+
     await supabase.from('profiles').update({ 
-      full_name: name, role, assigned_dept: role === 'HEAD_ADMIN' ? null : dept.toUpperCase() 
+      full_name: name, role, assigned_dept: role === 'HEAD_ADMIN' ? null : dept.toUpperCase(),
+      avatar_url: finalAvatarUrl
     }).eq('id', id);
+
     setAppToast({ message: "Staff profile successfully updated.", type: "success" });
-    setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' });
+    setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null });
     fetchProfiles();
   };
 
@@ -2396,7 +2454,7 @@ const executeAddDepartment = async (e) => {
           highlightTarget={targetHighlight}
         />
         
-        {/* --- INJECTED EDIT STAFF MODAL --- */}
+      {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
@@ -2412,6 +2470,28 @@ const executeAddDepartment = async (e) => {
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
+
+                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
+                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
+                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                     <input 
+                       type="file" 
+                       accept="image/*" 
+                       onChange={e => {
+                         const file = e.target.files[0];
+                         if (file) {
+                           const reader = new FileReader();
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.readAsDataURL(file);
+                         }
+                       }} 
+                       className="text-[10px] font-bold text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 transition-all outline-none w-full" 
+                     />
+                  </div>
+                </div>
+
                 <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
@@ -2424,7 +2504,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                   <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
                 </div>
               </form>
@@ -2469,7 +2549,7 @@ const executeAddDepartment = async (e) => {
         />
 
         
-        {/* --- INJECTED EDIT STAFF MODAL --- */}
+       {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
@@ -2485,6 +2565,28 @@ const executeAddDepartment = async (e) => {
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
+
+                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
+                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
+                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                     <input 
+                       type="file" 
+                       accept="image/*" 
+                       onChange={e => {
+                         const file = e.target.files[0];
+                         if (file) {
+                           const reader = new FileReader();
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.readAsDataURL(file);
+                         }
+                       }} 
+                       className="text-[10px] font-bold text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 transition-all outline-none w-full" 
+                     />
+                  </div>
+                </div>
+
                 <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
@@ -2497,7 +2599,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                   <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
                 </div>
               </form>
@@ -3023,9 +3125,9 @@ const executeAddDepartment = async (e) => {
           </div>
         )}
 
-        {/* --- EDIT STAFF MODAL --- */}
+       {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
               <div className="flex items-center gap-4 text-indigo-600 mb-6">
                 <Edit2 size={32} />
@@ -3039,6 +3141,28 @@ const executeAddDepartment = async (e) => {
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Full Name</label>
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
+
+                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
+                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
+                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                     <input 
+                       type="file" 
+                       accept="image/*" 
+                       onChange={e => {
+                         const file = e.target.files[0];
+                         if (file) {
+                           const reader = new FileReader();
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.readAsDataURL(file);
+                         }
+                       }} 
+                       className="text-[10px] font-bold text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 transition-all outline-none w-full" 
+                     />
+                  </div>
+                </div>
+
                 <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
@@ -3051,7 +3175,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="button" onClick={() => setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                   <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Changes</button>
                 </div>
               </form>
