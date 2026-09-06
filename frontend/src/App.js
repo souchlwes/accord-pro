@@ -183,19 +183,19 @@ const [messages, setMessages] = useState([]);
            chatEmails = [dmTarget.email];
         }
 
-        if (chatEmails.length > 0) {
+        // Loop through and send individual chat notifications
+        chatEmails.forEach(singleEmail => {
            fetch('/api/notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                emails: chatEmails.join(', '), 
+                emails: singleEmail, 
                 title: chatMode === 'dm' ? `New Direct Message from ${profile.full_name}` : `Campus Announcement from ${profile.full_name}`, 
                 message: text 
               })
-           }).catch(err => console.error("Chat Email API failed:", err));
-        }
-        // -------------------------------------
-        
+           }).catch(err => console.error("Chat Email API failed for " + singleEmail + ":", err));
+        });
+// -------------------------------------
   
     setText(""); 
   };
@@ -1576,18 +1576,20 @@ function App() {
           }
       });
 
-     const emailArray = Array.from(targetEmails);
-      if (emailArray.length > 0) {
+    const emailArray = Array.from(targetEmails);
+      
+      // Fire individual emails 1-by-1
+      emailArray.forEach(singleEmail => {
          fetch('/api/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              emails: emailArray.join(', '), 
+              emails: singleEmail, 
               title: title, 
               message: message 
             })
-         }).catch(err => console.error("Email API failed:", err));
-      }
+         }).catch(err => console.error("Email API failed for " + singleEmail + ":", err));
+      });
 
     } catch (e) { console.error("Notification Failed", e); }
   };
