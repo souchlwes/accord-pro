@@ -1524,6 +1524,13 @@ function App() {
   const isDeptAdmin = safeRole === 'DEPT_ADMIN';
   const isProctor = safeRole === 'PROCTOR';
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  };
+
   // --- SYSTEM FUNCTIONS ---
   const sendNotification = async (targetDept, targetRole, targetUserId, title, message, type = 'info') => {
     try {
@@ -2907,25 +2914,44 @@ const executeAddDepartment = async (e) => {
           {activeTab === "dashboard" ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10 space-y-8 md:space-y-12">
                 
-                {/* --- 1. EXECUTIVE METRICS HERO --- */}
-                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-8 md:p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border border-slate-700/50">
-                  <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
+               {/* --- 1. EXECUTIVE METRICS HERO --- */}
+                <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
                   
-                  <div className="z-10">
-                    <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-2">{profile?.university || 'University System'}</p>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic">Control <span className="text-blue-500">Center</span></h2>
-                    
-                    <div className={`mt-4 inline-flex items-center gap-2 md:gap-3 px-5 py-2.5 rounded-full border border-white/10 text-[9px] md:text-[10px] font-black uppercase shadow-lg backdrop-blur-md ${conflictCount > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
-                      <Activity size={14} className={conflictCount > 0 ? 'animate-pulse' : ''} />
-                      {conflictCount > 0 ? `${conflictCount} Conflicts Detected` : 'Global System Optimized'}
+                  <div className="relative z-10 flex items-center gap-6">
+                    <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={72} />
+                    <div>
+                      <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-1">
+                        {getGreeting()},
+                      </p>
+                      <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white">
+                        {profile?.full_name?.split(' ')[0] || 'User'}
+                      </h1>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
+                        {profile?.assigned_dept ? `${profile.assigned_dept} Workspace` : 'Global System Access'}
+                      </p>
                     </div>
                   </div>
 
-                  {isHeadAdmin && (
-                    <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all z-10 flex items-center justify-center gap-2">
-                      <Plus size={16} /> Add Workspace
-                    </button>
-                  )}
+                  <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                    <div className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl flex items-center gap-4 w-full md:w-auto">
+                      <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                        <Calendar size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Current Date</p>
+                        <p className="text-sm font-bold text-white mt-0.5">
+                          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {isHeadAdmin && (
+                      <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <Plus size={16} /> Add Workspace
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* --- 2. GLOBAL RESOURCES & CONFLICTS (FROSTED BENTO) --- */}
