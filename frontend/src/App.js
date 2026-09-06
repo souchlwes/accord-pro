@@ -1,5 +1,6 @@
 import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import AvatarEditor from 'react-avatar-editor';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from './supabaseClient';
@@ -1013,6 +1014,17 @@ const [dashboardView, setDashboardView] = useState('upcoming');
   const [toast, setToast] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Dynamic Greeting & Next Session Calculator
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  };
+
+  const nextAssignment = confirmedAssignments
+    .filter(s => !isPast(s.exam_date, s.end_time))
+    .sort((a, b) => new Date(`${a.exam_date}T${a.start_time}`) - new Date(`${b.exam_date}T${b.start_time}`))[0];
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -1199,147 +1211,214 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       </nav>
       
-      <main className="container mx-auto px-4 md:px-6 max-w-7xl">
-        {!isViewMode && (
-          <div className="bg-white rounded-3xl md:rounded-[2rem] p-4 md:p-5 mb-6 md:mb-8 border-2 border-slate-100 shadow-xl flex flex-col md:flex-row items-center gap-4 relative z-40 animate-in slide-in-from-top-4">
-            <div className="flex items-center w-full md:w-auto text-blue-600 gap-2 font-black uppercase text-[10px] tracking-widest px-2"><Search size={18} /> Directory Search</div>
-            <div className="relative w-full flex-1">
-              <input type="text" placeholder="Search other proctors to view their dashboard..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"/>
-              {searchQuery && (
-                <div className="absolute top-full mt-2 left-0 w-full bg-white border-2 border-slate-100 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar z-50">
-                  {filteredDirectory.length > 0 ? filteredDirectory.map(p => (
-                    <div key={p.id} onClick={() => { onViewProctor(p); setSearchQuery(""); }} className="p-4 border-b border-slate-50 hover:bg-blue-50 cursor-pointer flex justify-between items-center group transition-all">
-                       <div><p className="text-xs font-black text-slate-900 uppercase group-hover:text-blue-600 transition-colors">{p.full_name}</p><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.assigned_dept || 'Global System'}</p></div>
-                       <button className="bg-blue-100 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm"><LayoutDashboard size={14} /></button>
-                    </div>
-                  )) : (
-                    <div className="p-6 text-center border-2 border-dashed border-slate-100 m-2 rounded-xl">
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">"{searchQuery.trim()}" is not a registered account.</p>
-                    </div>
-                  )}
-                </div>
+   <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8">
+        
+        {/* TOP HERO BENTO: PERSONAL CONTEXT & METRICS */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Welcome Tile (Span 7) */}
+          <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+            
+            <div className="flex items-center gap-4 z-10">
+              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1">
+                  {getGreeting()}
+                </span>
+                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white">
+                  {profile?.full_name?.split(' ')[0] || 'Proctor'}
+                </h1>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                  {profile?.assigned_dept ? `${profile.assigned_dept} Department Pool` : 'Global Reserve Proctor'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 z-10">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Immediate Assignment</span>
+                <p className="text-xs font-bold text-white mt-1">
+                  {nextAssignment ? `${nextAssignment.subject_code} • RM ${nextAssignment.room}` : 'No sessions queued'}
+                </p>
+              </div>
+              {nextAssignment && (
+                <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                  {nextAssignment.exam_date} @ {formatTime(nextAssignment.start_time)}
+                </span>
               )}
             </div>
           </div>
-        )}
-        
-        {isViewMode && (
-          <div className="bg-blue-600 text-white rounded-3xl md:rounded-[2rem] p-6 md:p-8 mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-center md:items-start text-center md:text-left shadow-2xl animate-in slide-in-from-top-4 gap-4 md:gap-0">
-            <div>
-              <h4 className="font-black uppercase tracking-widest text-xs md:text-sm flex items-center justify-center md:justify-start gap-3"><Shield size={20} className="text-blue-300" /> Read-Only Access</h4>
-              <p className="text-blue-100 text-[10px] md:text-xs font-bold mt-2 leading-relaxed">You are currently viewing <strong>{profile?.full_name}'s</strong> itinerary and availability logs. <br className="hidden md:block"/>To assign or remove them from an exam, return to the Department Workspace.</p>
+
+          {/* Quick Stats Bento (Span 5) */}
+          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
+            <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Scheduled</span>
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Calendar size={16} /></div>
+              </div>
+              <p className="text-3xl font-black text-slate-900 mt-4">{confirmedAssignments.length}</p>
+              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Active Blocks</span>
             </div>
-            <button onClick={onCloseView} className="w-full md:w-auto mt-2 md:mt-0 bg-white text-blue-600 hover:bg-blue-50 px-6 md:px-10 py-3 md:py-4 rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95">Manage in Workspace</button>
+
+            <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed</span>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle2 size={16} /></div>
+              </div>
+              <p className="text-3xl font-black text-slate-900 mt-4">{historyAssignments.length}</p>
+              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Past Sessions</span>
+            </div>
+
+            <div className="col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-[2rem] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md"><Clock size={16} /></div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-slate-900">Availability Status</h4>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase">
+                    {globalAvailability.filter(a => a.proctor_id === profile?.id).length} Logged Windows
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth' })} 
+                className="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-blue-200/50 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+              >
+                Manage
+              </button>
+            </div>
           </div>
-        )}
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-12">
+        {/* BENTO ROW 2: CRITICAL ALERTS & SCHEDULE */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          <div className="lg:col-span-1 flex flex-col gap-6">
+          {/* Schedule & Pending Column (Span 4) */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
             
-         {/* --- NEW: DEDICATED PENDING REQUESTS SECTION --- */}
+            {/* Reliever Alerts Tile */}
             {pendingRequests.length > 0 && (
-              <div className="bg-amber-500 border-4 border-amber-600 rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
-                <h3 className="text-white font-black text-lg uppercase tracking-widest mb-6 flex items-center gap-3 relative z-10">
-                  <BellRing size={24} className="animate-pulse"/> Reliever Request ({pendingRequests.length})
-                </h3>
-                
-                <div className="space-y-4 relative z-10">
+              <div className="bg-amber-500 border-2 border-amber-600 rounded-[2.5rem] p-6 shadow-xl relative overflow-hidden text-white">
+                <div className="flex items-center gap-2 mb-4">
+                  <BellRing size={20} className="animate-pulse" />
+                  <h3 className="text-xs font-black uppercase tracking-widest">Reliever Requests ({pendingRequests.length})</h3>
+                </div>
+                <div className="space-y-3">
                   {pendingRequests.map((s, i) => (
-                    <div key={i} className="bg-white p-5 rounded-2xl shadow-xl relative overflow-hidden border-2 border-amber-100">
-                      <div className="mb-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">{s.subject_code}</p>
-                        <p className="text-sm font-black truncate text-slate-900">{s.subject_name}</p>
+                    <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 text-slate-900">
+                      <p className="text-[10px] font-black uppercase text-amber-600 tracking-wider">{s.subject_code}</p>
+                      <p className="text-xs font-bold truncate mb-2">{s.subject_name}</p>
+                      <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 mb-3 bg-slate-50 p-2 rounded-lg">
+                        <Calendar size={10}/> {s.exam_date} • {formatTime(s.start_time)}
                       </div>
-                      
-                      <div className="flex flex-wrap items-center bg-amber-50 p-3 rounded-xl gap-4 mb-6 border border-amber-100">
-                        <span className="text-[10px] font-black text-amber-700 uppercase flex items-center gap-1.5"><Clock size={12}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
-                        <span className="text-[10px] font-black text-amber-700 uppercase flex items-center gap-1.5"><Calendar size={12}/> {s.exam_date}</span>
-                        <span className="text-[10px] font-black text-rose-500 uppercase">RM {s.room}</span>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
+                            const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
+                            onAcceptAssignment(profile.id, profile.full_name, profile.assigned_dept, s.exam_date, fStart, fEnd, s.subject_code);
+                            showToast("Request Accepted! Schedule verified.", "success");
+                          }}
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase py-2.5 rounded-xl transition-all"
+                        >
+                          Accept
+                        </button>
+                        <button 
+                          onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })}
+                          className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white font-black text-[9px] uppercase py-2.5 rounded-xl transition-all border border-rose-200"
+                        >
+                          Decline
+                        </button>
                       </div>
-
-                     <div className="flex gap-3">
-                        <button onClick={() => {
-                          const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
-                          const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
-                          onAcceptAssignment(profile.id, profile.full_name, profile.assigned_dept, s.exam_date, fStart, fEnd, s.subject_code);
-                          showToast("Request Accepted! Schedule verified.", "success");
-                        }} className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"><CheckCircle2 size={16}/> Accept Assignment</button>
-                        
-                        <button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
-                      </div> 
                     </div>
                   ))}
                 </div>
               </div>
-            )}   
+            )}
 
-          {/* CONFIRMED ASSIGNMENTS SECTION */}
-            <div className="bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-8 text-white shadow-2xl flex flex-col flex-1 max-h-[600px]">
-              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xs md:text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2"><Calendar size={16}/> {dashboardView === 'history' ? 'Past History' : (isViewMode ? "Their Schedule" : "Confirmed Schedule")}</h2>
-                  <span className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black">{dashboardView === 'history' ? historyAssignments.length : confirmedAssignments.length}</span>
-                </div>
-                <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
-                   <button onClick={() => setDashboardView('upcoming')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${dashboardView === 'upcoming' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>Upcoming</button>
-                   <button onClick={() => setDashboardView('history')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${dashboardView === 'history' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>History</button>
+            {/* Confirmed Roster Tile */}
+            <div className="bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 text-white shadow-xl flex flex-col flex-1 max-h-[600px] border border-slate-800">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                  <Calendar size={14}/> Itinerary
+                </h2>
+                <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
+                  <button onClick={() => setDashboardView('upcoming')} className={`px-3 py-1 text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Upcoming</button>
+                  <button onClick={() => setDashboardView('history')} className={`px-3 py-1 text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'history' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>History</button>
                 </div>
               </div>
-              
-              <div className="space-y-4 flex-1 overflow-y-auto pr-2 mb-6 custom-scrollbar">
+
+              <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
                 {(dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).length === 0 ? (
-                  <p className="text-slate-500 text-xs italic text-center py-10 border-2 border-dashed border-white/10 rounded-2xl">{dashboardView === 'history' ? 'No past assignments.' : 'No confirmed assignments.'}</p>
+                  <p className="text-slate-500 text-[10px] uppercase font-bold text-center py-12 border border-dashed border-white/10 rounded-2xl">
+                    No sessions scheduled
+                  </p>
                 ) : (dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).map((s, i) => (
-                    <div key={i} className={`p-4 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/50'}`}>
-                      <div className="flex justify-between items-start mb-3">
-                         <div><p className={`text-[10px] font-black uppercase tracking-widest ${s.flagged ? 'text-rose-400' : 'text-blue-400'}`}>{s.subject_code}</p><p className="text-xs md:text-sm font-bold truncate">{s.subject_name}</p></div>
-                         {!isViewMode && !s.flagged && <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all" title="Flag Emergency"><AlertTriangle size={14}/></button>}
-                         {s.flagged && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase animate-pulse">Flagged</span>}
+                  <div key={i} className={`p-3.5 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/40'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">{s.subject_code}</p>
+                        <p className="text-xs font-bold truncate max-w-[180px]">{s.subject_name}</p>
                       </div>
-                      {s.flagged && s.flagNote && <div className="mb-3 bg-rose-500/20 border border-rose-500/30 p-3 rounded-xl"><p className="text-[9px] font-black text-rose-300 uppercase mb-1">Emergency Note:</p><p className="text-[10px] md:text-[11px] font-bold text-rose-100 italic">{s.flagNote}</p></div>}
-                      <div className="flex flex-wrap md:flex-nowrap justify-between items-center bg-slate-800 p-2.5 rounded-xl gap-2 md:gap-0">
-                        <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1"><Clock size={10}/> {s.start_time ? formatTime(s.start_time) : ''} - {s.end_time ? formatTime(s.end_time) : ''}</span>
-                        <span className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase flex items-center gap-1"><Calendar size={10}/> {s.exam_date}</span>
-                        <span className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase">RM {s.room}</span>
-                      </div>
+                      {!isViewMode && !s.flagged && (
+                        <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all">
+                          <AlertTriangle size={12}/>
+                        </button>
+                      )}
                     </div>
-                  )
-                )}
+                    <div className="flex justify-between items-center bg-slate-800/80 p-2 rounded-xl text-[8px] font-black uppercase text-slate-300">
+                      <span>{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                      <span className="text-amber-400">{s.exam_date}</span>
+                      <span className="text-rose-400">RM {s.room}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6 border-t border-white/10">
-                <button onClick={handleExportExcel} className="w-full sm:flex-1 p-3 md:p-4 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase transition-all flex justify-center items-center gap-2"><Download size={16} /> <span className="sm:hidden">Export Excel</span></button>
-                <button onClick={handleExportPDF} className="w-full sm:flex-[3] p-3 md:p-4 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transition-all flex justify-center items-center gap-2"><Printer size={16} /> PDF Itinerary</button>
+              <div className="flex gap-2 pt-4 mt-2 border-t border-white/10">
+                <button onClick={handleExportExcel} className="flex-1 p-3 bg-white/5 hover:bg-emerald-600 hover:text-white rounded-xl text-slate-300 font-black text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border border-white/5">
+                  <Download size={12}/> Excel
+                </button>
+                <button onClick={handleExportPDF} className="flex-1 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/20">
+                  <Printer size={12}/> PDF Print
+                </button>
               </div>
             </div>
           </div>
-          
-      <div id="availability-log-section" className="lg:col-span-2">
-             <AvailabilityLogBook 
-               profile={profile} 
-               globalAvailability={globalAvailability} 
-               onAdd={onAddAvailability} 
-               onBulkAdd={onBulkAddAvailability} 
-               onDelete={onDeleteAvailability} 
-               readOnly={isViewMode} 
-               showToast={showToast} 
-               isHighlighted={highlightTarget === 'availability-log'}
-             />
+
+          {/* Availability Log Tile (Span 8) */}
+          <div id="availability-log-section" className="lg:col-span-8">
+            <AvailabilityLogBook 
+              profile={profile} 
+              globalAvailability={globalAvailability} 
+              onAdd={onAddAvailability} 
+              onBulkAdd={onBulkAddAvailability} 
+              onDelete={onDeleteAvailability} 
+              readOnly={isViewMode} 
+              showToast={showToast} 
+              isHighlighted={highlightTarget === 'availability-log'}
+            />
           </div>
         </div>
 
-        <div className="bg-white p-2 md:p-6 rounded-2xl md:rounded-[4rem] shadow-xl border border-slate-100 overflow-hidden relative">
-          <div className="p-3 md:p-8 pb-0 flex justify-between items-end">
-             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter mb-4 text-center md:text-left">Master <span className="text-blue-600 italic">Timeline</span></h2>
+        {/* Master Timeline Bottom Tile */}
+        <div className="bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 overflow-hidden">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+              Live Campus <span className="text-blue-600 italic">Timeline</span>
+            </h2>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+              University Master View
+            </span>
           </div>
-          <div className="overflow-x-auto pb-4 custom-scrollbar">
-             <div className="min-w-[800px] px-2 md:px-0"><ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} /></div>
+          <div className="overflow-x-auto pb-2 custom-scrollbar">
+            <div className="min-w-[800px]">
+              <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+            </div>
           </div>
         </div>
 
-      </main>
+      </main>  
 
       {/* --- PROCTOR MODALS --- */}
       {flagModal.isOpen && (
