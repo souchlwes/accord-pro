@@ -2106,17 +2106,7 @@ const handleVerifyOtpAndUpdate = async (e) => {
       if (error) {
         setAppToast({ message: error.message, type: 'error' });
       } else {
-        // Fire confirmation to the user's email
-        fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            emails: session?.user?.email, 
-            title: 'Security Alert: Password Changed', 
-            message: `Your Accord Pro account password was successfully updated. If you did not authorize this change, please contact your Administrator immediately.` 
-          })
-        }).catch(err => console.error("Notify error:", err));
-
+        // Removed the redundant /api/notify call here so it doesn't send twice!
         setAppToast({ message: "Password successfully updated!", type: 'success' });
         setShowPasswordModal(false);
         setPasswordForm({ tab: 'password', newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '', newEmail: '' });
@@ -3054,9 +3044,9 @@ const executeAddDepartment = async (e) => {
                       <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
                         value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
                     </div>
-                    <div className="flex justify-end gap-4 pt-2">
-                      <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
-                      <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                   <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
+                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
                     </div>
                   </form>
                 )
@@ -3064,10 +3054,9 @@ const executeAddDepartment = async (e) => {
                 /* Email Change Tab */
                 !passwordForm.otpSent ? (
                   <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
-                      <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
-                        value={session?.user?.email || ''} />
+                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
+                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
@@ -3752,10 +3741,9 @@ const executeAddDepartment = async (e) => {
                 /* Email Change Tab */
                 !passwordForm.otpSent ? (
                   <form onSubmit={handleRequestEmailChange}>
-                    <div className="mb-4">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Current Email</label>
-                      <input type="text" disabled className="w-full bg-slate-100 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-400 outline-none cursor-not-allowed"
-                        value={session?.user?.email || ''} />
+                    <div className="mb-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                      <span className="block text-[9px] font-black text-blue-400 uppercase mb-1">Current Email</span>
+                      <span className="text-xs font-bold text-blue-900">{session?.user?.email}</span>
                     </div>
                     <div className="mb-6">
                       <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Email Address</label>
