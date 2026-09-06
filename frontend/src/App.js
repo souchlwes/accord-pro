@@ -957,9 +957,9 @@ return (
               </div>
             </div>
             {!readOnly && (
-              <button onClick={() => { onDelete(avail.id); if (showToast) showToast("Availability record removed."); }} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
-                <Trash2 size={16} />
-              </button>
+             <button onClick={() => onDelete(avail.id)} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+  <Trash2 size={16} />
+</button>
             )}
           </div>
         ))}
@@ -1846,9 +1846,17 @@ useEffect(() => {
     await fetchAllData(false);
   };
 
-  const handleDeleteAvailability = async (id) => {
-    await supabase.from('proctor_availability').delete().eq('id', id);
-    await fetchAllData(false);
+  const handleDeleteAvailability = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Availability Log?",
+      text: "Are you sure you want to remove this time slot from your log book?",
+      action: async () => {
+        await supabase.from('proctor_availability').delete().eq('id', id);
+        await fetchAllData(false);
+        setAppToast({ message: "Availability record removed.", type: "success" });
+      }
+    });
   };
 
   const handleFlagIssue = async (scheduleId, reason, deptCode, subjectCode) => {
