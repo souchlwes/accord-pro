@@ -13,38 +13,6 @@ import {
   RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, Settings
 } from 'lucide-react';
 
-
-// --- GLOBAL THEME ENGINE ---
-export const THEME_OPTIONS = [
-  'blue', 'emerald', 'rose', 'amber', 'purple', 
-  'cyberpunk', 'sunset', 'ocean', 'matcha', 'lavender', 
-  'cherry', 'midnight', 'camcorder', 'hacker'
-];
-
-export const getTheme = (pref) => {
-  const themes = {
-    blue: { bg: 'bg-blue-600', hover: 'hover:bg-blue-500', text: 'text-blue-400', border: 'border-blue-500', glow: 'bg-blue-500/20', gradient: 'from-slate-900 via-blue-950 to-indigo-950' },
-    emerald: { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-500', text: 'text-emerald-400', border: 'border-emerald-500', glow: 'bg-emerald-500/20', gradient: 'from-slate-900 via-teal-950 to-emerald-950' },
-    rose: { bg: 'bg-rose-600', hover: 'hover:bg-rose-500', text: 'text-rose-400', border: 'border-rose-500', glow: 'bg-rose-500/20', gradient: 'from-slate-900 via-pink-950 to-rose-950' },
-    amber: { bg: 'bg-amber-500', hover: 'hover:bg-amber-400', text: 'text-amber-400', border: 'border-amber-400', glow: 'bg-amber-500/20', gradient: 'from-slate-900 via-orange-950 to-amber-950' },
-    purple: { bg: 'bg-purple-600', hover: 'hover:bg-purple-500', text: 'text-purple-400', border: 'border-purple-500', glow: 'bg-purple-500/20', gradient: 'from-slate-900 via-violet-950 to-purple-950' },
-    
-    // --- PREMIUM COMBINATIONS ---
-    cyberpunk: { bg: 'bg-fuchsia-600', hover: 'hover:bg-fuchsia-500', text: 'text-cyan-400', border: 'border-cyan-400', glow: 'bg-cyan-500/30', gradient: 'from-indigo-950 via-purple-900 to-fuchsia-950' },
-    sunset: { bg: 'bg-orange-500', hover: 'hover:bg-orange-400', text: 'text-orange-400', border: 'border-rose-500', glow: 'bg-orange-500/30', gradient: 'from-rose-950 via-orange-900 to-amber-950' },
-    ocean: { bg: 'bg-cyan-500', hover: 'hover:bg-cyan-400', text: 'text-cyan-400', border: 'border-blue-500', glow: 'bg-cyan-500/30', gradient: 'from-sky-950 via-cyan-900 to-teal-950' },
-    matcha: { bg: 'bg-lime-600', hover: 'hover:bg-lime-500', text: 'text-lime-400', border: 'border-green-500', glow: 'bg-lime-500/30', gradient: 'from-stone-950 via-green-900 to-lime-950' },
-    lavender: { bg: 'bg-indigo-400', hover: 'hover:bg-indigo-300', text: 'text-indigo-300', border: 'border-purple-400', glow: 'bg-indigo-400/30', gradient: 'from-slate-950 via-indigo-900 to-pink-950' },
-    cherry: { bg: 'bg-red-600', hover: 'hover:bg-red-500', text: 'text-red-400', border: 'border-rose-500', glow: 'bg-red-500/30', gradient: 'from-stone-950 via-red-900 to-rose-950' },
-    
-    // --- AESTHETIC VIBES ---
-    midnight: { bg: 'bg-slate-700', hover: 'hover:bg-slate-600', text: 'text-slate-300', border: 'border-slate-500', glow: 'bg-slate-600/30', gradient: 'from-black via-slate-900 to-slate-800' },
-    camcorder: { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-400', text: 'text-yellow-500', border: 'border-yellow-500', glow: 'bg-yellow-500/20', gradient: 'from-zinc-950 via-stone-900 to-black' },
-    hacker: { bg: 'bg-green-500', hover: 'hover:bg-green-400', text: 'text-green-400', border: 'border-green-500', glow: 'bg-green-500/20', gradient: 'from-black via-green-950 to-black' },
-  };
-  return themes[pref] || themes.blue;
-};
-
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
 const formatTime = (timeStr) => {
   if (!timeStr) return "";
@@ -1003,8 +971,6 @@ return (
 // --- 3. PROCTOR DASHBOARD ---
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
-const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
-
 
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -1055,10 +1021,6 @@ const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
   };
-
-  
-  
-  
 
   const nextAssignment = confirmedAssignments
     .filter(s => !isPast(s.exam_date, s.end_time))
@@ -1472,15 +1434,16 @@ const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
         </div>
       )}
 
-     {declineModal.isOpen && (
+      {declineModal.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl">
             <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6"><AlertTriangle size={28} className="md:w-8 md:h-8" /><h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Decline Request</h3></div>
             <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head and removes you from the schedule.</p>
             <textarea value={declineModal.note} onChange={(e) => setDeclineModal({...declineModal, note: e.target.value})} placeholder="e.g. Schedule conflict, out of town..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6 transition-all" />
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-              <button onClick={() => setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+<button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, examDate: s.exam_date, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
               <button onClick={() => { 
+                
                 onDeclineAssignment(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); 
                 setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); 
                 showToast("Assignment Declined. Admins notified.", "success"); 
@@ -1499,7 +1462,6 @@ function App() {
   // --- GLOBAL STATES ---
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null); 
-  const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null); 
   const [activeTab, setActiveTab] = useState("dashboard"); 
@@ -2791,66 +2753,43 @@ const executeAddDepartment = async (e) => {
           </div>
         )}
 
-     {/* --- PREMIUM SETTINGS HUB --- */}
+        {/* --- CHANGE PASSWORD MODAL FOR PROCTORS --- */}
         {showPasswordModal && (
-          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 overflow-hidden relative">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Settings</h2>
-                <button onClick={() => setShowPasswordModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200"><X size={16}/></button>
-              </div>
-
-              <div className="space-y-8">
-                {/* Premium Gradient Wheel */}
-                <div>
-                  <div className="mb-3">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Dashboard Theme Palette</label>
-                    <span className="text-[8px] font-bold text-indigo-500 uppercase">Changes are saved instantly</span>
+          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
+              <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6">Change Password</h2>
+              
+              {!passwordForm.otpSent ? (
+                <form onSubmit={handleRequestPasswordChange}>
+                  <div className="mb-4">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
                   </div>
-                  <div className="flex overflow-x-auto custom-scrollbar pb-4 gap-4 snap-x p-2">
-                    {THEME_OPTIONS.map(color => {
-                      const t = getTheme(color);
-                      return (
-                        <button 
-                          key={color} 
-                          type="button"
-                          onClick={async () => {
-                             await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
-                             setProfile({...profile, theme_pref: color});
-                             if (typeof setAppToast === 'function') {
-                               setAppToast({ message: `${color.toUpperCase()} Theme Applied!`, type: "success" });
-                             }
-                          }}
-                          className={`shrink-0 snap-center w-16 h-16 rounded-full shadow-lg transition-all flex items-center justify-center border-4 bg-gradient-to-br ${t.gradient} ${profile?.theme_pref === color ? 'border-indigo-500 scale-110 shadow-indigo-500/50 ring-4 ring-indigo-100' : 'border-slate-800 hover:scale-105'}`}
-                          title={color.charAt(0).toUpperCase() + color.slice(1)}
-                        >
-                          {profile?.theme_pref === color && <CheckCircle2 size={24} className="text-white drop-shadow-md" />}
-                        </button>
-                      );
-                    })}
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Confirm New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
                   </div>
-                </div>
-
-                {/* Password Security (OPTIONAL) */}
-                <div className="border-t-2 border-slate-100 pt-6">
-                  <div className="mb-3">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Update Password</label>
-                    <span className="text-[8px] font-bold text-amber-500 uppercase">Optional • Only fill this to change credentials</span>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Send OTP</button>
                   </div>
-                  {!passwordForm.otpSent ? (
-                    <form onSubmit={handleRequestPasswordChange} className="flex flex-col gap-3">
-                      <input type="password" placeholder="New Password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500" value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
-                      <input type="password" placeholder="Confirm Password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500" value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
-                      <button type="submit" className={`p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors mt-2 ${activeTheme.bg} ${activeTheme.hover}`}>Update Password</button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleVerifyOtpAndUpdate} className="flex flex-col gap-3">
-                      <input type="text" placeholder="Enter 6-Digit OTP" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-2xl tracking-[0.4em] font-black outline-none" value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
-                      <button type="submit" className={`p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors mt-2 ${activeTheme.bg} ${activeTheme.hover}`}>Verify & Update Password</button>
-                    </form>
-                  )}
-                </div>
-              </div>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtpAndUpdate}>
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
+                    <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session.user.email}</strong>.</p>
+                    <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
+                      value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
@@ -3458,71 +3397,47 @@ const executeAddDepartment = async (e) => {
         )}
 
       {/* --- CHANGE PASSWORD MODAL --- */}
-    {/* --- PREMIUM SETTINGS HUB --- */}
         {showPasswordModal && (
-          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 overflow-hidden relative">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900">Settings</h2>
-                <button onClick={() => setShowPasswordModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200"><X size={16}/></button>
-              </div>
-
-              <div className="space-y-8">
-                {/* Premium Gradient Wheel */}
-                <div>
-                  <div className="mb-3">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Dashboard Theme Palette</label>
-                    <span className="text-[8px] font-bold text-indigo-500 uppercase">Changes are saved instantly</span>
+          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
+              <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-6">Change Password</h2>
+              
+              {!passwordForm.otpSent ? (
+                <form onSubmit={handleRequestPasswordChange}>
+                  <div className="mb-4">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
                   </div>
-                  <div className="flex overflow-x-auto custom-scrollbar pb-4 gap-4 snap-x p-2">
-                    {THEME_OPTIONS.map(color => {
-                      const t = getTheme(color);
-                      return (
-                        <button 
-                          key={color} 
-                          type="button"
-                          onClick={async () => {
-                             await supabase.from('profiles').update({ theme_pref: color }).eq('id', profile.id);
-                             setProfile({...profile, theme_pref: color});
-                             if (typeof setAppToast === 'function') {
-                               setAppToast({ message: `${color.toUpperCase()} Theme Applied!`, type: "success" });
-                             }
-                          }}
-                          className={`shrink-0 snap-center w-16 h-16 rounded-full shadow-lg transition-all flex items-center justify-center border-4 bg-gradient-to-br ${t.gradient} ${profile?.theme_pref === color ? 'border-indigo-500 scale-110 shadow-indigo-500/50 ring-4 ring-indigo-100' : 'border-slate-800 hover:scale-105'}`}
-                          title={color.charAt(0).toUpperCase() + color.slice(1)}
-                        >
-                          {profile?.theme_pref === color && <CheckCircle2 size={24} className="text-white drop-shadow-md" />}
-                        </button>
-                      );
-                    })}
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Confirm New Password</label>
+                    <input type="password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
                   </div>
-                </div>
-
-                {/* Password Security (OPTIONAL) */}
-                <div className="border-t-2 border-slate-100 pt-6">
-                  <div className="mb-3">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Update Password</label>
-                    <span className="text-[8px] font-bold text-amber-500 uppercase">Optional • Only fill this to change credentials</span>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordForm({ newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' }); }} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Send OTP</button>
                   </div>
-                  {!passwordForm.otpSent ? (
-                    <form onSubmit={handleRequestPasswordChange} className="flex flex-col gap-3">
-                      <input type="password" placeholder="New Password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500" value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} />
-                      <input type="password" placeholder="Confirm Password" required className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500" value={passwordForm.confirmPass} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPass: e.target.value })} />
-                      <button type="submit" className={`p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors mt-2 ${activeTheme.bg} ${activeTheme.hover}`}>Update Password</button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleVerifyOtpAndUpdate} className="flex flex-col gap-3">
-                      <input type="text" placeholder="Enter 6-Digit OTP" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-2xl tracking-[0.4em] font-black outline-none" value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
-                      <button type="submit" className={`p-4 rounded-xl font-black text-[10px] uppercase text-white shadow-lg transition-colors mt-2 ${activeTheme.bg} ${activeTheme.hover}`}>Verify & Update Password</button>
-                    </form>
-                  )}
-                </div>
-              </div>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtpAndUpdate}>
+                  <div className="mb-6">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase ml-2 mb-1">Enter 6-Digit OTP</label>
+                    <p className="text-xs text-slate-500 mb-4 font-bold">We sent a verification code to <strong className="text-slate-800">{session.user.email}</strong>.</p>
+                    <input type="text" required maxLength="6" className="w-full bg-slate-50 border-2 border-slate-100 p-6 rounded-2xl text-center text-3xl tracking-[0.4em] font-black outline-none focus:border-emerald-500 transition-all"
+                      value={passwordForm.userOtpInput} onChange={(e) => setPasswordForm({ ...passwordForm, userOtpInput: e.target.value })} />
+                  </div>
+                  <div className="flex justify-end gap-4 pt-2">
+                    <button type="button" onClick={() => setPasswordForm({ ...passwordForm, otpSent: false, userOtpInput: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                    <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-colors">Verify & Update</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
-       
-             </main>
+
+      </main>
     </div>
   );
 }
