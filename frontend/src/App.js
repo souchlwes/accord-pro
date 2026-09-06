@@ -10,7 +10,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, Settings
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings
 } from 'lucide-react';
 
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
@@ -533,12 +533,19 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
   const [filterScope, setFilterScope] = useState("ALL");
   const [sortMode, setSortMode] = useState("NEWEST");
   const [isSortOpen, setIsSortOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const isHead = currentRole === 'HEAD_ADMIN';
 
   // Auto-fill the search bar when a notification routes here
   useEffect(() => {
     if (highlightTarget) setSearchTerm(highlightTarget);
   }, [highlightTarget]);
+
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterScope, sortMode]);
 
   let filteredProfiles = profiles.filter(p => 
     (p.full_name || p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -561,6 +568,10 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
      return 0;
   });
 
+  // Pagination Math
+  const totalPages = Math.ceil(filteredProfiles.length / ITEMS_PER_PAGE);
+  const paginatedProfiles = filteredProfiles.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   const formatJoinDate = (dateStr) => {
      if (!dateStr) return "Date Unknown";
      return new Date(dateStr).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
@@ -574,8 +585,8 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
   ];
 
   return (
-    <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="bg-slate-900 p-6 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b-8 border-blue-600 gap-4 md:gap-0">
+    <div className="bg-white border-2 border-slate-100 rounded-3xl md:rounded-[3rem] overflow-hidden shadow-2xl mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 flex flex-col">
+      <div className="bg-slate-900 p-6 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b-8 border-blue-600 gap-4 md:gap-0 shrink-0">
         <div>
           <h3 className="text-white text-xl md:text-3xl font-black uppercase tracking-tighter flex items-center gap-2 md:gap-3">
             <Shield className="text-blue-500" size={24} /> System <span className="text-blue-500 italic">Registry</span>
@@ -592,7 +603,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
         </button>
       </div>
 
-      <div className="p-4 md:p-8">
+      <div className="p-4 md:p-8 flex-1">
         <div className="flex flex-col md:flex-row gap-3 mb-6 relative z-10">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -643,15 +654,15 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
           </div>
         </div>
 
-        {searchTerm && filteredProfiles.length === 0 && (
+        {searchTerm && paginatedProfiles.length === 0 && (
           <div className="p-10 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] mb-4">
              <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">No matching accounts found.</p>
           </div>
         )}
         
         {/* MOBILE CARD VIEW */}
-        <div className="md:hidden space-y-4 mb-4 relative z-0">
-          {filteredProfiles.map(p => (
+        <div className="md:hidden space-y-4 relative z-0">
+          {paginatedProfiles.map(p => (
              <div key={p.id} className={`bg-slate-50 p-5 rounded-[2rem] border-2 border-slate-100 ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
                  <div className="flex justify-between items-start mb-4">
                     <div>
@@ -701,7 +712,7 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
               </tr>
             </thead>
             <tbody>
-              {filteredProfiles.map(p => (
+              {paginatedProfiles.map(p => (
                 <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
                   <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
                     <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
@@ -745,6 +756,29 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
           </table>
         </div>
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-slate-50 p-4 border-t-2 border-slate-100 shrink-0">
+          <button 
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="p-2 bg-white text-slate-500 rounded-xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 transition-colors"
+          >
+            <ChevronLeft size={16}/>
+          </button>
+          <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button 
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 bg-white text-slate-500 rounded-xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 transition-colors"
+          >
+            <ChevronRight size={16}/>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
