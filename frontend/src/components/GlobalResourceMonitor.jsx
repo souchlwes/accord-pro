@@ -47,7 +47,10 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
   const filteredProctors = useMemo(() => {
     let filtered = allProctors;
     if (searchTerm) {
-      filtered = filtered.filter(p => p.name.toUpperCase().includes(searchTerm));
+      filtered = filtered.filter(p => 
+        p.name.toUpperCase().includes(searchTerm) || 
+        p.deptCode.toUpperCase().includes(searchTerm)
+      );
     }
     return [...filtered].sort((a, b) => {
        if (sortMode === 'A-Z') return a.name.localeCompare(b.name);
@@ -64,14 +67,15 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
   const filteredRooms = useMemo(() => {
     let filtered = allRooms;
     if (searchTerm) {
-      filtered = filtered.filter(r => r.number.toUpperCase().includes(searchTerm));
+      filtered = filtered.filter(r => 
+        r.number.toUpperCase().includes(searchTerm) || 
+        r.deptCode.toUpperCase().includes(searchTerm)
+      );
     }
     return [...filtered].sort((a, b) => {
-       // {numeric: true} allows "Room 2" to properly sort before "Room 10"
        if (sortMode === 'A-Z') return String(a.number).localeCompare(String(b.number), undefined, {numeric: true});
        if (sortMode === 'Z-A') return String(b.number).localeCompare(String(a.number), undefined, {numeric: true});
        
-       // Room IDs act as creation timestamps in the system
        if (sortMode === 'NEWEST') return b.id - a.id;
        if (sortMode === 'OLDEST') return a.id - b.id;
        return 0;
@@ -115,7 +119,7 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
   const PaginationControls = ({ currentPage, totalPages, setPage }) => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between bg-slate-50 p-4 border-t-2 border-slate-100">
+      <div className="flex items-center justify-between bg-slate-50 p-4 border-t-2 border-slate-100 shrink-0">
         <button 
           onClick={() => setPage(p => Math.max(1, p - 1))}
           disabled={currentPage === 1}
@@ -228,7 +232,12 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
                                     <div className={`w-3 h-3 rounded-full shrink-0 ${hasFlags ? 'bg-rose-500 animate-pulse' : isAssigned ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{proctor.name}</p>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{proctor.deptCode} DEPARTMENT</p>
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                            <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-widest shadow-sm">
+                                                {proctor.deptCode}
+                                            </span>
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Pool</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -357,7 +366,12 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
                                     <div className={`w-3 h-3 rounded-full ${hasFlags ? 'bg-rose-500 animate-pulse' : isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">ROOM {room.number}</p>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{room.type}</p>
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                            <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-widest shadow-sm">
+                                                {room.deptCode}
+                                            </span>
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">{room.type} Resource</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
