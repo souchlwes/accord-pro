@@ -1,31 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, DoorOpen, ChevronDown, ChevronUp, Search, 
   Calendar, Clock, BookOpen, AlertTriangle, History, 
-  ShieldAlert, Tag, RotateCcw, LayoutDashboard
+  ShieldAlert, Tag, RotateCcw, LayoutDashboard, ChevronLeft, ChevronRight
 } from 'lucide-react';
+
+const ITEMS_PER_PAGE = 8; // Adjust this number to show more/fewer items per page
 
 const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, onViewProctor }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [showHistory, setShowHistory] = useState({});
-
-// --- DYNAMIC PROCTOR SYNC ---
-  const allProctors = (allProfiles || [])
-    .filter(p => p.role?.toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE')
-    .map(p => ({
-      id: p.id,
-      name: p.full_name || p.name,
-      deptCode: p.assigned_dept || 'GLOBAL'
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const allRooms = allDepartments.flatMap(d => d.rooms.map(r => ({ ...r, deptCode: d.code })));
-
-  const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
   
-  const toggleHistoryMode = (asgnId) => {
-    setShowHistory(prev => ({ ...prev, [asgnId]: !prev[asgnId] }));
-  };
+  // Pagination States
+  const [proctorPage, setProctorPage] = useState(1);
+  const [roomPage, setRoomPage] = useState(1);
+
+  // --- DATA PREPARATION ---
+  const allProctors = useMemo(() => {
+    return (allProfiles || [])
+      .filter(p => p.role?.toUpperCase() === 'PROCTOR' && p.status === 'ACTIVE')
+      .map(p => ({
+        id: p.id,
+        name: p.full_name || p.name,
+        deptCode: p.assigned_dept || 'GLOBAL'
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allProfiles]);
+
+  const allRooms = useMemo(() => {
+    return allDepartments.flatMap(d => d.rooms.map(r => ({ ...r, deptCode: d.code })));
+  }, [allDepartments]);
+
+  // --- SEARCH FILTERING ---
+  const filteredProctors = useMemo(() => {
+    if (!searchTerm) return allProctors;
+    return allProctors.filter(p => p.name.toUpperCase().includes(searchTerm));
+  }, [allProctors, searchTerm]);
+
+  const filteredRooms = useMemo(() => {
+    if (!searchTerm) return allRooms;
+    return allRooms.filter(r => r.number.toUpperCase().includes(searchTerm));
+  }, [allRooms, searchTerm]);
+
+  // Reset pagination when search changes so user doesn't get stuck on an empty page
+  React.useEffect(() => {
+    setProctorPage(1);
+    setRoomPage(1);
+  }, [searchTerm]);
+
+  // --- PAGINATION LOGIC ---
+  const paginatedProctors = filteredProctors.slice((proctorPage - 1) * ITEMS_PER_PAGE, proctorPage * ITEMS_PER_PAGE);
+  const totalProctorPages = Math.ceil(filteredProctors.length / ITEMS_PER_PAGE);
+
+  const paginatedRooms = filteredRooms.slice((roomPage - 1) * ITEMS_PER_PAGE, roomPage * ITEMS_PER_PAGE);
+  const totalRoomPages = Math.ceil(filteredRooms.length / ITEMS_PER_PAGE);
+
+  // --- HELPERS ---
+  const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
+  const toggleHistoryMode = (asgnId) => setShowHistory(prev => ({ ...prev, [asgnId]: !prev[asgnId] }));
 
   const getAssignments = (nameOrNumber, type) => {
     return globalSchedule.filter(item => 
@@ -43,6 +76,32 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
     );
   };
 
+  // --- REUSABLE PAGINATION COMPONENT ---
+  const PaginationControls = ({ currentPage, totalPages, setPage }) => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-between bg-slate-50 p-4 border-t-2 border-slate-100">
+        <button 
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="p-2 bg-white text-slate-500 rounded-xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 transition-colors"
+        >
+          <ChevronLeft size={16}/>
+        </button>
+        <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button 
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="p-2 bg-white text-slate-500 rounded-xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 transition-colors"
+        >
+          <ChevronRight size={16}/>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end px-6 gap-4">
@@ -57,30 +116,40 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
                 placeholder="Search to locate & view..." 
                 className="pl-10 pr-6 py-3 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase w-full md:w-72 focus:border-blue-500 outline-none transition-all shadow-sm"
                 onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
+                value={searchTerm}
             />
+            {searchTerm && (
+               <button onClick={() => setSearchTerm("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
+                  <RotateCcw size={12}/>
+               </button>
+            )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* --- GLOBAL PROCTORS SECTION --- */}
-        <section className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-            <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
+        <section className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col h-[700px]">
+            <div className="bg-slate-900 p-6 text-white flex items-center justify-between shrink-0 rounded-t-[2.5rem]">
                 <div className="flex items-center gap-3">
                     <Users size={18} className="text-emerald-400" />
                     <h3 className="font-black uppercase tracking-widest text-[10px]">Proctor Directory</h3>
                 </div>
-                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[9px] font-black">{allProctors.length} Total</span>
+                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[9px] font-black">{filteredProctors.length} Match{filteredProctors.length !== 1 ? 'es' : ''}</span>
             </div>
             
-            <div className="p-4 max-h-[600px] overflow-y-auto space-y-3 custom-scrollbar">
-                {allProctors.filter(p => p.name.toUpperCase().includes(searchTerm)).map((proctor) => {
+            <div className="p-4 flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+                {paginatedProctors.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                      <Search size={32} className="mb-4 opacity-50"/>
+                      <p className="text-[10px] font-black uppercase tracking-widest">No proctors found</p>
+                   </div>
+                ) : paginatedProctors.map((proctor) => {
                     const assignments = getAssignments(proctor.name, 'proctor');
                     const isAssigned = assignments.length > 0;
                     const isOpen = expandedId === `p-${proctor.id}`;
                     const hasFlags = assignments.some(a => a.flagged);
                     
-                    // Match the text proctor to their actual user profile to link the dashboard
                     const profileData = (allProfiles || []).find(p => (p.full_name || p.name || "").toUpperCase() === proctor.name.toUpperCase());
 
                     return (
@@ -187,20 +256,26 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
                     );
                 })}
             </div>
+            <PaginationControls currentPage={proctorPage} totalPages={totalProctorPages} setPage={setProctorPage} />
         </section>
 
         {/* --- GLOBAL ROOMS SECTION --- */}
-        <section className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-            <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
+        <section className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col h-[700px]">
+            <div className="bg-slate-900 p-6 text-white flex items-center justify-between shrink-0 rounded-t-[2.5rem]">
                 <div className="flex items-center gap-3">
                     <DoorOpen size={18} className="text-amber-400" />
                     <h3 className="font-black uppercase tracking-widest text-[10px]">Room Allocation</h3>
                 </div>
-                <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-[9px] font-black">{allRooms.length} Total</span>
+                <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-[9px] font-black">{filteredRooms.length} Match{filteredRooms.length !== 1 ? 'es' : ''}</span>
             </div>
 
-            <div className="p-4 max-h-[600px] overflow-y-auto space-y-3 custom-scrollbar">
-                {allRooms.filter(r => r.number.toUpperCase().includes(searchTerm)).map((room) => {
+            <div className="p-4 flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+                {paginatedRooms.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                      <Search size={32} className="mb-4 opacity-50"/>
+                      <p className="text-[10px] font-black uppercase tracking-widest">No rooms found</p>
+                   </div>
+                ) : paginatedRooms.map((room) => {
                     const assignments = getAssignments(room.number, 'room');
                     const isOccupied = assignments.length > 0;
                     const isOpen = expandedId === `r-${room.id}`;
@@ -287,6 +362,7 @@ const GlobalResourceMonitor = ({ allDepartments, globalSchedule, allProfiles, on
                     );
                 })}
             </div>
+            <PaginationControls currentPage={roomPage} totalPages={totalRoomPages} setPage={setRoomPage} />
         </section>
       </div>
     </div>
