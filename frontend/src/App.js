@@ -1205,8 +1205,8 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             {isViewMode ? (
               <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
             ) : (
-              <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
-            )}
+<button onClick={onLogout} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
+)}
           </div>
         </div>
       </nav>
@@ -1893,9 +1893,18 @@ useEffect(() => {
     }
   };
 
-  const handleHardReset = async () => {
-    await supabase.auth.signOut();
-    localStorage.clear(); sessionStorage.clear(); window.location.reload();
+ const handleHardReset = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirm Logout",
+      text: "Are you sure you want to securely sign out of Accord Pro?",
+      action: async () => {
+        await supabase.auth.signOut();
+        localStorage.clear(); 
+        sessionStorage.clear(); 
+        window.location.reload();
+      }
+    });
   };
 
   const handleCreateAccount = () => {
@@ -2500,7 +2509,7 @@ const executeAddDepartment = async (e) => {
         <Lock size={64} className="text-rose-500 mb-6" />
         <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Account Suspended</h1>
         <p className="text-slate-400 text-[10px] font-bold max-w-sm mb-8 uppercase tracking-widest leading-relaxed">Your access has been blocked by an administrator. Please contact your Department Head.</p>
-        <button onClick={() => supabase.auth.signOut()} className="bg-white/10 hover:bg-rose-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl active:scale-95">Sign Out</button>
+<button onClick={onLogout} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
       </div>
     );
   }
