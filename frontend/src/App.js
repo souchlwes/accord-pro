@@ -13,7 +13,22 @@ import {
   RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings
 } from 'lucide-react';
 
+// --- SMART STICKY STATE HOOK (Survives Back Button & Refreshes) ---
+function useStickyState(defaultValue, key) {
+  const [value, setValue] = React.useState(() => {
+    const stickyValue = window.sessionStorage.getItem(key);
+    return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+  });
+  
+  React.useEffect(() => {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  
+  return [value, setValue];
+}
+
 // --- GLOBAL TIME FORMATTER (Converts 24h to 12h AM/PM) ---
+
 const formatTime = (timeStr) => {
   if (!timeStr) return "";
   const [h, m] = timeStr.split(':').map(Number);
@@ -1498,21 +1513,21 @@ function App() {
   const [profile, setProfile] = useState(null); 
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null); 
-  const [activeTab, setActiveTab] = useState("dashboard"); 
+const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   const [allProfiles, setAllProfiles] = useState([]);
   
   // --- AUTH & REGISTRATION STATES ---
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useStickyState('', 'draft_email');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); 
-  const [regRole, setRegRole] = useState('PROCTOR'); 
-  const [regDept, setRegDept] = useState(''); 
-  const [regUni, setRegUni] = useState('');
+  const [fullName, setFullName] = useStickyState('', 'draft_name'); 
+  const [regRole, setRegRole] = useStickyState('PROCTOR', 'draft_role'); 
+  const [regDept, setRegDept] = useStickyState('', 'draft_dept'); 
+  const [regUni, setRegUni] = useStickyState('', 'draft_uni');
   const [authMode, setAuthMode] = useState('login');
 // --- NEW OTP STATES ---
   const [otpMode, setOtpMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [regMode, setRegMode] = useState('join'); 
+  const [regMode, setRegMode] = useStickyState('join', 'draft_mode');
   const [joinCode, setJoinCode] = useState('');
 
   // --- DATA STATES ---
