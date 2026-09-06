@@ -1,4 +1,4 @@
-\import accordLogo from './accord.png';
+import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 import jsPDF from 'jspdf';
@@ -1472,16 +1472,15 @@ const activeTheme = getTheme(profile?.theme_pref); // <--- PASTE IT HERE TOO
         </div>
       )}
 
-      {declineModal.isOpen && (
+     {declineModal.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
           <div className="bg-white w-full max-w-md p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-2xl">
             <div className="flex items-center gap-3 md:gap-4 text-rose-500 mb-6"><AlertTriangle size={28} className="md:w-8 md:h-8" /><h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-slate-900">Decline Request</h3></div>
             <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Please provide a reason. This instantly alerts your Dept Head and removes you from the schedule.</p>
             <textarea value={declineModal.note} onChange={(e) => setDeclineModal({...declineModal, note: e.target.value})} placeholder="e.g. Schedule conflict, out of town..." className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-rose-500 h-24 md:h-32 resize-none mb-6 transition-all" />
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-<button onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, examDate: s.exam_date, note: '' })} className="flex-1 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white font-black text-[11px] uppercase py-4 rounded-xl transition-all border border-rose-200 hover:border-transparent flex justify-center items-center gap-2"><X size={16}/> Decline</button>
+              <button onClick={() => setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
               <button onClick={() => { 
-                
                 onDeclineAssignment(declineModal.scheduleId, `DECLINED RELIEVER REQUEST: ${declineModal.note}`, declineModal.deptCode, declineModal.subjectCode); 
                 setDeclineModal({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' }); 
                 showToast("Assignment Declined. Admins notified.", "success"); 
