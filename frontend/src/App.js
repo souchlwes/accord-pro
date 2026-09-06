@@ -1425,13 +1425,13 @@ function App() {
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
   const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main' });
   const [appToast, setAppToast] = useState(null);
- const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ 
     newPass: '', confirmPass: '', otpSent: false, generatedOtp: '', userOtpInput: '' 
   });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
-const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null });
+  const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null, zoom: 1 });
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
@@ -1918,6 +1918,15 @@ useEffect(() => {
       full_name: name, role, assigned_dept: role === 'HEAD_ADMIN' ? null : dept.toUpperCase(),
       avatar_url: finalAvatarUrl
     }).eq('id', id);
+
+    // --- THE NO-REFRESH FIX ---
+    // Instantly update the logged-in user's top nav and chat avatar
+    if (id === profile?.id) {
+      setProfile(prev => ({ ...prev, full_name: name, avatar_url: finalAvatarUrl }));
+    }
+    // Instantly update the directory list without refetching
+    setAllProfiles(prev => prev.map(p => p.id === id ? { ...p, full_name: name, avatar_url: finalAvatarUrl } : p));
+    // --------------------------
 
     setAppToast({ message: "Staff profile successfully updated.", type: "success" });
     setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null });
@@ -2471,19 +2480,40 @@ const executeAddDepartment = async (e) => {
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
 
-                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+              {/* --- ZOOM & CROP EDITOR --- */}
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
-                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
-                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                  <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
+                     {editStaffModal.newAvatarBase64 ? (
+                       <div className="flex flex-col items-center w-full">
+                         <AvatarEditor
+                           image={editStaffModal.newAvatarBase64}
+                           width={100} height={100} border={20} borderRadius={50}
+                           scale={editStaffModal.zoom}
+                           className="shadow-sm rounded-full bg-white mb-3"
+                         />
+                         <input 
+                           type="range" min="1" max="3" step="0.1" 
+                           value={editStaffModal.zoom} 
+                           onChange={e => setEditStaffModal({...editStaffModal, zoom: parseFloat(e.target.value)})}
+                           className="w-full accent-indigo-600"
+                         />
+                         <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Adjust Zoom</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center gap-4">
+                         <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.currentAvatar} size={50} />
+                         <span className="text-[9px] font-bold text-slate-400">Upload an image to crop</span>
+                       </div>
+                     )}
+                     
                      <input 
-                       type="file" 
-                       accept="image/*" 
+                       type="file" accept="image/*" 
                        onChange={e => {
                          const file = e.target.files[0];
                          if (file) {
                            const reader = new FileReader();
-                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type, zoom: 1});
                            reader.readAsDataURL(file);
                          }
                        }} 
@@ -2492,7 +2522,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 </div>
 
-                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+               <select disabled={!isHeadAdmin} value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className={`w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all appearance-none ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
                   <option value="HEAD_ADMIN">Global Head Admin</option>
@@ -2500,7 +2530,7 @@ const executeAddDepartment = async (e) => {
                  {editStaffModal.role !== 'HEAD_ADMIN' && (
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
-                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                    <input disabled={!isHeadAdmin} required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className={`w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}/>
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
@@ -2566,19 +2596,40 @@ const executeAddDepartment = async (e) => {
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
 
-                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+               {/* --- ZOOM & CROP EDITOR --- */}
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
-                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
-                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                  <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
+                     {editStaffModal.newAvatarBase64 ? (
+                       <div className="flex flex-col items-center w-full">
+                         <AvatarEditor
+                           image={editStaffModal.newAvatarBase64}
+                           width={100} height={100} border={20} borderRadius={50}
+                           scale={editStaffModal.zoom}
+                           className="shadow-sm rounded-full bg-white mb-3"
+                         />
+                         <input 
+                           type="range" min="1" max="3" step="0.1" 
+                           value={editStaffModal.zoom} 
+                           onChange={e => setEditStaffModal({...editStaffModal, zoom: parseFloat(e.target.value)})}
+                           className="w-full accent-indigo-600"
+                         />
+                         <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Adjust Zoom</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center gap-4">
+                         <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.currentAvatar} size={50} />
+                         <span className="text-[9px] font-bold text-slate-400">Upload an image to crop</span>
+                       </div>
+                     )}
+                     
                      <input 
-                       type="file" 
-                       accept="image/*" 
+                       type="file" accept="image/*" 
                        onChange={e => {
                          const file = e.target.files[0];
                          if (file) {
                            const reader = new FileReader();
-                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type, zoom: 1});
                            reader.readAsDataURL(file);
                          }
                        }} 
@@ -2587,7 +2638,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 </div>
 
-                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+               <select disabled={!isHeadAdmin} value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className={`w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all appearance-none ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
                   <option value="HEAD_ADMIN">Global Head Admin</option>
@@ -2595,7 +2646,7 @@ const executeAddDepartment = async (e) => {
                  {editStaffModal.role !== 'HEAD_ADMIN' && (
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
-                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                    <input disabled={!isHeadAdmin} required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className={`w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}/>
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
@@ -3142,19 +3193,40 @@ const executeAddDepartment = async (e) => {
                   <input required type="text" value={editStaffModal.name} onChange={e=>setEditStaffModal({...editStaffModal, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
                 </div>
 
-                {/* --- NEW: AVATAR UPLOAD BOX --- */}
+               {/* --- ZOOM & CROP EDITOR --- */}
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Profile Picture</label>
-                  <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100">
-                     <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.newAvatarBase64 || editStaffModal.currentAvatar} size={40} />
+                  <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
+                     {editStaffModal.newAvatarBase64 ? (
+                       <div className="flex flex-col items-center w-full">
+                         <AvatarEditor
+                           image={editStaffModal.newAvatarBase64}
+                           width={100} height={100} border={20} borderRadius={50}
+                           scale={editStaffModal.zoom}
+                           className="shadow-sm rounded-full bg-white mb-3"
+                         />
+                         <input 
+                           type="range" min="1" max="3" step="0.1" 
+                           value={editStaffModal.zoom} 
+                           onChange={e => setEditStaffModal({...editStaffModal, zoom: parseFloat(e.target.value)})}
+                           className="w-full accent-indigo-600"
+                         />
+                         <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Adjust Zoom</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center gap-4">
+                         <UserAvatar fullName={editStaffModal.name} avatarUrl={editStaffModal.currentAvatar} size={50} />
+                         <span className="text-[9px] font-bold text-slate-400">Upload an image to crop</span>
+                       </div>
+                     )}
+                     
                      <input 
-                       type="file" 
-                       accept="image/*" 
+                       type="file" accept="image/*" 
                        onChange={e => {
                          const file = e.target.files[0];
                          if (file) {
                            const reader = new FileReader();
-                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type});
+                           reader.onloadend = () => setEditStaffModal({...editStaffModal, newAvatarBase64: reader.result, newAvatarType: file.type, zoom: 1});
                            reader.readAsDataURL(file);
                          }
                        }} 
@@ -3163,7 +3235,7 @@ const executeAddDepartment = async (e) => {
                   </div>
                 </div>
 
-                <select value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none">
+               <select disabled={!isHeadAdmin} value={editStaffModal.role} onChange={e=>setEditStaffModal({...editStaffModal, role: e.target.value})} className={`w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-indigo-500 transition-all appearance-none ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <option value="PROCTOR">Proctor</option>
                   <option value="DEPT_ADMIN">Department Head</option>
                   <option value="HEAD_ADMIN">Global Head Admin</option>
@@ -3171,7 +3243,7 @@ const executeAddDepartment = async (e) => {
                  {editStaffModal.role !== 'HEAD_ADMIN' && (
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Code</label>
-                    <input required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase"/>
+                    <input disabled={!isHeadAdmin} required type="text" value={editStaffModal.dept} onChange={e=>setEditStaffModal({...editStaffModal, dept: e.target.value.toUpperCase()})} className={`w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all uppercase ${!isHeadAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}/>
                   </div>
                 )}
                 <div className="flex gap-4 pt-4">
