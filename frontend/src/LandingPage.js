@@ -17,46 +17,45 @@ import accordLogo from './accord.png';
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      // Glides directly toward the board
       state.camera.position.lerp(new THREE.Vector3(0, 1.5, -1.0), delta * 2.5);
-      state.camera.lookAt(0, 1.5, -4);
+      state.camera.lookAt(0, 1.5, -4.5);
     }
   });
   return null;
 }
 
-// 2. The Immersive Written UI (Decoupled from model hierarchy)
+// 2. The Immersive Written UI (Parallax Fixed)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Html
       transform
-      // ⚠️ TUNE THESE 3 NUMBERS TO ALIGN WITH THE BOARD ⚠️
-      // [Left/Right, Up/Down, Forward/Back]
-      position={[0, 1.5, -3.5]} 
+      // ⚠️ FIX PARALLAX: Push the Z-value further back (e.g., -4.5 or -5) until it physically hits the wall mesh 
+      position={[0, 1.6, -4.5]} 
       rotation={[0, 0, 0]} 
-      scale={0.12}
+      // distanceFactor locks the text scale so it remains highly visible and stable
+      distanceFactor={4}
+      zIndexRange={[100, 0]}
     >
       <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
         <img 
           src={accordLogo} 
           alt="Accord Pro" 
-          className="w-20 h-20 object-contain brightness-0 invert opacity-90 mb-4 drop-shadow-md" 
+          className="w-24 h-24 object-contain brightness-0 invert opacity-90 mb-4" 
         />
         
-        {/* Written Chalk/Marker Aesthetic - No Borders */}
-        <h2 className="text-5xl font-black uppercase tracking-tighter text-white/95 mb-2 italic drop-shadow-xl">
+        {/* Made text bolder and brighter to look like fresh chalk/marker */}
+        <h2 className="text-6xl font-black uppercase tracking-tighter text-white mb-2 italic">
           Accord <span className="text-blue-400">Pro</span>
         </h2>
-        <p className="text-sm font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-14 text-center drop-shadow-md">
+        <p className="text-lg font-bold text-slate-200 uppercase tracking-[0.4em] mb-14 text-center">
           Secure Terminal Access
         </p>
 
         <div className="flex flex-col items-center gap-8 w-full pointer-events-auto">
-          {/* Borderless Text Button */}
           <button
             onClick={onEnter}
             disabled={isEntering}
-            className="text-2xl font-black uppercase tracking-[0.15em] text-white/95 hover:text-blue-400 transition-colors flex items-center justify-center gap-4 group drop-shadow-xl"
+            className="text-2xl font-black uppercase tracking-[0.15em] text-white hover:text-blue-400 transition-colors flex items-center justify-center gap-4 group"
           >
             {isEntering ? (
               <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
@@ -65,12 +64,11 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             )}
           </button>
 
-          {/* Borderless Secondary Text */}
           <button
             onClick={onAbout}
-            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
+            className="text-sm font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-colors flex items-center justify-center gap-2"
           >
-            <HelpCircle size={14} className="text-blue-500/80" />
+            <HelpCircle size={16} className="text-blue-500" />
             <span>What is Accord Pro?</span>
           </button>
         </div>
@@ -79,7 +77,7 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   );
 }
 
-// 3. The Classroom Model (Rendered cleanly as one piece)
+// 3. The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
@@ -102,6 +100,15 @@ function ClassroomModel() {
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detects mobile devices to prevent WebGL crashes
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile(); // Check immediately
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
@@ -110,10 +117,67 @@ export default function LandingPage({ onAuthenticate }) {
     }, 1200);
   };
 
+  // --- MOBILE FALLBACK UI (Instant load, no 3D rendering) ---
+  if (isMobile) {
+    return (
+      <div className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col items-center w-full max-w-sm">
+          <img src={accordLogo} alt="Accord Pro" className="w-20 h-20 object-contain brightness-0 invert mb-6" />
+          <h2 className="text-4xl font-black uppercase tracking-tighter text-white mb-2 italic text-center">
+            Accord <span className="text-blue-500">Pro</span>
+          </h2>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.3em] mb-12 text-center">
+            System Initialization
+          </p>
+
+          <button
+            onClick={() => onAuthenticate()}
+            className="w-full bg-blue-600 text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 mb-6 shadow-xl shadow-blue-600/20"
+          >
+            <span>Access Terminal</span>
+            <ArrowRight size={16} />
+          </button>
+
+          <button
+            onClick={() => setIsAboutOpen(true)}
+            className="w-full bg-slate-900 border border-slate-800 text-slate-300 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <HelpCircle size={16} className="text-blue-400" />
+            <span>What is Accord Pro?</span>
+          </button>
+        </div>
+
+        {/* Re-use the modal for mobile */}
+        {isAboutOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 p-6 overflow-y-auto">
+             <div className="flex items-start justify-between mb-8 pb-4 border-b border-white/10 mt-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 block mb-1">Overview</span>
+                <h2 className="text-2xl font-black uppercase tracking-tight text-white italic">About Accord Pro</h2>
+              </div>
+              <button onClick={() => setIsAboutOpen(false)} className="bg-white/10 p-2.5 rounded-xl"><X size={18} /></button>
+            </div>
+            
+            <p className="text-sm text-slate-300 leading-relaxed mb-8">Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction and resolve room conflicts.</p>
+            
+            <div className="space-y-4">
+              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><CalendarCheck2 className="text-blue-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Conflict-Free</h4></div>
+              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><Users className="text-indigo-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Proctor Dispatch</h4></div>
+              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><ShieldCheck className="text-emerald-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Omni-Sight</h4></div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- DESKTOP 3D UI ---
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
-      {/* 3D CANVAS VIEWPORT */}
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: true }}>
           <color attach="background" args={['#030712']} />
@@ -135,7 +199,6 @@ export default function LandingPage({ onAuthenticate }) {
               <Center>
                 <ClassroomModel />
               </Center>
-              {/* UI is placed securely outside the model's complex hierarchy */}
               <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
               <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
             </group>
@@ -157,7 +220,6 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* SCROLL HINT */}
       {!isEntering && !isAboutOpen && (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 opacity-60">
           <div className="w-8 h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
@@ -167,7 +229,6 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
