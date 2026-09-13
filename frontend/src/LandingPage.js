@@ -1,38 +1,38 @@
 import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';import { 
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles } from '@react-three/drei';
+import { 
   HelpCircle, 
   ArrowRight, 
   ShieldCheck, 
   CalendarCheck2, 
   Users, 
   X, 
-  Loader2,
-  Mouse
+  Loader2
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
 
-// 1. Cinematic Distance Tracker (Fades UI based on zoom depth)
-function SceneController({ uiRef, hintRef, isEntering }) {
+// 1. Cinematic Distance Tracker
+function SceneController({ uiRef, cardRef, hintRef, isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      // Final glide to the terminal when button is clicked
       state.camera.position.lerp(new THREE.Vector3(0, 0.5, 0.5), delta * 2);
       state.camera.lookAt(0, 0.5, -1);
       return;
     }
 
-    // Calculate how far the user is from the center of the room
     const dist = state.camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
-    
-    // UI fades in between distance 4.5 (invisible) and 2.5 (fully visible)
     const uiProgress = Math.max(0, Math.min(1, (4.5 - dist) / 2.0));
     
     if (uiRef.current) {
       uiRef.current.style.opacity = uiProgress;
-      uiRef.current.style.pointerEvents = uiProgress > 0.5 ? 'auto' : 'none';
       uiRef.current.style.transform = `translateY(${(1 - uiProgress) * 30}px) scale(${0.95 + (uiProgress * 0.05)})`;
+    }
+
+    // Isolates clickability exclusively to the card, allowing free rotation elsewhere
+    if (cardRef.current) {
+      cardRef.current.style.pointerEvents = uiProgress > 0.5 ? 'auto' : 'none';
     }
 
     if (hintRef.current) {
@@ -42,9 +42,9 @@ function SceneController({ uiRef, hintRef, isEntering }) {
   return null;
 }
 
-// 2. The 3D Classroom Model
+// 2. The Dynamic Classroom Model
 function ClassroomModel() {
-  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom1.glb');
+  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
   useEffect(() => {
     if (scene) {
@@ -63,7 +63,6 @@ function ClassroomModel() {
       <Center>
         <primitive object={scene} scale={7.5} />
       </Center>
-      {/* Premium Atmospheric Dust */}
       <Sparkles count={200} scale={12} size={1.5} speed={0.2} opacity={0.15} color="#60a5fa" />
     </group>
   );
@@ -75,11 +74,11 @@ export default function LandingPage({ onAuthenticate }) {
   const [isEntering, setIsEntering] = useState(false);
   
   const uiRef = useRef(null);
+  const cardRef = useRef(null);
   const hintRef = useRef(null);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
-    // Smooth camera transition into the login terminal
     setTimeout(() => {
       onAuthenticate();
     }, 1200);
@@ -95,25 +94,23 @@ export default function LandingPage({ onAuthenticate }) {
           <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
           
           <Suspense fallback={
-            <Html center>
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Loading Realm</span>
-              </div>
-            </Html>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+              <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Loading Realm</span>
+            </div>
           }>
             <ambientLight intensity={1.2} />
             <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
             <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
             <ClassroomModel />
-            <SceneController uiRef={uiRef} hintRef={hintRef} isEntering={isEntering} />
+            <SceneController uiRef={uiRef} cardRef={cardRef} hintRef={hintRef} isEntering={isEntering} />
 
             <OrbitControls
               enabled={!isEntering}
               enableZoom={true}
-              minDistance={1.8} // Prevents clipping through the desk
-              maxDistance={5.5} // Prevents leaving the room
+              minDistance={1.8} 
+              maxDistance={5.5} 
               maxPolarAngle={Math.PI / 2 + 0.05}
               minPolarAngle={Math.PI / 6}
               enablePan={false}
@@ -124,7 +121,7 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* --- SCROLL HINT (Fades out on zoom) --- */}
+      {/* --- SCROLL HINT --- */}
       <div 
         ref={hintRef}
         className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 transition-opacity duration-75"
@@ -137,15 +134,16 @@ export default function LandingPage({ onAuthenticate }) {
         </span>
       </div>
 
-      {/* --- COMMAND DECK (Fades in on zoom) --- */}
+      {/* --- COMMAND DECK --- */}
       <div 
         ref={uiRef}
         className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none opacity-0"
         style={{ willChange: 'opacity, transform' }}
       >
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center max-w-lg w-full mx-4 relative overflow-hidden">
-          
-          {/* Subtle glow behind the logo */}
+        <div 
+          ref={cardRef}
+          className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center max-w-lg w-full mx-4 relative overflow-hidden pointer-events-none"
+        >
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-blue-500/20 blur-[60px] pointer-events-none" />
 
           <img src={accordLogo} alt="Accord Pro" className="w-24 h-24 object-contain brightness-0 invert drop-shadow-2xl mb-6 relative z-10" />
@@ -181,7 +179,7 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       </div>
 
-      {/* --- "WHAT IS ACCORD PRO ABOUT?" MODAL --- */}
+      {/* --- MODAL (Unchanged) --- */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
@@ -258,4 +256,4 @@ export default function LandingPage({ onAuthenticate }) {
   );
 }
 
-useGLTF.preload(process.env.PUBLIC_URL + '/classroom1.glb');
+useGLTF.preload(process.env.PUBLIC_URL + '/classroom2.glb');
