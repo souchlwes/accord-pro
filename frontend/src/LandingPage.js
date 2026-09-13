@@ -2,7 +2,7 @@ import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
@@ -52,8 +52,8 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Clean Outline UI
-function BoardUI({ onEnter, onAbout, isEntering }) {
+// Immersive Written UI with Icon-Only Buttons
+function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       <Html transform position={[0, 0.3, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
@@ -70,20 +70,55 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             Secure Access Portal
           </p>
 
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full pointer-events-auto">
-            <button
-              onClick={onEnter}
-              disabled={isEntering}
-              className="px-8 py-3.5 rounded-full bg-transparent border-2 border-white text-white font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-white hover:text-slate-950 transition-all duration-300 flex items-center justify-center gap-3 drop-shadow-lg"
-            >
-              {isEntering ? <><Loader2 size={16} className="animate-spin" /> Initializing...</> : <><span>Launch Platform</span><ArrowRight size={16} /></>}
-            </button>
-            <button
-              onClick={onAbout}
-              className="px-8 py-3.5 rounded-full bg-transparent border-2 border-blue-400/60 text-blue-100 font-bold text-[10px] md:text-xs uppercase tracking-widest hover:border-blue-400 hover:bg-blue-400/20 transition-all duration-300 flex items-center justify-center gap-2 drop-shadow-lg"
-            >
-              <HelpCircle size={16} className="text-blue-400" /><span>What is Accord Pro?</span>
-            </button>
+          {/* Premium Icon Buttons Layout */}
+          <div className="flex flex-row items-center justify-center gap-6 w-full pointer-events-auto">
+            
+            {/* Launch Button */}
+            <div className="relative group">
+              <button
+                onClick={onEnter}
+                disabled={isEntering}
+                className="w-14 h-14 rounded-full bg-blue-500/10 border border-blue-400/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-blue-500/20 hover:border-blue-400/80 hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+              >
+                {isEntering ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Terminal size={24} className="text-blue-400 group-hover:text-blue-300" />}
+              </button>
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Launch Platform</span>
+              </div>
+            </div>
+
+            {/* About Button */}
+            <div className="relative group">
+              <button
+                onClick={onAbout}
+                className="w-14 h-14 rounded-full bg-slate-900/60 border border-slate-700/50 backdrop-blur-md flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50 hover:scale-110 transition-all duration-300 shadow-xl"
+              >
+                <HelpCircle size={24} className="text-slate-300 group-hover:text-white" />
+              </button>
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">What is Accord Pro?</span>
+              </div>
+            </div>
+
+            {/* Chat Button */}
+            <div className="relative group">
+              <button
+                onClick={onChatToggle}
+                className={`w-14 h-14 rounded-full border backdrop-blur-md flex items-center justify-center transition-all duration-300 shadow-xl hover:scale-110 ${
+                  isChatOpen 
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
+                    : 'bg-slate-900/60 border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50'
+                }`}
+              >
+                {isChatOpen ? <X size={24} /> : <MessageCircle size={24} className="text-blue-400 group-hover:text-blue-300" />}
+              </button>
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
+                  {isChatOpen ? 'Close Assistant' : 'Ask Assistant'}
+                </span>
+              </div>
+            </div>
+
           </div>
         </div>
       </Html>
@@ -116,50 +151,66 @@ export default function LandingPage({ onAuthenticate }) {
   // Smart Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'bot', text: 'Welcome to Accord Pro. How can we assist you with your institutional setup today?' }
+    { id: 1, sender: 'bot', text: 'Welcome to Accord Pro. I can help answer questions regarding onboarding, dashboards, or core features. How can I assist?' }
   ]);
   const messagesEndRef = useRef(null);
 
-  // Quick Action Prompts
   const quickQuestions = [
     "How do I join?",
-    "Where is my invite code?",
-    "What is Accord Pro?"
+    "What are the user roles?",
+    "How are conflicts resolved?",
+    "What if there's an emergency?"
   ];
 
-  // Simple Keyword Matching Logic
+  // System Feature Logic Engine
   const getBotResponse = (query) => {
     const lowerQuery = query.toLowerCase();
-    if (lowerQuery.includes('join') || lowerQuery.includes('register') || lowerQuery.includes('sign up')) {
-      return "To join Accord Pro, you must be invited by your university administrator. Once registered, you can log in using your institutional email credentials.";
+    
+    if (lowerQuery.match(/join|register|sign up|invite|code/)) {
+      return "To join Accord Pro, register using our secure, OTP-verified email flow. You will need a unique 6-character 'Invite Code' to join an existing department, or you can initialize a New University. Note: New staff remain in a PENDING state until an Admin approves them.";
     }
-    if (lowerQuery.includes('invite') || lowerQuery.includes('code')) {
-      return "Invite codes are distributed directly by your department head or IT administrator prior to the exam period. Please check your university inbox for the secure link.";
+    if (lowerQuery.match(/role|admin|proctor|dashboard|head/)) {
+      return "The system routes users by access level: Head Admins receive a 'University Master View'. Department Admins are isolated to their specific Department Card. Proctors get a personal dashboard featuring a dynamic itinerary and assignment alerts.";
     }
-    if (lowerQuery.includes('what') || lowerQuery.includes('about') || lowerQuery.includes('features')) {
-      return "Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room and proctor conflicts, and orchestrate university-wide exam sessions in real time.";
+    if (lowerQuery.match(/schedule|conflict|overlap|re-validation/)) {
+      return "Our Re-Validation engine continuously scans the database. When Admins generate a schedule from the Availability Log Book, a live algorithm instantly flags any overlapping rooms or double-booked proctors.";
     }
-    if (lowerQuery.includes('hello') || lowerQuery.includes('hi') || lowerQuery.includes('hey')) {
-      return "Hello! I am the Accord Pro virtual assistant. I can help answer questions about invite codes, joining the platform, or general features. What would you like to know?";
+    if (lowerQuery.match(/emergency|reliever|decline|backup/)) {
+      return "Our contingency system is built for this. If a proctor flags an emergency or declines an assignment, the system highlights the slot and instantly routes a 'Reliever Request' to available backup staff who can accept the shift.";
     }
-    return "I am a virtual assistant designed to answer basic inquiries. For complex issues, please contact your university IT department directly. You can try asking me about invite codes, how to join, or what Accord Pro does.";
+    if (lowerQuery.match(/chat|communication|message|notification/)) {
+      return "Accord Pro features a persistent Notification Panel for alerts, a live Chat Panel for global campus announcements and direct messaging, and a dynamic context-aware Help Center.";
+    }
+    if (lowerQuery.match(/export|pdf|excel|availability/)) {
+      return "Proctors can submit hours manually or via bulk Excel templates. Administrators can also export confirmed schedules as branded PDF itineraries or formatted Excel spreadsheets.";
+    }
+    if (lowerQuery.match(/account|avatar|password|otp/)) {
+      return "We enforce strict Identity & Access Management. Your account hub features a zoom-and-crop avatar editor, OTP verification, password recovery, and a dual-verification email update flow.";
+    }
+    if (lowerQuery.match(/what is|features|about/)) {
+      return "Accord Pro is a comprehensive institutional examination operations platform. It features secure onboarding, role-based dashboards, conflict-free scheduling, emergency reliever routing, and real-time communication.";
+    }
+    
+    return "I can answer questions regarding invite codes, user dashboards, the conflict detection engine, or emergency routing. What would you like to know?";
   };
 
   const submitMessage = (text) => {
     if (!text.trim()) return;
     
-    // Add User Message
     const newUserMsg = { id: Date.now(), sender: 'user', text };
     setMessages((prev) => [...prev, newUserMsg]);
     setChatInput('');
+    setIsTyping(true);
 
-    // Generate and Add Bot Response
+    // Natural typing delay simulation
     setTimeout(() => {
       const responseText = getBotResponse(text);
       const botMsg = { id: Date.now() + 1, sender: 'bot', text: responseText };
       setMessages((prev) => [...prev, botMsg]);
-    }, 600); // 600ms delay to feel natural
+      setIsTyping(false);
+    }, 800 + Math.random() * 600);
   };
 
   const handleSendMessage = (e) => {
@@ -171,10 +222,11 @@ export default function LandingPage({ onAuthenticate }) {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isChatOpen]);
+  }, [messages, isTyping, isChatOpen]);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
+    setIsChatOpen(false);
     setTimeout(() => {
       onAuthenticate();
     }, 1200);
@@ -199,7 +251,13 @@ export default function LandingPage({ onAuthenticate }) {
             
             <group>
               <Center><ClassroomModel /></Center>
-              <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
+              <BoardUI 
+                onEnter={handleEnterClassroom} 
+                onAbout={() => setIsAboutOpen(true)} 
+                onChatToggle={() => setIsChatOpen(!isChatOpen)}
+                isChatOpen={isChatOpen}
+                isEntering={isEntering} 
+              />
               
               {!isEntering && !isAboutOpen && (
                 <>
@@ -223,62 +281,65 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* Floating Chat Button Overlay */}
-      {!isEntering && (
-        <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 z-30 transition-opacity duration-500">
-          <button 
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform hover:scale-105 group"
-          >
-            {isChatOpen ? <X size={22} /> : <MessageCircle size={22} className="group-hover:animate-pulse" />}
-          </button>
-        </div>
-      )}
-
-      {/* Smart FAQ Chat Window */}
+      {/* Enhanced Smart Chat Window */}
       {isChatOpen && (
-        <div className="absolute bottom-24 right-6 md:right-10 w-80 max-w-[calc(100vw-3rem)] h-[28rem] bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-5 duration-300 pointer-events-auto">
+        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
           {/* Header */}
-          <div className="bg-slate-950/80 px-4 py-3 border-b border-white/5 flex items-center gap-3">
-            <div className="relative">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse absolute -bottom-0.5 -right-0.5 border border-slate-900" />
-              <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
-                <ShieldCheck size={16} className="text-blue-400" />
+          <div className="bg-gradient-to-r from-blue-900/60 to-slate-900/60 px-5 py-4 flex items-center justify-between border-b border-white/5">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse absolute -bottom-0.5 -right-0.5 border-2 border-slate-900" />
+                <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+                  <ShieldCheck size={18} className="text-blue-400" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Accord Assistant</h3>
+                <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
               </div>
             </div>
-            <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-white">Accord Assistant</h3>
-              <p className="text-[9px] text-emerald-400 font-mono tracking-widest">Bot Online</p>
-            </div>
+            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
+              <X size={16} />
+            </button>
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div 
-                  className={`max-w-[85%] p-3 rounded-2xl text-[11px] leading-relaxed shadow-sm ${
+                  className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg ${
                     msg.sender === 'user' 
-                      ? 'bg-blue-600 text-white rounded-tr-sm' 
-                      : 'bg-slate-800/80 text-slate-200 border border-white/5 rounded-tl-sm'
+                      ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
+                      : 'bg-slate-800/80 text-slate-200 border border-white/10 rounded-tl-sm backdrop-blur-sm'
                   }`}
                 >
                   {msg.text}
                 </div>
               </div>
             ))}
+
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-slate-800/80 border border-white/10 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
             
-            {/* Quick Action Chips (Only show if last message is from bot) */}
-            {messages[messages.length - 1].sender === 'bot' && (
-              <div className="flex flex-col gap-2 pt-2 items-start">
+            {/* Quick Action Chips */}
+            {messages[messages.length - 1].sender === 'bot' && !isTyping && (
+              <div className="flex flex-col gap-2 pt-2 items-end">
                 {quickQuestions.map((q, i) => (
                   <button 
                     key={i}
                     onClick={() => submitMessage(q)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/30 hover:bg-blue-500/20 hover:border-blue-400/60 text-blue-300 text-[10px] font-medium transition-colors text-left"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-400/30 hover:bg-blue-500/30 hover:border-blue-400 text-blue-300 text-[10px] font-bold tracking-wide transition-all shadow-md"
                   >
                     <span>{q}</span>
-                    <ChevronRight size={10} />
+                    <ChevronRight size={12} className="text-blue-500" />
                   </button>
                 ))}
               </div>
@@ -287,26 +348,26 @@ export default function LandingPage({ onAuthenticate }) {
           </div>
 
           {/* Input Area */}
-          <form onSubmit={handleSendMessage} className="p-3 bg-slate-950/80 border-t border-white/5 flex items-center gap-2">
+          <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-white/10 flex items-center gap-3">
             <input 
               type="text" 
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask a question..." 
-              className="flex-1 bg-slate-800/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+              placeholder="Type your question..." 
+              className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner"
             />
             <button 
               type="submit"
-              disabled={!chatInput.trim()}
-              className="w-9 h-9 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl flex items-center justify-center transition-colors"
+              disabled={!chatInput.trim() || isTyping}
+              className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)]"
             >
-              <Send size={14} className="ml-0.5" />
+              <Send size={16} className="ml-0.5" />
             </button>
           </form>
         </div>
       )}
 
-      {!isEntering && !isAboutOpen && (
+      {!isEntering && !isAboutOpen && !isChatOpen && (
         <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
           <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
             <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
