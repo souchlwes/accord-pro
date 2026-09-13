@@ -9,6 +9,7 @@ import Groq from 'groq-sdk';
 import accordLogo from './accord.png';
 
 // Initialize Groq directly in the browser
+console.log("REACT SEES THIS KEY:", process.env.REACT_APP_GROQ_API_KEY);
 const groq = new Groq({
   apiKey: process.env.REACT_APP_GROQ_API_KEY,
   dangerouslyAllowBrowser: true 
