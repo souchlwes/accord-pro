@@ -23,7 +23,8 @@ function CameraRig({ isZoomed }) {
 
 // 2. Your Specific 3D Classroom Component
 function ClassroomScene({ isZoomed, onLoginTrigger }) {
-  const { nodes, materials } = useGLTF('/classroom.glb');
+  // THE FIX: process.env.PUBLIC_URL forces React to find the file in the deployed public folder
+  const { nodes, materials } = useGLTF(process.env.PUBLIC_URL + '/classroom.glb');
 
   return (
     <group dispose={null}>
@@ -55,12 +56,12 @@ function ClassroomScene({ isZoomed, onLoginTrigger }) {
         <mesh castShadow receiveShadow geometry={nodes.Mesh_23.geometry} material={materials.lambert23} />
       </group>
 
-      {/* HTML Projection (Kept outside the scaled group for easier positioning) */}
+      {/* HTML Projection */}
       <Html
         transform
         occlude
-        position={[0.7, 1.5, -2.3]} // ADJUST THIS: X, Y, Z coordinates to align over your blackboard
-        scale={0.15}                // ADJUST THIS: Size of the UI panel
+        position={[0.7, 1.5, -2.3]} // Adjust these values if the UI is not flat against the board
+        scale={0.15}                
       >
         <div className="w-[1000px] h-[700px] bg-slate-900/90 backdrop-blur-md rounded-3xl p-12 flex flex-col items-center justify-center border-4 border-slate-700 shadow-2xl">
           <h1 className="text-white text-6xl font-black uppercase tracking-tighter mb-4 italic">
@@ -125,4 +126,5 @@ export default function LandingPage({ onAuthenticate }) {
   );
 }
 
-useGLTF.preload('/classroom.glb');
+// THE FIX: Preload with PUBLIC_URL
+useGLTF.preload(process.env.PUBLIC_URL + '/classroom.glb');
