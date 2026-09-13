@@ -1,5 +1,6 @@
 import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import LandingPage from './LandingPage';
 import AvatarEditor from 'react-avatar-editor';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -1571,7 +1572,7 @@ const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
   const [targetHighlight, setTargetHighlight] = useState("");
 
- 
+ const [showLanding, setShowLanding] = useState(true);
 
   // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
@@ -2598,11 +2599,22 @@ const executeAddDepartment = async (e) => {
   };
 
  
-  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><RefreshCw className="text-blue-500 animate-spin" size={48} /></div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <RefreshCw className="text-blue-500 animate-spin" size={48} />
+      </div>
+    );
+  }
 
-   // --- AUTHENTICATION SCREEN LOCK ---
+  // --- AUTHENTICATION SCREEN LOCK ---
   const isRegisteringProcess = session && !profile && (authMode === 'register' || authMode === 'success');
-  
+
+  // Inserted Landing Page Logic
+  if (showLanding) {
+    return <LandingPage onAuthenticate={() => setShowLanding(false)} />;
+  }
+
   if (!session || isRegisteringProcess || authMode === 'success') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
