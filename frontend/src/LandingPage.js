@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect, useRef } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';
 import { 
@@ -13,68 +13,158 @@ import {
 import * as THREE from 'three';
 import accordLogo from './accord.png';
 
-// 1. Cinematic Distance Tracker
-function SceneController({ uiRef, cardRef, hintRef, isEntering }) {
+// 1. Cinematic Camera Glide
+function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      state.camera.position.lerp(new THREE.Vector3(0, 0.5, 0.5), delta * 2);
-      state.camera.lookAt(0, 0.5, -1);
-      return;
-    }
-
-    const dist = state.camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
-    const uiProgress = Math.max(0, Math.min(1, (4.5 - dist) / 2.0));
-    
-    if (uiRef.current) {
-      uiRef.current.style.opacity = uiProgress;
-      uiRef.current.style.transform = `translateY(${(1 - uiProgress) * 30}px) scale(${0.95 + (uiProgress * 0.05)})`;
-    }
-
-    if (cardRef.current) {
-      cardRef.current.style.pointerEvents = uiProgress > 0.5 ? 'auto' : 'none';
-    }
-
-    if (hintRef.current) {
-      hintRef.current.style.opacity = 1 - (uiProgress * 1.5);
+      // Glides directly into the whiteboard
+      state.camera.position.lerp(new THREE.Vector3(0, 1.5, -1.5), delta * 2.5);
+      state.camera.lookAt(0, 1.5, -4);
     }
   });
   return null;
 }
 
-// 2. The Dynamic Classroom Model
-function ClassroomModel() {
-  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
+// 2. The Immersive Written UI
+function BoardUI({ onEnter, onAbout, isEntering }) {
+  return (
+    <Html
+      transform
+      occlude="blending"
+      // ⚠️ TUNE THESE TO SLIDE THE TEXT ALONG THE BOARD ⚠️
+      // X = Left/Right | Y = Up/Down | Z = Forward/Back (Depth off the board)
+      position={[0, 0, 0.05]} 
+      rotation={[Math.PI / 2, 0, 0]} // Counteracts the 3D model's default rotation
+      scale={0.08}
+    >
+      <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
+        <img 
+          src={accordLogo} 
+          alt="Accord Pro" 
+          className="w-16 h-16 object-contain brightness-0 invert opacity-80 mb-3" 
+        />
+        
+        {/* Written Chalk/Marker Aesthetic */}
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-white/80 mb-1 italic">
+          Accord <span className="text-blue-400">Pro</span>
+        </h2>
+        <p className="text-[10px] font-bold text-slate-300/60 uppercase tracking-[0.4em] mb-12 text-center">
+          Secure Terminal Access
+        </p>
+
+        <div className="flex flex-col items-center gap-6 w-full pointer-events-auto">
+          {/* Borderless Text Button */}
+          <button
+            onClick={onEnter}
+            disabled={isEntering}
+            className="text-xl font-black uppercase tracking-[0.2em] text-white/90 hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group"
+          >
+            {isEntering ? (
+              <><Loader2 size={20} className="animate-spin text-blue-500" /> Initializing...</>
+            ) : (
+              <><span>Access Terminal</span><ArrowRight size={20} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
+            )}
+          </button>
+
+          {/* Borderless Secondary Text */}
+          <button
+            onClick={onAbout}
+            className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400/70 hover:text-white transition-colors flex items-center justify-center gap-2"
+          >
+            <HelpCircle size={12} className="text-blue-500/80" />
+            <span>What is Accord Pro?</span>
+          </button>
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+// 3. The Exploded Classroom Model
+function ClassroomModel({ onEnter, onAbout, isEntering }) {
+  const { nodes, materials } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
   useEffect(() => {
-    if (scene) {
-      scene.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          if (child.material) child.material.side = THREE.DoubleSide;
-        }
-      });
-    }
-  }, [scene]);
+    Object.values(materials).forEach((material) => {
+      material.side = THREE.DoubleSide;
+    });
+  }, [materials]);
 
   return (
     <group>
       <Center>
-        <primitive object={scene} scale={7.5} />
+        <group scale={7.5}> {/* Master Scale */}
+          <group scale={0.01}>
+            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
+              <mesh castShadow receiveShadow geometry={nodes.Cube015_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
+              <mesh castShadow receiveShadow geometry={nodes.Cube015_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
+            </group>
+            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
+              <mesh castShadow receiveShadow geometry={nodes.Cube018_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
+              <mesh castShadow receiveShadow geometry={nodes.Cube018_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
+            </group>
+            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
+              <mesh castShadow receiveShadow geometry={nodes.Cube029_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
+              <mesh castShadow receiveShadow geometry={nodes.Cube029_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
+            </group>
+            
+            {/* Standard Meshes */}
+            {[
+              'Cube_Classroom_Asets_0', 'Cube002_Classroom_Wall_and_Floor_0', 'Cube003_Classroom_Asets_0',
+              'Cube004_Classroom_Asets_0', 'Cube005_Classroom_Asets_0', 'Cube009_Classroom_Wall_and_Floor_0',
+              'Cube010_Classroom_Wall_and_Floor_0', 'Cube011_Classroom_Asets_0', 'Cube013_Classroom_Asets_0',
+              'Cube014_Classroom_Wall_and_Floor_0', 'Cube016_Classroom_Asets_0', 'Cube017_Classroom_Wall_and_Floor_0',
+              'Cube019_Classroom_Asets_0', 'Cube021_Classroom_Asets_0', 'Cube022_Classroom_Wall_and_Floor_0',
+              'Cube023_Classroom_Asets_0', 'Cube024_Classroom_Wall_and_Floor_0', 'Cube025_Classroom_Asets_0',
+              'Cube027_Classroom_Asets_0', 'Cube028_Classroom_Asets_0', 'Cylinder_Classroom_Asets_0',
+              'Cylinder001_Classroom_Asets_0', 'Cylinder002_Classroom_Asets_0', 'Cylinder003_Classroom_Asets_0',
+              'Object_4002_Classroom_Asets_0', 'Object_4004_Classroom_Asets_0', 'Object_4006_Classroom_Asets_0',
+              'Object_4008_Classroom_Asets_0', 'Object_4009_Classroom_Asets_0', 'Object_4010_Classroom_Asets_0',
+              'Object_4011_Classroom_Asets_0', 'Object_4014_Classroom_Asets_0', 'Object_4016_Classroom_Asets_0',
+              'Object_4018_Classroom_Asets_0', 'Plane_Classroom_Asets_0', 'Plane002_Classroom_Asets_0',
+              'aa_Classroom_Asets_0', 'defaultMaterial_Classroom_Asets_0', 'defaultMaterial002_Classroom_Asets_0',
+              'defaultMaterial003_Classroom_Asets_0', 'defaultMaterial004_Classroom_Asets_0', 'defaultMaterial005_Classroom_Asets_0',
+              'defaultMaterial006_Classroom_Asets_0', 'defaultMaterial007_Classroom_Asets_0', 'defaultMaterial008_Classroom_Asets_0',
+              'defaultMaterial009_Classroom_Asets_0', 'defaultMaterial010_Classroom_Asets_0', 'defaultMaterial011_Classroom_Asets_0',
+              'defaultMaterial012_Classroom_Asets_0', 'defaultMaterial013_Classroom_Asets_0', 'defaultMaterial014_Classroom_Asets_0',
+              'defaultMaterial015_Classroom_Asets_0', 'defaultMaterial016_Classroom_Asets_0', 'defaultMaterial017_Classroom_Asets_0',
+              'defaultMaterial018_Classroom_Asets_0'
+            ].map((meshName) => (
+              <mesh
+                key={meshName}
+                castShadow
+                receiveShadow
+                geometry={nodes[meshName].geometry}
+                material={nodes[meshName].material || materials.Classroom_Asets || materials.Classroom_Wall_and_Floor}
+                rotation={[-Math.PI / 2, 0, 0]}
+                scale={100}
+              />
+            ))}
+
+            {/* THE WHITEBOARD MESH (UI IS ANCHORED HERE) */}
+            <mesh
+              castShadow
+              receiveShadow
+              geometry={nodes.mesh_White_Bord_decals__0.geometry}
+              material={materials.White_Bord_decals}
+              rotation={[-Math.PI / 2, 0, 0]}
+              scale={100}
+            >
+              <BoardUI onEnter={onEnter} onAbout={onAbout} isEntering={isEntering} />
+            </mesh>
+            
+          </group>
+        </group>
       </Center>
-      <Sparkles count={200} scale={12} size={1.5} speed={0.2} opacity={0.15} color="#60a5fa" />
+      <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
     </group>
   );
 }
 
-// 3. The Main Interactive Landing Page
+// 4. The Main Interactive Landing Page
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
-  
-  const uiRef = useRef(null);
-  const cardRef = useRef(null);
-  const hintRef = useRef(null);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
@@ -86,7 +176,7 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
-      {/* --- 3D CANVAS VIEWPORT --- */}
+      {/* 3D CANVAS VIEWPORT */}
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: true }}>
           <color attach="background" args={['#030712']} />
@@ -104,14 +194,14 @@ export default function LandingPage({ onAuthenticate }) {
             <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
             <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
-            <ClassroomModel />
-            <SceneController uiRef={uiRef} cardRef={cardRef} hintRef={hintRef} isEntering={isEntering} />
+            <ClassroomModel onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
+            <CameraController isEntering={isEntering} />
 
             <OrbitControls
-              enabled={!isEntering}
+              enabled={!isEntering && !isAboutOpen}
               enableZoom={true}
               minDistance={1.8} 
-              maxDistance={5.5} 
+              maxDistance={6.5} 
               maxPolarAngle={Math.PI / 2 + 0.05}
               minPolarAngle={Math.PI / 6}
               enablePan={false}
@@ -122,67 +212,19 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* --- SCROLL HINT --- */}
-      <div 
-        ref={hintRef}
-        className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 transition-opacity duration-75"
-      >
-        <div className="w-10 h-16 border-2 border-white/20 rounded-full flex justify-center p-2 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
-          <div className="w-1.5 h-3 bg-blue-500 rounded-full animate-bounce" />
-        </div>
-        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 drop-shadow-md">
-          Scroll to Enter
-        </span>
-      </div>
-
-      {/* --- COMMAND DECK --- */}
-      <div 
-        ref={uiRef}
-        className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none opacity-0"
-        style={{ willChange: 'opacity, transform' }}
-      >
-        <div 
-          ref={cardRef}
-          className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center max-w-lg w-full mx-4 relative overflow-hidden pointer-events-none"
-        >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-blue-500/20 blur-[60px] pointer-events-none" />
-
-          <img src={accordLogo} alt="Accord Pro" className="w-24 h-24 object-contain brightness-0 invert drop-shadow-2xl mb-6 relative z-10" />
-          
-          <h2 className="text-3xl font-black uppercase tracking-tighter text-white mb-2 relative z-10 italic">
-            Accord <span className="text-blue-500">Pro</span>
-          </h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-10 text-center relative z-10">
-            Secure Terminal Access
-          </p>
-
-          <div className="w-full space-y-4 relative z-10">
-            <button
-              onClick={handleEnterClassroom}
-              disabled={isEntering}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_0_40px_rgba(37,99,235,0.4)] active:scale-95 transition-all flex items-center justify-center gap-3 group"
-            >
-              {isEntering ? (
-                <><Loader2 size={16} className="animate-spin" /> Initializing...</>
-              ) : (
-                <><span>Access Terminal</span><ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
-              )}
-            </button>
-
-            <button
-              onClick={() => setIsAboutOpen(true)}
-              className="w-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2.5"
-            >
-              <HelpCircle size={16} className="text-blue-400" />
-              <span>What is Accord Pro?</span>
-            </button>
+      {/* SCROLL HINT */}
+      {!isEntering && !isAboutOpen && (
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 opacity-60">
+          <div className="w-8 h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5">
+            <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
           </div>
+          <span className="text-[8px] font-black uppercase tracking-[0.3em] text-blue-400">Explore</span>
         </div>
-      </div>
+      )}
 
-      {/* --- MODAL --- */}
+      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-start justify-between mb-6 pb-6 border-b border-white/10">
@@ -194,10 +236,7 @@ export default function LandingPage({ onAuthenticate }) {
                   About Accord <span className="text-blue-500">Pro</span>
                 </h2>
               </div>
-              <button
-                onClick={() => setIsAboutOpen(false)}
-                className="bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white p-2.5 rounded-xl transition-all"
-              >
+              <button onClick={() => setIsAboutOpen(false)} className="bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white p-2.5 rounded-xl transition-all">
                 <X size={18} />
               </button>
             </div>
@@ -210,42 +249,25 @@ export default function LandingPage({ onAuthenticate }) {
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <CalendarCheck2 className="text-blue-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Conflict-Free</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  Guarantees no double-booked rooms or proctors across departments.
-                </p>
+                <p className="text-[10px] text-slate-400 leading-normal">Guarantees no double-booked rooms or proctors across departments.</p>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <Users className="text-indigo-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Proctor Dispatch</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  Real-time availability logs and emergency substitution routing.
-                </p>
+                <p className="text-[10px] text-slate-400 leading-normal">Real-time availability logs and emergency substitution routing.</p>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <ShieldCheck className="text-emerald-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Omni-Sight</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  Master university timelines with role-restricted audit trails.
-                </p>
+                <p className="text-[10px] text-slate-400 leading-normal">Master university timelines with role-restricted audit trails.</p>
               </div>
             </div>
 
             <div className="mt-auto flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-              <button
-                onClick={() => setIsAboutOpen(false)}
-                className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs uppercase tracking-widest transition-all"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setIsAboutOpen(false);
-                  handleEnterClassroom();
-                }}
-                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
-              >
+              <button onClick={() => setIsAboutOpen(false)} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs uppercase tracking-widest transition-all">Close</button>
+              <button onClick={() => { setIsAboutOpen(false); handleEnterClassroom(); }} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2">
                 <span>Launch App</span>
                 <ArrowRight size={14} />
               </button>
