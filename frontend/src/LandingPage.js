@@ -2,7 +2,7 @@ import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, Terminal
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
@@ -18,7 +18,24 @@ function CameraController({ isEntering }) {
   return null;
 }
 
-// Feature-Based Interactive Tooltip
+// Live Terminal Clock Feature
+function SystemClock() {
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
+  
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="mt-12 flex items-center gap-2 font-mono text-[10px] text-blue-400/80 tracking-[0.2em] uppercase drop-shadow-md">
+      <span className="w-2 h-3 bg-blue-400/80 animate-pulse" />
+      <span>SYS_TIME // {time}</span>
+    </div>
+  );
+}
+
+// Feature-Based Interactive Tooltips
 function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -27,7 +44,6 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
       <Html position={position} center zIndexRange={[50, 0]}>
         <div className="relative flex items-center justify-center animate-in fade-in duration-1000" style={{ animationDelay: `${delay}ms` }}>
           
-          {/* Interactive Pulse Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
             className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] border ${
@@ -37,7 +53,6 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
             <div className={`w-1.5 h-1.5 bg-white rounded-full ${isOpen ? '' : 'animate-pulse'}`} />
           </button>
 
-          {/* Elegant Glass Card */}
           <div 
             className={`absolute top-8 left-1/2 -translate-x-1/2 w-52 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transition-all duration-400 origin-top shadow-[0_10px_40px_rgba(0,0,0,0.8)] ${
               isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'
@@ -62,7 +77,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Clean, Immersive Written UI
+// Clean, Immersive Written UI (Icon-Only Buttons)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -77,34 +92,51 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_4px_15px_rgba(0,0,0,0.8)]">
             Accord <span className="text-blue-400">Pro</span>
           </h2>
-          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-12 md:mb-16 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-10 md:mb-12 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
             Secure Terminal Access
           </p>
 
-          <div className="flex flex-col items-center gap-6 w-full pointer-events-auto">
-            <button
-              onClick={onEnter}
-              disabled={isEntering}
-              className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-white hover:text-blue-400 transition-colors duration-300 flex items-center justify-center gap-3 group drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]"
-            >
-              {isEntering ? (
-                <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
-              ) : (
-                <>
-                  <span>Access Terminal</span>
-                  <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform duration-300 text-blue-500" />
-                </>
-              )}
-            </button>
+          {/* Horizontal Icon Buttons with Tooltips */}
+          <div className="flex flex-row items-center justify-center gap-6 w-full pointer-events-auto">
+            
+            {/* Access Terminal Button */}
+            <div className="relative group">
+              <button
+                onClick={onEnter}
+                disabled={isEntering}
+                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-blue-500/10 border border-blue-400/30 backdrop-blur-md flex items-center justify-center text-white hover:bg-blue-500/20 hover:border-blue-400/60 hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]"
+              >
+                {isEntering ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Terminal size={24} className="text-blue-400 group-hover:text-blue-300" />}
+              </button>
+              {/* Tooltip */}
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-sm">
+                  Access Terminal
+                </span>
+              </div>
+            </div>
 
-            <button
-              onClick={onAbout}
-              className="text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-slate-300 hover:text-white transition-colors duration-300 flex items-center justify-center gap-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-            >
-              <HelpCircle size={14} className="text-blue-500" />
-              <span>What is Accord Pro?</span>
-            </button>
+            {/* About Button */}
+            <div className="relative group">
+              <button
+                onClick={onAbout}
+                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-slate-900/60 border border-slate-700/50 backdrop-blur-md flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50 hover:scale-110 transition-all duration-300 shadow-xl"
+              >
+                <HelpCircle size={24} className="text-blue-400 group-hover:text-blue-300" />
+              </button>
+              {/* Tooltip */}
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-sm">
+                  What is Accord Pro?
+                </span>
+              </div>
+            </div>
+
           </div>
+          
+          {/* Live System Clock Feature */}
+          <SystemClock />
+          
         </div>
       </Html>
     </Float>
@@ -165,30 +197,11 @@ export default function LandingPage({ onAuthenticate }) {
               </Center>
               <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
               
-              {/* Feature-specific Spatial Tooltips */}
               {!isEntering && !isAboutOpen && (
                 <>
-                  <SpatialTooltip 
-                    position={[-2.5, 0.6, 1]} 
-                    icon={CalendarCheck2}
-                    title="Smart Room Allocation" 
-                    description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." 
-                    delay={500} 
-                  />
-                  <SpatialTooltip 
-                    position={[2, 0.5, -2]} 
-                    icon={Users}
-                    title="Live Proctor Routing" 
-                    description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." 
-                    delay={1000} 
-                  />
-                  <SpatialTooltip 
-                    position={[-3.5, 1.8, -3.5]} 
-                    icon={ShieldCheck}
-                    title="Master Timeline" 
-                    description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." 
-                    delay={1500} 
-                  />
+                  <SpatialTooltip position={[-2.5, 0.6, 1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
+                  <SpatialTooltip position={[2, 0.5, -2]} icon={Users} title="Live Proctor Routing" description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." delay={1000} />
+                  <SpatialTooltip position={[-3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
                 </>
               )}
 
