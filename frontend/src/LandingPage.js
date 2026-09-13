@@ -196,7 +196,7 @@ export default function LandingPage({ onAuthenticate }) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ],
-        model: 'llama3-8b-8192', 
+model: 'llama-3.1-8b-instant',
         temperature: 0.5,
         max_tokens: 150,
       });
