@@ -1,6 +1,6 @@
 import React, { useState, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { useGLTF, Html, Environment } from '@react-three/drei';
+import { useGLTF, Html, Environment, OrbitControls } from '@react-three/drei';
 import { motion } from 'framer-motion-3d';
 import { Loader2 } from 'lucide-react';
 
@@ -11,10 +11,10 @@ function CameraRig({ isZoomed }) {
       makeDefault
       initial={false}
       animate={{
-        x: isZoomed ? 0.7 : 0,         
-        y: isZoomed ? 1.5 : 4,         
-        z: isZoomed ? -1 : 8,         
-        rotateX: isZoomed ? 0 : -0.1  
+        x: isZoomed ? 0 : 0,         
+        y: isZoomed ? 1.5 : 2,         
+        z: isZoomed ? -0.5 : 5,         
+        rotateX: isZoomed ? 0 : 0  
       }}
       transition={{ duration: 1.8, ease: [0.25, 1, 0.5, 1] }}
     />
@@ -23,13 +23,12 @@ function CameraRig({ isZoomed }) {
 
 // 2. Your Specific 3D Classroom Component
 function ClassroomScene({ isZoomed, onLoginTrigger }) {
-  // THE FIX: process.env.PUBLIC_URL forces React to find the file in the deployed public folder
   const { nodes, materials } = useGLTF(process.env.PUBLIC_URL + '/classroom.glb');
 
   return (
     <group dispose={null}>
-      {/* The Exported Blender Geometry */}
-      <group position={[0.732, 0.239, -2.373]} rotation={[Math.PI / 2, 0, 0]} scale={0.01}>
+      {/* Fixed scale and centering for the Blender export */}
+      <group position={[0, -1, 0]} rotation={[0, 0, 0]} scale={1}>
         <mesh castShadow receiveShadow geometry={nodes.Mesh.geometry} material={materials.lambert30} />
         <mesh castShadow receiveShadow geometry={nodes.Mesh_1.geometry} material={materials.lambert28} />
         <mesh castShadow receiveShadow geometry={nodes.Mesh_2.geometry} material={materials.lambert25} />
@@ -56,11 +55,11 @@ function ClassroomScene({ isZoomed, onLoginTrigger }) {
         <mesh castShadow receiveShadow geometry={nodes.Mesh_23.geometry} material={materials.lambert23} />
       </group>
 
-      {/* HTML Projection */}
+      {/* HTML Projection on Blackboard */}
       <Html
         transform
         occlude
-        position={[0.7, 1.5, -2.3]} // Adjust these values if the UI is not flat against the board
+        position={[0, 1.5, -3]} // Adjust X, Y, Z if it needs to move onto your specific board position
         scale={0.15}                
       >
         <div className="w-[1000px] h-[700px] bg-slate-900/90 backdrop-blur-md rounded-3xl p-12 flex flex-col items-center justify-center border-4 border-slate-700 shadow-2xl">
@@ -115,9 +114,13 @@ export default function LandingPage({ onAuthenticate }) {
           </Html>
         }>
           <CameraRig isZoomed={isZoomed} />
+          
+          {/* Enables mouse dragging to look around the room */}
+          <OrbitControls enableZoom={false} enablePan={false} maxPolarAngle={Math.PI / 2 + 0.1} minPolarAngle={Math.PI / 2 - 0.5} makeDefault />
+          
           <Environment preset="city" />
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 10, 5]} intensity={1} castShadow />
+          <ambientLight intensity={0.7} />
+          <directionalLight position={[5, 10, 5]} intensity={1.2} castShadow />
           
           <ClassroomScene isZoomed={isZoomed} onLoginTrigger={onAuthenticate} />
         </Suspense>
@@ -126,5 +129,4 @@ export default function LandingPage({ onAuthenticate }) {
   );
 }
 
-// THE FIX: Preload with PUBLIC_URL
 useGLTF.preload(process.env.PUBLIC_URL + '/classroom.glb');
