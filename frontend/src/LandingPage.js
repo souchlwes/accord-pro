@@ -70,10 +70,8 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
             Secure Access Portal
           </p>
 
-          {/* Bare Outline Icons */}
           <div className="flex flex-row items-center justify-center gap-10 md:gap-14 w-full pointer-events-auto">
             
-            {/* Launch Button */}
             <div className="relative group">
               <button
                 onClick={onEnter}
@@ -87,7 +85,6 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               </div>
             </div>
 
-            {/* About Button */}
             <div className="relative group">
               <button
                 onClick={onAbout}
@@ -100,7 +97,6 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               </div>
             </div>
 
-            {/* Chat Button */}
             <div className="relative group">
               <button
                 onClick={onChatToggle}
@@ -153,61 +149,52 @@ export default function LandingPage({ onAuthenticate }) {
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'bot', text: 'Welcome to Accord Pro. I can help answer questions regarding onboarding, dashboards, or core features. How can I assist?' }
+    { id: 1, sender: 'bot', text: 'System Online. I am the Accord Pro intelligent assistant. I can answer questions about system reliability, scheduling rules, or onboarding.' }
   ]);
   const messagesEndRef = useRef(null);
 
-  // Critical Onboarding Questions
   const quickQuestions = [
+    "Is the system reliable?",
     "Where do I get an invite code?",
-    "How do I join?",
-    "What if my account is PENDING?",
-    "What are the user roles?"
+    "How does conflict detection work?",
+    "What tech is this built on?"
   ];
 
-  // System Feature Logic Engine
-  const getBotResponse = (query) => {
-    const lowerQuery = query.toLowerCase();
-    
-    if (lowerQuery.match(/invite|code|where/)) {
-      return "Invite codes are distributed directly by your university's Department Head or IT Administrator prior to the exam period. If you are setting up a new institution entirely, select 'New University' on the registration screen.";
-    }
-    if (lowerQuery.match(/join|register|sign up/)) {
-      return "To join, click 'Launch Platform' and register using our secure, OTP-verified email flow. You will need your 6-character Invite Code to be routed to the correct department workspace.";
-    }
-    if (lowerQuery.match(/pending|blocked|approve/)) {
-      return "For strict gatekeeping, new staff accounts remain in a PENDING state until manually approved by your Administrator. If your account shows as BLOCKED, please contact your university IT department.";
-    }
-    if (lowerQuery.match(/role|admin|proctor|dashboard|head/)) {
-      return "Dashboards are role-based: Head Admins get global oversight. Dept Admins manage local rooms and their proctor pool. Proctors get a personal dashboard with a dynamic itinerary and assignment alerts.";
-    }
-    if (lowerQuery.match(/schedule|conflict|overlap|re-validation/)) {
-      return "Our Re-Validation engine runs conflict detection. When Admins generate a schedule, it instantly flags any overlapping rooms or double-booked proctors based on the Availability Log Book.";
-    }
-    if (lowerQuery.match(/emergency|reliever|decline|backup/)) {
-      return "If a proctor flags an emergency or declines an assignment, the system highlights the slot and instantly routes a 'Reliever Request' to available backups who can accept the shift.";
-    }
-    if (lowerQuery.match(/what is|features|about/)) {
-      return "Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room conflicts, and orchestrate university-wide exam sessions in real time.";
-    }
-    
-    return "I am a virtual assistant trained on Accord Pro's secure onboarding and scheduling features. You can ask me about invite codes, joining the platform, pending accounts, or emergency reliever routing.";
-  };
-
-  const submitMessage = (text) => {
+  // API Call Logic
+  const submitMessage = async (text) => {
     if (!text.trim()) return;
     
+    // Add user message to UI immediately
     const newUserMsg = { id: Date.now(), sender: 'user', text };
     setMessages((prev) => [...prev, newUserMsg]);
     setChatInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const responseText = getBotResponse(text);
-      const botMsg = { id: Date.now() + 1, sender: 'bot', text: responseText };
+    try {
+      // Send the message to your secure Next.js backend
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!response.ok) throw new Error('Network response was not ok');
+      
+      const data = await response.json();
+      
+      // Add the AI's response to the UI
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: data.reply };
       setMessages((prev) => [...prev, botMsg]);
+
+    } catch (error) {
+      // Fallback if the API fails or is not set up yet
+      const errorMsg = { id: Date.now() + 1, sender: 'bot', text: "Connection error. Please ensure the backend API route is configured." };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-    }, 800 + Math.random() * 600);
+    }
   };
 
   const handleSendMessage = (e) => {
@@ -278,7 +265,7 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* Enhanced Smart Chat Window */}
+      {/* Smart Chat Window */}
       {isChatOpen && (
         <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
           {/* Header */}
