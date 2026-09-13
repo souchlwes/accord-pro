@@ -196,7 +196,7 @@ export default function LandingPage({ onAuthenticate }) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ],
-model: 'llama-3.1-8b-instant',
+model: 'openai/gpt-oss-20b',
         temperature: 0.5,
         max_tokens: 150,
       });
