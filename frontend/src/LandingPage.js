@@ -17,57 +17,60 @@ import accordLogo from './accord.png';
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      // Glides directly into the whiteboard
-      state.camera.position.lerp(new THREE.Vector3(0, 1.5, -1.5), delta * 2.5);
+      // Glides directly toward the board
+      state.camera.position.lerp(new THREE.Vector3(0, 1.5, -1.0), delta * 2.5);
       state.camera.lookAt(0, 1.5, -4);
     }
   });
   return null;
 }
 
-// 2. The Immersive Written UI
+// 2. The Immersive Written UI (Decoupled from model hierarchy)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Html
       transform
-      // Occlude removed so the board stops hiding the text
-      // Local position adjusted to pop slightly off the board's collision mesh
-      position={[0, 0.5, 0.05]} 
-      rotation={[Math.PI / 2, 0, 0]} 
-      scale={0.1}
+      // ⚠️ TUNE THESE 3 NUMBERS TO ALIGN WITH THE BOARD ⚠️
+      // [Left/Right, Up/Down, Forward/Back]
+      position={[0, 1.5, -3.5]} 
+      rotation={[0, 0, 0]} 
+      scale={0.12}
     >
       <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
         <img 
           src={accordLogo} 
           alt="Accord Pro" 
-          className="w-16 h-16 object-contain brightness-0 invert opacity-80 mb-3 drop-shadow-md" 
+          className="w-20 h-20 object-contain brightness-0 invert opacity-90 mb-4 drop-shadow-md" 
         />
         
-        <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-1 italic drop-shadow-lg">
+        {/* Written Chalk/Marker Aesthetic - No Borders */}
+        <h2 className="text-5xl font-black uppercase tracking-tighter text-white/95 mb-2 italic drop-shadow-xl">
           Accord <span className="text-blue-400">Pro</span>
         </h2>
-        <p className="text-[10px] font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-12 text-center drop-shadow-md">
+        <p className="text-sm font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-14 text-center drop-shadow-md">
           Secure Terminal Access
         </p>
 
-        <div className="flex flex-col items-center gap-6 w-full pointer-events-auto">
+        <div className="flex flex-col items-center gap-8 w-full pointer-events-auto">
+          {/* Borderless Text Button */}
           <button
             onClick={onEnter}
             disabled={isEntering}
-            className="text-xl font-black uppercase tracking-[0.2em] text-white hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group drop-shadow-md"
+            className="text-2xl font-black uppercase tracking-[0.15em] text-white/95 hover:text-blue-400 transition-colors flex items-center justify-center gap-4 group drop-shadow-xl"
           >
             {isEntering ? (
-              <><Loader2 size={20} className="animate-spin text-blue-500" /> Initializing...</>
+              <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
             ) : (
-              <><span>Access Terminal</span><ArrowRight size={20} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
+              <><span>Access Terminal</span><ArrowRight size={24} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
             )}
           </button>
 
+          {/* Borderless Secondary Text */}
           <button
             onClick={onAbout}
-            className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
+            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
           >
-            <HelpCircle size={12} className="text-blue-500/80" />
+            <HelpCircle size={14} className="text-blue-500/80" />
             <span>What is Accord Pro?</span>
           </button>
         </div>
@@ -76,83 +79,23 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   );
 }
 
-// 3. The Exploded Classroom Model
-function ClassroomModel({ onEnter, onAbout, isEntering }) {
-  const { nodes, materials } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
+// 3. The Classroom Model (Rendered cleanly as one piece)
+function ClassroomModel() {
+  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
   useEffect(() => {
-    Object.values(materials).forEach((material) => {
-      material.side = THREE.DoubleSide;
-    });
-  }, [materials]);
+    if (scene) {
+      scene.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) child.material.side = THREE.DoubleSide;
+        }
+      });
+    }
+  }, [scene]);
 
-  return (
-    <group>
-      <Center>
-        <group scale={7.5}> 
-          <group scale={0.01}>
-            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
-              <mesh castShadow receiveShadow geometry={nodes.Cube015_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
-              <mesh castShadow receiveShadow geometry={nodes.Cube015_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
-            </group>
-            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
-              <mesh castShadow receiveShadow geometry={nodes.Cube018_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
-              <mesh castShadow receiveShadow geometry={nodes.Cube018_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
-            </group>
-            <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
-              <mesh castShadow receiveShadow geometry={nodes.Cube029_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
-              <mesh castShadow receiveShadow geometry={nodes.Cube029_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
-            </group>
-            
-            {[
-              'Cube_Classroom_Asets_0', 'Cube002_Classroom_Wall_and_Floor_0', 'Cube003_Classroom_Asets_0',
-              'Cube004_Classroom_Asets_0', 'Cube005_Classroom_Asets_0', 'Cube009_Classroom_Wall_and_Floor_0',
-              'Cube010_Classroom_Wall_and_Floor_0', 'Cube011_Classroom_Asets_0', 'Cube013_Classroom_Asets_0',
-              'Cube014_Classroom_Wall_and_Floor_0', 'Cube016_Classroom_Asets_0', 'Cube017_Classroom_Wall_and_Floor_0',
-              'Cube019_Classroom_Asets_0', 'Cube021_Classroom_Asets_0', 'Cube022_Classroom_Wall_and_Floor_0',
-              'Cube023_Classroom_Asets_0', 'Cube024_Classroom_Wall_and_Floor_0', 'Cube025_Classroom_Asets_0',
-              'Cube027_Classroom_Asets_0', 'Cube028_Classroom_Asets_0', 'Cylinder_Classroom_Asets_0',
-              'Cylinder001_Classroom_Asets_0', 'Cylinder002_Classroom_Asets_0', 'Cylinder003_Classroom_Asets_0',
-              'Object_4002_Classroom_Asets_0', 'Object_4004_Classroom_Asets_0', 'Object_4006_Classroom_Asets_0',
-              'Object_4008_Classroom_Asets_0', 'Object_4009_Classroom_Asets_0', 'Object_4010_Classroom_Asets_0',
-              'Object_4011_Classroom_Asets_0', 'Object_4014_Classroom_Asets_0', 'Object_4016_Classroom_Asets_0',
-              'Object_4018_Classroom_Asets_0', 'Plane_Classroom_Asets_0', 'Plane002_Classroom_Asets_0',
-              'aa_Classroom_Asets_0', 'defaultMaterial_Classroom_Asets_0', 'defaultMaterial002_Classroom_Asets_0',
-              'defaultMaterial003_Classroom_Asets_0', 'defaultMaterial004_Classroom_Asets_0', 'defaultMaterial005_Classroom_Asets_0',
-              'defaultMaterial006_Classroom_Asets_0', 'defaultMaterial007_Classroom_Asets_0', 'defaultMaterial008_Classroom_Asets_0',
-              'defaultMaterial009_Classroom_Asets_0', 'defaultMaterial010_Classroom_Asets_0', 'defaultMaterial011_Classroom_Asets_0',
-              'defaultMaterial012_Classroom_Asets_0', 'defaultMaterial013_Classroom_Asets_0', 'defaultMaterial014_Classroom_Asets_0',
-              'defaultMaterial015_Classroom_Asets_0', 'defaultMaterial016_Classroom_Asets_0', 'defaultMaterial017_Classroom_Asets_0',
-              'defaultMaterial018_Classroom_Asets_0'
-            ].map((meshName) => (
-              <mesh
-                key={meshName}
-                castShadow
-                receiveShadow
-                geometry={nodes[meshName].geometry}
-                material={nodes[meshName].material || materials.Classroom_Asets || materials.Classroom_Wall_and_Floor}
-                rotation={[-Math.PI / 2, 0, 0]}
-                scale={100}
-              />
-            ))}
-
-            <mesh
-              castShadow
-              receiveShadow
-              geometry={nodes.mesh_White_Bord_decals__0.geometry}
-              material={materials.White_Bord_decals}
-              rotation={[-Math.PI / 2, 0, 0]}
-              scale={100}
-            >
-              <BoardUI onEnter={onEnter} onAbout={onAbout} isEntering={isEntering} />
-            </mesh>
-            
-          </group>
-        </group>
-      </Center>
-      <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
-    </group>
-  );
+  return <primitive object={scene} scale={7.5} />;
 }
 
 // 4. The Main Interactive Landing Page
@@ -170,6 +113,7 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
+      {/* 3D CANVAS VIEWPORT */}
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: true }}>
           <color attach="background" args={['#030712']} />
@@ -187,7 +131,15 @@ export default function LandingPage({ onAuthenticate }) {
             <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
             <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
-            <ClassroomModel onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
+            <group>
+              <Center>
+                <ClassroomModel />
+              </Center>
+              {/* UI is placed securely outside the model's complex hierarchy */}
+              <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
+              <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
+            </group>
+            
             <CameraController isEntering={isEntering} />
 
             <OrbitControls
@@ -205,15 +157,17 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
+      {/* SCROLL HINT */}
       {!isEntering && !isAboutOpen && (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 opacity-60">
-          <div className="w-8 h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5">
+          <div className="w-8 h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
             <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
           </div>
-          <span className="text-[8px] font-black uppercase tracking-[0.3em] text-blue-400">Explore</span>
+          <span className="text-[8px] font-black uppercase tracking-[0.3em] text-blue-400 drop-shadow-md">Explore</span>
         </div>
       )}
 
+      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
