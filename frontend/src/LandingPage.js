@@ -2,7 +2,7 @@ import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, Terminal
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
@@ -16,23 +16,6 @@ function CameraController({ isEntering }) {
     }
   });
   return null;
-}
-
-// Live Terminal Clock Feature
-function SystemClock() {
-  const [time, setTime] = useState(new Date().toLocaleTimeString());
-  
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="mt-12 flex items-center gap-2 font-mono text-[10px] text-blue-400/80 tracking-[0.2em] uppercase drop-shadow-md">
-      <span className="w-2 h-3 bg-blue-400/80 animate-pulse" />
-      <span>SYS_TIME // {time}</span>
-    </div>
-  );
 }
 
 // Feature-Based Interactive Tooltips
@@ -77,7 +60,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Clean, Immersive Written UI (Icon-Only Buttons)
+// Clean Outline UI
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -86,57 +69,43 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
           <img 
             src={accordLogo} 
             alt="Accord Pro" 
-            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-95 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-100 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
           />
           
           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_4px_15px_rgba(0,0,0,0.8)]">
             Accord <span className="text-blue-400">Pro</span>
           </h2>
           <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-10 md:mb-12 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
-            Secure Terminal Access
+            Secure Access Portal
           </p>
 
-          {/* Horizontal Icon Buttons with Tooltips */}
-          <div className="flex flex-row items-center justify-center gap-6 w-full pointer-events-auto">
+          {/* Highly Visible Outline Buttons */}
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full pointer-events-auto">
             
-            {/* Access Terminal Button */}
-            <div className="relative group">
-              <button
-                onClick={onEnter}
-                disabled={isEntering}
-                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-blue-500/10 border border-blue-400/30 backdrop-blur-md flex items-center justify-center text-white hover:bg-blue-500/20 hover:border-blue-400/60 hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]"
-              >
-                {isEntering ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Terminal size={24} className="text-blue-400 group-hover:text-blue-300" />}
-              </button>
-              {/* Tooltip */}
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-sm">
-                  Access Terminal
-                </span>
-              </div>
-            </div>
+            <button
+              onClick={onEnter}
+              disabled={isEntering}
+              className="px-8 py-3.5 rounded-full bg-transparent border-2 border-white text-white font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-white hover:text-slate-950 transition-all duration-300 flex items-center justify-center gap-3 drop-shadow-lg"
+            >
+              {isEntering ? (
+                <><Loader2 size={16} className="animate-spin" /> Initializing...</>
+              ) : (
+                <>
+                  <span>Launch Platform</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
 
-            {/* About Button */}
-            <div className="relative group">
-              <button
-                onClick={onAbout}
-                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-slate-900/60 border border-slate-700/50 backdrop-blur-md flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50 hover:scale-110 transition-all duration-300 shadow-xl"
-              >
-                <HelpCircle size={24} className="text-blue-400 group-hover:text-blue-300" />
-              </button>
-              {/* Tooltip */}
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-sm">
-                  What is Accord Pro?
-                </span>
-              </div>
-            </div>
+            <button
+              onClick={onAbout}
+              className="px-8 py-3.5 rounded-full bg-transparent border-2 border-blue-400/60 text-blue-100 font-bold text-[10px] md:text-xs uppercase tracking-widest hover:border-blue-400 hover:bg-blue-400/20 transition-all duration-300 flex items-center justify-center gap-2 drop-shadow-lg"
+            >
+              <HelpCircle size={16} className="text-blue-400" />
+              <span>What is Accord Pro?</span>
+            </button>
 
           </div>
-          
-          {/* Live System Clock Feature */}
-          <SystemClock />
-          
         </div>
       </Html>
     </Float>
@@ -224,6 +193,15 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
+      {/* Floating Chat Button Overlay */}
+      {!isEntering && (
+        <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 z-20 transition-opacity duration-500">
+          <button className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform hover:scale-110 group">
+            <MessageCircle size={22} className="group-hover:animate-pulse" />
+          </button>
+        </div>
+      )}
+
       {!isEntering && !isAboutOpen && (
         <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
           <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
@@ -232,6 +210,7 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
+      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
