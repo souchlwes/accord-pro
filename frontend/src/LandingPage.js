@@ -52,7 +52,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive Written UI with Icon-Only Buttons
+// Immersive UI with Pure Outline Icons
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -70,17 +70,17 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
             Secure Access Portal
           </p>
 
-          {/* Premium Icon Buttons Layout */}
-          <div className="flex flex-row items-center justify-center gap-6 w-full pointer-events-auto">
+          {/* Bare Outline Icons */}
+          <div className="flex flex-row items-center justify-center gap-10 md:gap-14 w-full pointer-events-auto">
             
             {/* Launch Button */}
             <div className="relative group">
               <button
                 onClick={onEnter}
                 disabled={isEntering}
-                className="w-14 h-14 rounded-full bg-blue-500/10 border border-blue-400/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-blue-500/20 hover:border-blue-400/80 hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+                className="text-white hover:text-blue-400 transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(96,165,250,0.8)]"
               >
-                {isEntering ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Terminal size={24} className="text-blue-400 group-hover:text-blue-300" />}
+                {isEntering ? <Loader2 size={36} className="animate-spin text-blue-500" /> : <Terminal size={36} strokeWidth={1.5} />}
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                 <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Launch Platform</span>
@@ -91,9 +91,9 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
             <div className="relative group">
               <button
                 onClick={onAbout}
-                className="w-14 h-14 rounded-full bg-slate-900/60 border border-slate-700/50 backdrop-blur-md flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50 hover:scale-110 transition-all duration-300 shadow-xl"
+                className="text-slate-200 hover:text-white transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]"
               >
-                <HelpCircle size={24} className="text-slate-300 group-hover:text-white" />
+                <HelpCircle size={36} strokeWidth={1.5} />
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                 <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">What is Accord Pro?</span>
@@ -104,13 +104,13 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
             <div className="relative group">
               <button
                 onClick={onChatToggle}
-                className={`w-14 h-14 rounded-full border backdrop-blur-md flex items-center justify-center transition-all duration-300 shadow-xl hover:scale-110 ${
+                className={`transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] ${
                   isChatOpen 
-                    ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
-                    : 'bg-slate-900/60 border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50'
+                    ? 'text-blue-500 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)]' 
+                    : 'text-slate-200 hover:text-blue-400 hover:drop-shadow-[0_0_15px_rgba(96,165,250,0.8)]'
                 }`}
               >
-                {isChatOpen ? <X size={24} /> : <MessageCircle size={24} className="text-blue-400 group-hover:text-blue-300" />}
+                {isChatOpen ? <X size={36} strokeWidth={1.5} /> : <MessageCircle size={36} strokeWidth={1.5} />}
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                 <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
@@ -157,43 +157,41 @@ export default function LandingPage({ onAuthenticate }) {
   ]);
   const messagesEndRef = useRef(null);
 
+  // Critical Onboarding Questions
   const quickQuestions = [
+    "Where do I get an invite code?",
     "How do I join?",
-    "What are the user roles?",
-    "How are conflicts resolved?",
-    "What if there's an emergency?"
+    "What if my account is PENDING?",
+    "What are the user roles?"
   ];
 
   // System Feature Logic Engine
   const getBotResponse = (query) => {
     const lowerQuery = query.toLowerCase();
     
-    if (lowerQuery.match(/join|register|sign up|invite|code/)) {
-      return "To join Accord Pro, register using our secure, OTP-verified email flow. You will need a unique 6-character 'Invite Code' to join an existing department, or you can initialize a New University. Note: New staff remain in a PENDING state until an Admin approves them.";
+    if (lowerQuery.match(/invite|code|where/)) {
+      return "Invite codes are distributed directly by your university's Department Head or IT Administrator prior to the exam period. If you are setting up a new institution entirely, select 'New University' on the registration screen.";
+    }
+    if (lowerQuery.match(/join|register|sign up/)) {
+      return "To join, click 'Launch Platform' and register using our secure, OTP-verified email flow. You will need your 6-character Invite Code to be routed to the correct department workspace.";
+    }
+    if (lowerQuery.match(/pending|blocked|approve/)) {
+      return "For strict gatekeeping, new staff accounts remain in a PENDING state until manually approved by your Administrator. If your account shows as BLOCKED, please contact your university IT department.";
     }
     if (lowerQuery.match(/role|admin|proctor|dashboard|head/)) {
-      return "The system routes users by access level: Head Admins receive a 'University Master View'. Department Admins are isolated to their specific Department Card. Proctors get a personal dashboard featuring a dynamic itinerary and assignment alerts.";
+      return "Dashboards are role-based: Head Admins get global oversight. Dept Admins manage local rooms and their proctor pool. Proctors get a personal dashboard with a dynamic itinerary and assignment alerts.";
     }
     if (lowerQuery.match(/schedule|conflict|overlap|re-validation/)) {
-      return "Our Re-Validation engine continuously scans the database. When Admins generate a schedule from the Availability Log Book, a live algorithm instantly flags any overlapping rooms or double-booked proctors.";
+      return "Our Re-Validation engine runs conflict detection. When Admins generate a schedule, it instantly flags any overlapping rooms or double-booked proctors based on the Availability Log Book.";
     }
     if (lowerQuery.match(/emergency|reliever|decline|backup/)) {
-      return "Our contingency system is built for this. If a proctor flags an emergency or declines an assignment, the system highlights the slot and instantly routes a 'Reliever Request' to available backup staff who can accept the shift.";
-    }
-    if (lowerQuery.match(/chat|communication|message|notification/)) {
-      return "Accord Pro features a persistent Notification Panel for alerts, a live Chat Panel for global campus announcements and direct messaging, and a dynamic context-aware Help Center.";
-    }
-    if (lowerQuery.match(/export|pdf|excel|availability/)) {
-      return "Proctors can submit hours manually or via bulk Excel templates. Administrators can also export confirmed schedules as branded PDF itineraries or formatted Excel spreadsheets.";
-    }
-    if (lowerQuery.match(/account|avatar|password|otp/)) {
-      return "We enforce strict Identity & Access Management. Your account hub features a zoom-and-crop avatar editor, OTP verification, password recovery, and a dual-verification email update flow.";
+      return "If a proctor flags an emergency or declines an assignment, the system highlights the slot and instantly routes a 'Reliever Request' to available backups who can accept the shift.";
     }
     if (lowerQuery.match(/what is|features|about/)) {
-      return "Accord Pro is a comprehensive institutional examination operations platform. It features secure onboarding, role-based dashboards, conflict-free scheduling, emergency reliever routing, and real-time communication.";
+      return "Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room conflicts, and orchestrate university-wide exam sessions in real time.";
     }
     
-    return "I can answer questions regarding invite codes, user dashboards, the conflict detection engine, or emergency routing. What would you like to know?";
+    return "I am a virtual assistant trained on Accord Pro's secure onboarding and scheduling features. You can ask me about invite codes, joining the platform, pending accounts, or emergency reliever routing.";
   };
 
   const submitMessage = (text) => {
@@ -204,7 +202,6 @@ export default function LandingPage({ onAuthenticate }) {
     setChatInput('');
     setIsTyping(true);
 
-    // Natural typing delay simulation
     setTimeout(() => {
       const responseText = getBotResponse(text);
       const botMsg = { id: Date.now() + 1, sender: 'bot', text: responseText };
