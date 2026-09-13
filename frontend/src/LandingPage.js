@@ -1,7 +1,6 @@
 import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles } from '@react-three/drei';
-import { 
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';import { 
   HelpCircle, 
   ArrowRight, 
   ShieldCheck, 
