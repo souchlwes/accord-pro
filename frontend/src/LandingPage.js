@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect, useMemo } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
@@ -25,18 +25,18 @@ function CameraController({ isEntering }) {
   return null;
 }
 
-// 2. The Immersive Written UI (Now with a premium breathing effect)
+// 2. The Immersive Written UI (Premium breathing effect)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float 
-      speed={1.5} // Animation speed
-      rotationIntensity={0.05} // Very subtle rotation
-      floatIntensity={0.2} // Very subtle up/down bobbing
+      speed={1.5} 
+      rotationIntensity={0.05} 
+      floatIntensity={0.2} 
       floatingRange={[-0.03, 0.03]} 
     >
       <Html
         transform
-        // ⚠️ DRASTICALLY LOWERED Y-AXIS (0.3 down from 1.1 or 1.5)
+        // Lowered Y-axis to 0.3 so it stays at eye-level
         position={[0, 0.3, -3.2]} 
         rotation={[0, 0, 0]} 
         distanceFactor={3.8}
@@ -101,34 +101,28 @@ function FadeController({ uiRef, isEntering }) {
 // 4. The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
-  const clonedScene = useMemo(() => scene.clone(), [scene]);
   
   useEffect(() => {
-    clonedScene.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        if (child.material) child.material.side = THREE.DoubleSide;
-      }
-    });
-  }, [clonedScene]);
+    if (scene) {
+      scene.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) child.material.side = THREE.DoubleSide;
+        }
+      });
+    }
+  }, [scene]);
 
-  return <primitive object={clonedScene} scale={7.5} rotation={[0, Math.PI, 0]} />;
+  // Scene is rendered directly without cloning. Spun 180 degrees to face the board.
+  return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
 // 5. The Main Interactive Landing Page
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const uiContainerRef = React.useRef(null);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
@@ -137,56 +131,10 @@ export default function LandingPage({ onAuthenticate }) {
     }, 1200);
   };
 
-  // --- MOBILE FALLBACK UI ---
-  if (isMobile) {
-    return (
-      <div className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
-        <div className="relative z-10 flex flex-col items-center w-full max-w-sm">
-          <img src={accordLogo} alt="Accord Pro" className="w-20 h-20 object-contain brightness-0 invert mb-6 opacity-90" />
-          <h2 className="text-4xl font-black uppercase tracking-tighter text-white mb-2 italic text-center">
-            Accord <span className="text-blue-500">Pro</span>
-          </h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.3em] mb-12 text-center">
-            System Initialization
-          </p>
-
-          <button onClick={() => onAuthenticate()} className="w-full bg-blue-600 text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 mb-6 shadow-xl shadow-blue-600/20">
-            <span>Access Terminal</span><ArrowRight size={16} />
-          </button>
-
-          <button onClick={() => setIsAboutOpen(true)} className="w-full bg-slate-900 border border-slate-800 text-slate-300 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
-            <HelpCircle size={16} className="text-blue-400" /><span>What is Accord Pro?</span>
-          </button>
-        </div>
-
-        {isAboutOpen && (
-          <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 p-6 overflow-y-auto">
-             <div className="flex items-start justify-between mb-8 pb-4 border-b border-white/10 mt-4">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 block mb-1">Overview</span>
-                <h2 className="text-2xl font-black uppercase tracking-tight text-white italic">About Accord Pro</h2>
-              </div>
-              <button onClick={() => setIsAboutOpen(false)} className="bg-white/10 p-2.5 rounded-xl"><X size={18} /></button>
-            </div>
-            <p className="text-sm text-slate-300 leading-relaxed mb-8">Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction and resolve room conflicts.</p>
-            <div className="space-y-4">
-              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><CalendarCheck2 className="text-blue-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Conflict-Free</h4></div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><Users className="text-indigo-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Proctor Dispatch</h4></div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-white/5"><ShieldCheck className="text-emerald-400 mb-2" size={20} /><h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Omni-Sight</h4></div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // --- DESKTOP 3D UI ---
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
-        {/* Reverted to standard, stable WebGL lighting */}
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
           
@@ -197,9 +145,9 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[6, 10, 6]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
+            <ambientLight intensity={1.5} />
+            <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
+            <directionalLight position={[-6, -4, -6]} intensity={0.8} color="#60a5fa" />
             
             <group>
               <Center>
