@@ -24,34 +24,33 @@ function CameraController({ isEntering }) {
   return null;
 }
 
-// 2. The Immersive Written UI (Floating & Lowered)
+// 2. Premium Immersive UI (Luminescent & Floating)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float 
-      speed={1.5} 
-      rotationIntensity={0.05} 
-      floatIntensity={0.2} 
-      floatingRange={[-0.03, 0.03]} 
+      speed={1.2} 
+      rotationIntensity={0.03} 
+      floatIntensity={0.15} 
+      floatingRange={[-0.02, 0.02]} 
     >
       <Html
         transform
-        // Lowered Y-axis to 0.3 to sit at eye-level
         position={[0, 0.3, -3.5]} 
         rotation={[0, 0, 0]} 
         distanceFactor={4}
         zIndexRange={[100, 0]}
       >
-        <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
+        <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
             alt="Accord Pro" 
-            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-90 mb-2 md:mb-4 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-95 mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" 
           />
           
-          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-1 md:mb-2 italic drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]">
-            Accord <span className="text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.4)]">Pro</span>
+          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+            Accord <span className="text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.6)]">Pro</span>
           </h2>
-          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.4em] mb-10 md:mb-14 text-center drop-shadow-md">
+          <p className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-[0.5em] mb-12 md:mb-16 text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
             Secure Terminal Access
           </p>
 
@@ -59,20 +58,23 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             <button
               onClick={onEnter}
               disabled={isEntering}
-              className="text-lg md:text-2xl font-black uppercase tracking-[0.15em] text-white hover:text-blue-400 transition-colors flex items-center justify-center gap-3 md:gap-4 group drop-shadow-xl"
+              className="relative text-lg md:text-2xl font-black uppercase tracking-[0.2em] text-white hover:text-blue-300 transition-all duration-500 flex items-center justify-center gap-3 md:gap-4 group drop-shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:drop-shadow-[0_0_25px_rgba(96,165,250,0.8)]"
             >
               {isEntering ? (
                 <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
               ) : (
-                <><span>Access Terminal</span><ArrowRight size={24} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
+                <>
+                  <span>Access Terminal</span>
+                  <ArrowRight size={24} className="group-hover:translate-x-3 transition-transform duration-500 text-blue-400" />
+                </>
               )}
             </button>
 
             <button
               onClick={onAbout}
-              className="text-[9px] md:text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
+              className="text-[9px] md:text-xs font-bold uppercase tracking-widest text-slate-400/80 hover:text-white transition-colors duration-300 flex items-center justify-center gap-2"
             >
-              <HelpCircle size={14} className="text-blue-500" />
+              <HelpCircle size={14} className="text-blue-500/80" />
               <span>What is Accord Pro?</span>
             </button>
           </div>
@@ -82,7 +84,7 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   );
 }
 
-// 3. The Classroom Model (Exact working version)
+// 3. The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
@@ -98,9 +100,7 @@ function ClassroomModel() {
     }
   }, [scene]);
 
-  return (
-    <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />
-  );
+  return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
 // 4. The Main Interactive Landing Page
@@ -137,7 +137,10 @@ export default function LandingPage({ onAuthenticate }) {
                 <ClassroomModel />
               </Center>
               <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
-              <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
+              
+              {/* Dual-Layer Sparkles for Cinematic Depth */}
+              <Sparkles count={150} scale={15} size={2} speed={0.05} opacity={0.15} color="#ffffff" />
+              <Sparkles count={300} scale={14} size={1.2} speed={0.2} opacity={0.3} color="#60a5fa" />
             </group>
             
             <CameraController isEntering={isEntering} />
@@ -157,70 +160,72 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
+      {/* SCROLL HINT */}
       {!isEntering && !isAboutOpen && (
-        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
-          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-            <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
+        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-50 transition-opacity hover:opacity-100">
+          <div className="w-6 h-10 md:w-8 md:h-12 border border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_20px_rgba(59,130,246,0.15)] bg-black/20 backdrop-blur-sm">
+            <div className="w-1 h-2 bg-blue-400 rounded-full animate-bounce shadow-[0_0_10px_rgba(96,165,250,0.8)]" />
           </div>
-          <span className="text-[8px] font-black uppercase tracking-[0.3em] text-blue-400 drop-shadow-md">Explore</span>
+          <span className="text-[8px] font-black uppercase tracking-[0.4em] text-blue-400 drop-shadow-md">Explore</span>
         </div>
       )}
 
+      {/* PREMIUM GLASSMORPHISM MODAL */}
       {isAboutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
-          <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-3xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-500 pointer-events-auto">
+          <div className="bg-gradient-to-b from-slate-900/90 to-slate-950/95 border border-white/10 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-[0_0_60px_rgba(37,99,235,0.15)] relative flex flex-col max-h-[90vh] overflow-y-auto">
             
-            <div className="flex items-start justify-between mb-6 pb-6 border-b border-white/10">
+            <div className="flex items-start justify-between mb-8 pb-6 border-b border-white/5">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 block mb-1">
+                <span className="text-[9px] font-black uppercase tracking-[0.4em] text-blue-500 block mb-2 drop-shadow-md">
                   System Overview
                 </span>
-                <h2 className="text-xl sm:text-3xl font-black uppercase tracking-tight text-white italic">
+                <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white italic drop-shadow-lg">
                   About Accord <span className="text-blue-500">Pro</span>
                 </h2>
               </div>
               <button
                 onClick={() => setIsAboutOpen(false)}
-                className="bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white p-2 md:p-2.5 rounded-xl transition-all"
+                className="bg-white/5 hover:bg-rose-500 border border-white/5 hover:border-rose-500 text-slate-400 hover:text-white p-2.5 rounded-2xl transition-all duration-300"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6 font-medium">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-8 font-medium">
               Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room and proctor conflicts, and orchestrate university-wide exam sessions in real time.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-8">
-              <div className="bg-slate-800/60 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner">
-                <CalendarCheck2 className="text-blue-400 mb-2 md:mb-3" size={20} />
-                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Conflict-Free</h4>
-                <p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+              <div className="bg-gradient-to-b from-white/5 to-transparent p-5 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-colors group">
+                <CalendarCheck2 className="text-blue-500 mb-3 group-hover:scale-110 transition-transform duration-300" size={22} />
+                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-2">Conflict-Free</h4>
+                <p className="text-[9px] md:text-[10px] text-slate-400 leading-relaxed">
                   Guarantees no double-booked rooms or proctors across departments.
                 </p>
               </div>
 
-              <div className="bg-slate-800/60 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner">
-                <Users className="text-indigo-400 mb-2 md:mb-3" size={20} />
-                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Proctor Dispatch</h4>
-                <p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">
+              <div className="bg-gradient-to-b from-white/5 to-transparent p-5 rounded-3xl border border-white/5 hover:border-indigo-500/30 transition-colors group">
+                <Users className="text-indigo-400 mb-3 group-hover:scale-110 transition-transform duration-300" size={22} />
+                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-2">Proctor Dispatch</h4>
+                <p className="text-[9px] md:text-[10px] text-slate-400 leading-relaxed">
                   Real-time availability logs and emergency substitution routing.
                 </p>
               </div>
 
-              <div className="bg-slate-800/60 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner">
-                <ShieldCheck className="text-emerald-400 mb-2 md:mb-3" size={20} />
-                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Omni-Sight</h4>
-                <p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">
+              <div className="bg-gradient-to-b from-white/5 to-transparent p-5 rounded-3xl border border-white/5 hover:border-emerald-500/30 transition-colors group">
+                <ShieldCheck className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform duration-300" size={22} />
+                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-2">Omni-Sight</h4>
+                <p className="text-[9px] md:text-[10px] text-slate-400 leading-relaxed">
                   Master university timelines with role-restricted audit trails.
                 </p>
               </div>
             </div>
 
-            <div className="mt-auto flex items-center justify-end gap-2 md:gap-3 pt-4 border-t border-white/10">
+            <div className="mt-auto flex items-center justify-end gap-3 pt-6 border-t border-white/5">
               <button
                 onClick={() => setIsAboutOpen(false)}
-                className="px-4 py-2 md:px-6 md:py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-[10px] md:text-xs uppercase tracking-widest transition-all"
+                className="px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-[10px] md:text-xs uppercase tracking-widest transition-all"
               >
                 Close
               </button>
@@ -229,10 +234,10 @@ export default function LandingPage({ onAuthenticate }) {
                   setIsAboutOpen(false);
                   handleEnterClassroom();
                 }}
-                className="px-4 py-2 md:px-6 md:py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
+                className="px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] md:text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] transition-all flex items-center gap-2 group"
               >
                 <span>Launch App</span>
-                <ArrowRight size={14} />
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           </div>
