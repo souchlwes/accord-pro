@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect } from 'react';
+import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';
 import { 
@@ -13,11 +13,10 @@ import {
 import * as THREE from 'three';
 import accordLogo from './accord.png';
 
-// 1. Cinematic Camera Glide & Breathing
+// 1. Cinematic Camera Glide
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      // Glides directly toward the center of the board
       state.camera.position.lerp(new THREE.Vector3(0, 1.1, -1.0), delta * 2.5);
       state.camera.lookAt(0, 1.1, -4.0);
     }
@@ -30,7 +29,6 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Html
       transform
-      // ⚠️ LOWERED Y-AXIS (1.1) to center it better on screen
       position={[0, 1.1, -3.2]} 
       rotation={[0, 0, 0]} 
       distanceFactor={3.8}
@@ -43,7 +41,6 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
           className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-85 mb-3 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" 
         />
         
-        {/* Premium text styling to mimic physical ink/chalk interacting with light */}
         <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white/90 mb-1 italic drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]">
           Accord <span className="text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.4)]">Pro</span>
         </h2>
@@ -82,7 +79,6 @@ function FadeController({ uiRef, isEntering }) {
   useFrame((state) => {
     if (isEntering) return;
     const dist = state.camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
-    // UI is now fully visible at a much wider range, fading out only at extreme zoom
     const uiProgress = Math.max(0, Math.min(1, (7.0 - dist) / 2.0));
     
     if (uiRef.current) {
@@ -93,23 +89,22 @@ function FadeController({ uiRef, isEntering }) {
   return null;
 }
 
-// 4. The Classroom Model
+// 4. The Classroom Model (Safely cloned for stability)
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
+  const clonedScene = useMemo(() => scene.clone(), [scene]);
   
   useEffect(() => {
-    if (scene) {
-      scene.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          if (child.material) child.material.side = THREE.DoubleSide;
-        }
-      });
-    }
-  }, [scene]);
+    clonedScene.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) child.material.side = THREE.DoubleSide;
+      }
+    });
+  }, [clonedScene]);
 
-  return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
+  return <primitive object={clonedScene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
 // 5. The Main Interactive Landing Page
@@ -180,10 +175,11 @@ export default function LandingPage({ onAuthenticate }) {
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
-        <Canvas shadows gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
-          {/* Deep cinematic fog to blend the edges of the room */}
+        {/* Restored default gl tone mapping for visibility */}
+        <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
-          <fog attach="fog" args={['#030712', 4, 12]} />
+          {/* Pushed fog far back to blend distant edges without hiding the room */}
+          <fog attach="fog" args={['#030712', 15, 40]} />
           
           <PerspectiveCamera makeDefault position={[0, 1.5, 6.0]} fov={45} />
           
@@ -192,13 +188,11 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            {/* Dramatically improved lighting */}
-            <ambientLight intensity={0.8} />
-            <directionalLight position={[6, 10, 6]} intensity={1.2} castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={0.4} color="#60a5fa" />
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[6, 10, 6]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
+            <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
-            {/* Cinematic spotlight aimed directly at the blackboard UI */}
-            <spotLight position={[0, 4, 2]} angle={0.5} penumbra={1} intensity={3} color="#93c5fd" target-position={[0, 1.1, -3.2]} />
+            <spotLight position={[0, 4, 2]} angle={0.5} penumbra={1} intensity={2.5} color="#93c5fd" target-position={[0, 1.1, -3.2]} />
             
             <group>
               <Center>
