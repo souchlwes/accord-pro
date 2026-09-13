@@ -2,13 +2,12 @@ import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, 
-  Activity, Cpu, Globe, MapPin
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
 
-// 1. Cinematic Camera Glide
+// Cinematic Camera Glide
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
@@ -19,20 +18,43 @@ function CameraController({ isEntering }) {
   return null;
 }
 
-// 2. Spatial 3D Tooltips
-function SpatialTooltip({ position, title, description, delay = 0 }) {
+// Feature-Based Interactive Tooltip
+function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <Float floatIntensity={0.5} floatingRange={[-0.05, 0.05]} speed={2}>
       <Html position={position} center zIndexRange={[50, 0]}>
-        <div className="group relative flex items-center justify-center cursor-help animate-in fade-in duration-1000" style={{ animationDelay: `${delay}ms` }}>
-          {/* Glowing Dot */}
-          <div className="w-3 h-3 rounded-full bg-blue-500/80 border border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.8)] group-hover:scale-150 transition-all duration-300" />
-          {/* Expandable Card */}
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 w-48 bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-xl p-3 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 scale-95 group-hover:scale-100 shadow-2xl">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-400 mb-1 flex items-center gap-1">
-              <MapPin size={10} /> {title}
+        <div className="relative flex items-center justify-center animate-in fade-in duration-1000" style={{ animationDelay: `${delay}ms` }}>
+          
+          {/* Interactive Pulse Button */}
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] border ${
+              isOpen ? 'bg-blue-500 border-white scale-125' : 'bg-blue-500/40 border-blue-400 hover:scale-125 hover:bg-blue-500/80'
+            }`}
+          >
+            <div className={`w-1.5 h-1.5 bg-white rounded-full ${isOpen ? '' : 'animate-pulse'}`} />
+          </button>
+
+          {/* Elegant Glass Card */}
+          <div 
+            className={`absolute top-8 left-1/2 -translate-x-1/2 w-52 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transition-all duration-400 origin-top shadow-[0_10px_40px_rgba(0,0,0,0.8)] ${
+              isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'
+            }`}
+          >
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="absolute top-3 right-3 text-slate-400 hover:text-white"
+            >
+              <X size={12} />
+            </button>
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-white mb-2 flex items-center gap-2 pr-4">
+              <Icon size={14} className="text-blue-400" /> {title}
             </h4>
-            <p className="text-[9px] text-slate-300 leading-relaxed">{description}</p>
+            <p className="text-[9px] text-slate-300 leading-relaxed font-medium">
+              {description}
+            </p>
           </div>
         </div>
       </Html>
@@ -40,39 +62,47 @@ function SpatialTooltip({ position, title, description, delay = 0 }) {
   );
 }
 
-// 3. Immersive UI with Glassmorphic Buttons
+// Clean, Immersive Written UI
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       <Html transform position={[0, 0.3, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-          <img src={accordLogo} alt="Accord Pro" className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-95 mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+          <img 
+            src={accordLogo} 
+            alt="Accord Pro" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-95 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
+          />
           
-          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-            Accord <span className="text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.6)]">Pro</span>
+          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_4px_15px_rgba(0,0,0,0.8)]">
+            Accord <span className="text-blue-400">Pro</span>
           </h2>
-          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-10 md:mb-14 text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-12 md:mb-16 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
             Secure Terminal Access
           </p>
 
-          <div className="flex flex-col items-center gap-4 w-full pointer-events-auto">
+          <div className="flex flex-col items-center gap-6 w-full pointer-events-auto">
             <button
               onClick={onEnter}
               disabled={isEntering}
-              className="relative px-8 py-4 rounded-full bg-blue-500/10 border border-blue-400/30 backdrop-blur-md text-lg md:text-xl font-black uppercase tracking-[0.15em] text-white hover:bg-blue-500/20 hover:border-blue-400/60 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3 md:gap-4 group shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]"
+              className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-white hover:text-blue-400 transition-colors duration-300 flex items-center justify-center gap-3 group drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]"
             >
               {isEntering ? (
                 <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
               ) : (
-                <><span>Access Terminal</span><ArrowRight size={24} className="group-hover:translate-x-2 transition-transform duration-500 text-blue-400" /></>
+                <>
+                  <span>Access Terminal</span>
+                  <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform duration-300 text-blue-500" />
+                </>
               )}
             </button>
 
             <button
               onClick={onAbout}
-              className="px-6 py-2.5 rounded-full bg-slate-900/60 border border-slate-700/50 backdrop-blur-md text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-200 hover:text-white hover:bg-slate-800/80 hover:border-slate-500/50 transition-all duration-300 flex items-center justify-center gap-2 shadow-xl"
+              className="text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-slate-300 hover:text-white transition-colors duration-300 flex items-center justify-center gap-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
             >
-              <HelpCircle size={14} className="text-blue-400" /><span>What is Accord Pro?</span>
+              <HelpCircle size={14} className="text-blue-500" />
+              <span>What is Accord Pro?</span>
             </button>
           </div>
         </div>
@@ -81,7 +111,7 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   );
 }
 
-// 4. The Classroom Model
+// The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   
@@ -100,7 +130,7 @@ function ClassroomModel() {
   return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
-// 5. The Main Interactive Landing Page
+// The Main Interactive Landing Page
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
@@ -115,7 +145,6 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
-      {/* 3D CANVAS */}
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
@@ -136,13 +165,33 @@ export default function LandingPage({ onAuthenticate }) {
               </Center>
               <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
               
-              {/* Tooltips */}
-              {!isEntering && (
+              {/* Feature-specific Spatial Tooltips */}
+              {!isEntering && !isAboutOpen && (
                 <>
-                  <SpatialTooltip position={[2.5, 0.5, -2]} title="Proctor Node" description="Automated dispatch terminal for tracking active proctor movements." delay={500} />
-                  <SpatialTooltip position={[-2.5, 0.8, -1.5]} title="Audit Trail" description="Encrypted visual logs of all scheduled institutional exams." delay={1000} />
+                  <SpatialTooltip 
+                    position={[-2.5, 0.6, 1]} 
+                    icon={CalendarCheck2}
+                    title="Smart Room Allocation" 
+                    description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." 
+                    delay={500} 
+                  />
+                  <SpatialTooltip 
+                    position={[2, 0.5, -2]} 
+                    icon={Users}
+                    title="Live Proctor Routing" 
+                    description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." 
+                    delay={1000} 
+                  />
+                  <SpatialTooltip 
+                    position={[-3.5, 1.8, -3.5]} 
+                    icon={ShieldCheck}
+                    title="Master Timeline" 
+                    description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." 
+                    delay={1500} 
+                  />
                 </>
               )}
+
               <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
             </group>
             
@@ -162,43 +211,14 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* --- 2D OVERLAY HUD --- */}
-      <div className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
-        
-        {/* Live System Status */}
-        <div className="absolute top-6 right-6 hidden md:flex items-center gap-3 bg-slate-900/60 border border-white/10 backdrop-blur-md px-4 py-2 rounded-full z-20 shadow-lg">
-          <div className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </div>
-          <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-slate-300 flex items-center gap-2">
-            <Activity size={12} className="text-emerald-500" /> SYS_OPT
-          </span>
-        </div>
-
-        {/* Version Identification */}
-        <div className="absolute bottom-6 left-6 z-20">
-          <span className="text-[9px] font-mono text-slate-500/80 uppercase tracking-widest">
-            Accord Pro // V.2.1.4 // <span className="text-blue-500/80">Secured</span>
-          </span>
-        </div>
-
-        {/* Trust Badges */}
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 flex items-center gap-6 opacity-40">
-          <Globe size={18} className="text-slate-400" />
-          <Cpu size={18} className="text-slate-400" />
-          <ShieldCheck size={18} className="text-slate-400" />
-        </div>
-
-        {/* Scroll Hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 opacity-60">
-          <div className="w-6 h-10 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+      {!isEntering && !isAboutOpen && (
+        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
+          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
             <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
           </div>
         </div>
-      </div>
+      )}
 
-      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
