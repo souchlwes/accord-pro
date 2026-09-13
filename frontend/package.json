@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "three": "^0.160.0",
+    "@react-three/fiber": "^8.15.12",
+    "@react-three/drei": "^9.96.1",
+    "framer-motion": "^11.0.3",
+    "framer-motion-3d": "^11.0.3",    
     "@aws-sdk/client-s3": "^3.0.0",    
     "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.6.0",
