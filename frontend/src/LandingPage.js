@@ -128,7 +128,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
 
 // The Classroom Model
 function ClassroomModel() {
-  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
+  const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom.glb');
   useEffect(() => {
     if (scene) {
       scene.traverse((child) => {
@@ -400,4 +400,4 @@ export default function LandingPage({ onAuthenticate }) {
   );
 }
 
-useGLTF.preload(process.env.PUBLIC_URL + '/classroom2.glb');
+useGLTF.preload(process.env.PUBLIC_URL + '/classroom.glb');
