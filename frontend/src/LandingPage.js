@@ -17,7 +17,6 @@ import accordLogo from './accord.png';
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      // Glides directly toward the center of the board
       state.camera.position.lerp(new THREE.Vector3(0, 0.8, -1.0), delta * 2.5);
       state.camera.lookAt(0, 0.8, -4.5);
     }
@@ -25,7 +24,7 @@ function CameraController({ isEntering }) {
   return null;
 }
 
-// 2. The Immersive Written UI (Premium breathing effect)
+// 2. The Immersive Written UI
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float 
@@ -114,7 +113,6 @@ function ClassroomModel() {
     }
   }, [scene]);
 
-  // Scene is rendered directly without cloning. Spun 180 degrees to face the board.
   return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
@@ -138,16 +136,17 @@ export default function LandingPage({ onAuthenticate }) {
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
           
-          <PerspectiveCamera makeDefault position={[0, 1.5, 6.0]} fov={45} />
+          <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
           
           <Suspense fallback={
             <Html center style={{ position: 'absolute', top: '-35vh' }}>
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            <ambientLight intensity={1.5} />
+            {/* STABLE LIGHTING RESTORED */}
+            <ambientLight intensity={1.2} />
             <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={0.8} color="#60a5fa" />
+            <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
             <group>
               <Center>
@@ -156,7 +155,7 @@ export default function LandingPage({ onAuthenticate }) {
               <group ref={uiContainerRef}>
                 <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
               </group>
-              <Sparkles count={300} scale={15} size={1.2} speed={0.15} opacity={0.3} color="#93c5fd" />
+              <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
             </group>
             
             <CameraController isEntering={isEntering} />
@@ -166,14 +165,12 @@ export default function LandingPage({ onAuthenticate }) {
               enabled={!isEntering && !isAboutOpen}
               enableZoom={true}
               minDistance={1.8} 
-              maxDistance={7.0} 
+              maxDistance={6.5} 
               maxPolarAngle={Math.PI / 2 + 0.05}
               minPolarAngle={Math.PI / 6}
               enablePan={false}
               enableDamping={true}
-              dampingFactor={0.05}
-              autoRotate={!isEntering && !isAboutOpen}
-              autoRotateSpeed={0.3}
+              dampingFactor={0.06}
             />
           </Suspense>
         </Canvas>
