@@ -30,34 +30,31 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Html
       transform
-      occlude="blending"
-      // ⚠️ TUNE THESE TO SLIDE THE TEXT ALONG THE BOARD ⚠️
-      // X = Left/Right | Y = Up/Down | Z = Forward/Back (Depth off the board)
-      position={[0, 0, 0.05]} 
-      rotation={[Math.PI / 2, 0, 0]} // Counteracts the 3D model's default rotation
-      scale={0.08}
+      // Occlude removed so the board stops hiding the text
+      // Local position adjusted to pop slightly off the board's collision mesh
+      position={[0, 0.5, 0.05]} 
+      rotation={[Math.PI / 2, 0, 0]} 
+      scale={0.1}
     >
       <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
         <img 
           src={accordLogo} 
           alt="Accord Pro" 
-          className="w-16 h-16 object-contain brightness-0 invert opacity-80 mb-3" 
+          className="w-16 h-16 object-contain brightness-0 invert opacity-80 mb-3 drop-shadow-md" 
         />
         
-        {/* Written Chalk/Marker Aesthetic */}
-        <h2 className="text-4xl font-black uppercase tracking-tighter text-white/80 mb-1 italic">
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-white/90 mb-1 italic drop-shadow-lg">
           Accord <span className="text-blue-400">Pro</span>
         </h2>
-        <p className="text-[10px] font-bold text-slate-300/60 uppercase tracking-[0.4em] mb-12 text-center">
+        <p className="text-[10px] font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-12 text-center drop-shadow-md">
           Secure Terminal Access
         </p>
 
         <div className="flex flex-col items-center gap-6 w-full pointer-events-auto">
-          {/* Borderless Text Button */}
           <button
             onClick={onEnter}
             disabled={isEntering}
-            className="text-xl font-black uppercase tracking-[0.2em] text-white/90 hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group"
+            className="text-xl font-black uppercase tracking-[0.2em] text-white hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group drop-shadow-md"
           >
             {isEntering ? (
               <><Loader2 size={20} className="animate-spin text-blue-500" /> Initializing...</>
@@ -66,10 +63,9 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             )}
           </button>
 
-          {/* Borderless Secondary Text */}
           <button
             onClick={onAbout}
-            className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400/70 hover:text-white transition-colors flex items-center justify-center gap-2"
+            className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
           >
             <HelpCircle size={12} className="text-blue-500/80" />
             <span>What is Accord Pro?</span>
@@ -93,7 +89,7 @@ function ClassroomModel({ onEnter, onAbout, isEntering }) {
   return (
     <group>
       <Center>
-        <group scale={7.5}> {/* Master Scale */}
+        <group scale={7.5}> 
           <group scale={0.01}>
             <group rotation={[-Math.PI / 2, 0, 0]} scale={100}>
               <mesh castShadow receiveShadow geometry={nodes.Cube015_Classroom_Asets_0.geometry} material={materials.Classroom_Asets} />
@@ -108,7 +104,6 @@ function ClassroomModel({ onEnter, onAbout, isEntering }) {
               <mesh castShadow receiveShadow geometry={nodes.Cube029_Dirty_glass001_0.geometry} material={materials['Dirty_glass.001']} />
             </group>
             
-            {/* Standard Meshes */}
             {[
               'Cube_Classroom_Asets_0', 'Cube002_Classroom_Wall_and_Floor_0', 'Cube003_Classroom_Asets_0',
               'Cube004_Classroom_Asets_0', 'Cube005_Classroom_Asets_0', 'Cube009_Classroom_Wall_and_Floor_0',
@@ -141,7 +136,6 @@ function ClassroomModel({ onEnter, onAbout, isEntering }) {
               />
             ))}
 
-            {/* THE WHITEBOARD MESH (UI IS ANCHORED HERE) */}
             <mesh
               castShadow
               receiveShadow
@@ -176,7 +170,6 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
-      {/* 3D CANVAS VIEWPORT */}
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: true }}>
           <color attach="background" args={['#030712']} />
@@ -212,7 +205,6 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* SCROLL HINT */}
       {!isEntering && !isAboutOpen && (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-3 opacity-60">
           <div className="w-8 h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5">
@@ -222,7 +214,6 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
@@ -236,7 +227,10 @@ export default function LandingPage({ onAuthenticate }) {
                   About Accord <span className="text-blue-500">Pro</span>
                 </h2>
               </div>
-              <button onClick={() => setIsAboutOpen(false)} className="bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white p-2.5 rounded-xl transition-all">
+              <button
+                onClick={() => setIsAboutOpen(false)}
+                className="bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white p-2.5 rounded-xl transition-all"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -249,25 +243,42 @@ export default function LandingPage({ onAuthenticate }) {
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <CalendarCheck2 className="text-blue-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Conflict-Free</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">Guarantees no double-booked rooms or proctors across departments.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Guarantees no double-booked rooms or proctors across departments.
+                </p>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <Users className="text-indigo-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Proctor Dispatch</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">Real-time availability logs and emergency substitution routing.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Real-time availability logs and emergency substitution routing.
+                </p>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/5 shadow-inner">
                 <ShieldCheck className="text-emerald-400 mb-3" size={24} />
                 <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1.5">Omni-Sight</h4>
-                <p className="text-[10px] text-slate-400 leading-normal">Master university timelines with role-restricted audit trails.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Master university timelines with role-restricted audit trails.
+                </p>
               </div>
             </div>
 
             <div className="mt-auto flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-              <button onClick={() => setIsAboutOpen(false)} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs uppercase tracking-widest transition-all">Close</button>
-              <button onClick={() => { setIsAboutOpen(false); handleEnterClassroom(); }} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2">
+              <button
+                onClick={() => setIsAboutOpen(false)}
+                className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs uppercase tracking-widest transition-all"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setIsAboutOpen(false);
+                  handleEnterClassroom();
+                }}
+                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
+              >
                 <span>Launch App</span>
                 <ArrowRight size={14} />
               </button>
