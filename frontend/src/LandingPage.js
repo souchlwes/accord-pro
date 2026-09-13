@@ -5,7 +5,14 @@ import {
   HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal
 } from 'lucide-react';
 import * as THREE from 'three';
+import Groq from 'groq-sdk';
 import accordLogo from './accord.png';
+
+// Initialize Groq directly in the browser
+const groq = new Groq({
+  apiKey: process.env.REACT_APP_GROQ_API_KEY,
+  dangerouslyAllowBrowser: true 
+});
 
 // Cinematic Camera Glide
 function CameraController({ isEntering }) {
@@ -160,37 +167,50 @@ export default function LandingPage({ onAuthenticate }) {
     "What tech is this built on?"
   ];
 
-  // API Call Logic
+  // Direct Groq API Call
   const submitMessage = async (text) => {
     if (!text.trim()) return;
     
-    // Add user message to UI immediately
     const newUserMsg = { id: Date.now(), sender: 'user', text };
     setMessages((prev) => [...prev, newUserMsg]);
     setChatInput('');
     setIsTyping(true);
 
     try {
-      // Send the message to your secure Next.js backend
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: text }),
+      const systemPrompt = `You are the Accord Pro Assistant, an intelligent, professional AI helper for an institutional examination operations platform. 
+      Keep your answers concise, professional, and directly helpful. Do not use markdown formatting.
+      
+      Here is your core knowledge base:
+      - Onboarding: Users need a 6-character 'Invite Code' from their Department Head or IT Admin to register. New accounts remain strictly in a PENDING state until an Admin approves them.
+      - Security: The system uses OTP-verified email authentication.
+      - Roles: Head Admins get a Global Master View. Dept Admins manage local rooms. Proctors get a personal dynamic itinerary dashboard.
+      - Conflict Detection: A live Re-Validation Engine continuously scans the database. When Admins generate schedules from the Availability Log Book, it instantly flags double-booked rooms or proctors.
+      - Emergencies: If a proctor declines a shift, an emergency 'Reliever Request' is instantly routed to available backups.
+      - Tech Stack: The platform is built using React, Supabase, and Cloudflare R2.
+      
+      Answer the user's question accurately based ONLY on the rules above.`;
+
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text }
+        ],
+        model: 'llama3-8b-8192', 
+        temperature: 0.5,
+        max_tokens: 150,
       });
 
-      if (!response.ok) throw new Error('Network response was not ok');
-      
-      const data = await response.json();
-      
-      // Add the AI's response to the UI
-      const botMsg = { id: Date.now() + 1, sender: 'bot', text: data.reply };
+      const reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply };
       setMessages((prev) => [...prev, botMsg]);
 
     } catch (error) {
-      // Fallback if the API fails or is not set up yet
-      const errorMsg = { id: Date.now() + 1, sender: 'bot', text: "Connection error. Please ensure the backend API route is configured." };
+      console.error('Groq API Error:', error);
+      const errorMsg = { 
+        id: Date.now() + 1, 
+        sender: 'bot', 
+        text: "System connection error. Please ensure REACT_APP_GROQ_API_KEY is properly set in your environment file and the server was restarted." 
+      };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);
