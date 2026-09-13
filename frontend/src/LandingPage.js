@@ -1,6 +1,6 @@
 import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles } from '@react-three/drei';
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';
 import { 
   HelpCircle, 
   ArrowRight, 
@@ -30,7 +30,6 @@ function SceneController({ uiRef, cardRef, hintRef, isEntering }) {
       uiRef.current.style.transform = `translateY(${(1 - uiProgress) * 30}px) scale(${0.95 + (uiProgress * 0.05)})`;
     }
 
-    // Isolates clickability exclusively to the card, allowing free rotation elsewhere
     if (cardRef.current) {
       cardRef.current.style.pointerEvents = uiProgress > 0.5 ? 'auto' : 'none';
     }
@@ -94,10 +93,12 @@ export default function LandingPage({ onAuthenticate }) {
           <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
           
           <Suspense fallback={
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Loading Realm</span>
-            </div>
+            <Html center>
+              <div className="flex flex-col items-center justify-center gap-4 w-screen h-screen pointer-events-none">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Loading Realm</span>
+              </div>
+            </Html>
           }>
             <ambientLight intensity={1.2} />
             <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
@@ -179,7 +180,7 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       </div>
 
-      {/* --- MODAL (Unchanged) --- */}
+      {/* --- MODAL --- */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
