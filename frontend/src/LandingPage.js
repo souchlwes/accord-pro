@@ -1,6 +1,6 @@
 import React, { useState, Suspense, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html } from '@react-three/drei';
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
   HelpCircle, 
   ArrowRight, 
@@ -17,60 +17,69 @@ import accordLogo from './accord.png';
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      state.camera.position.lerp(new THREE.Vector3(0, 1.1, -1.0), delta * 2.5);
-      state.camera.lookAt(0, 1.1, -4.0);
+      // Glides directly toward the center of the board
+      state.camera.position.lerp(new THREE.Vector3(0, 0.8, -1.0), delta * 2.5);
+      state.camera.lookAt(0, 0.8, -4.5);
     }
   });
   return null;
 }
 
-// 2. The Immersive Written UI
+// 2. The Immersive Written UI (Now with a premium breathing effect)
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
-    <Html
-      transform
-      position={[0, 1.1, -3.2]} 
-      rotation={[0, 0, 0]} 
-      distanceFactor={3.8}
-      zIndexRange={[100, 0]}
+    <Float 
+      speed={1.5} // Animation speed
+      rotationIntensity={0.05} // Very subtle rotation
+      floatIntensity={0.2} // Very subtle up/down bobbing
+      floatingRange={[-0.03, 0.03]} 
     >
-      <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
-        <img 
-          src={accordLogo} 
-          alt="Accord Pro" 
-          className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-85 mb-3 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" 
-        />
-        
-        <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white/90 mb-1 italic drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]">
-          Accord <span className="text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.4)]">Pro</span>
-        </h2>
-        <p className="text-[10px] md:text-xs font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-10 md:mb-14 text-center drop-shadow-md">
-          Secure Terminal Access
-        </p>
+      <Html
+        transform
+        // ⚠️ DRASTICALLY LOWERED Y-AXIS (0.3 down from 1.1 or 1.5)
+        position={[0, 0.3, -3.2]} 
+        rotation={[0, 0, 0]} 
+        distanceFactor={3.8}
+        zIndexRange={[100, 0]}
+      >
+        <div className={`flex flex-col items-center justify-center transition-opacity duration-1000 select-none ${isEntering ? 'opacity-0' : 'opacity-100'}`}>
+          <img 
+            src={accordLogo} 
+            alt="Accord Pro" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-85 mb-3 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" 
+          />
+          
+          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white/90 mb-1 italic drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]">
+            Accord <span className="text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.4)]">Pro</span>
+          </h2>
+          <p className="text-[10px] md:text-xs font-bold text-slate-300/80 uppercase tracking-[0.4em] mb-10 md:mb-14 text-center drop-shadow-md">
+            Secure Terminal Access
+          </p>
 
-        <div className="flex flex-col items-center gap-6 md:gap-8 w-full pointer-events-auto">
-          <button
-            onClick={onEnter}
-            disabled={isEntering}
-            className="text-lg md:text-2xl font-black uppercase tracking-[0.15em] text-white/90 hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] hover:drop-shadow-[0_0_12px_rgba(96,165,250,0.5)]"
-          >
-            {isEntering ? (
-              <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
-            ) : (
-              <><span>Access Terminal</span><ArrowRight size={24} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
-            )}
-          </button>
+          <div className="flex flex-col items-center gap-6 md:gap-8 w-full pointer-events-auto">
+            <button
+              onClick={onEnter}
+              disabled={isEntering}
+              className="text-lg md:text-2xl font-black uppercase tracking-[0.15em] text-white/90 hover:text-blue-400 transition-colors flex items-center justify-center gap-3 group drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] hover:drop-shadow-[0_0_12px_rgba(96,165,250,0.5)]"
+            >
+              {isEntering ? (
+                <><Loader2 size={24} className="animate-spin text-blue-500" /> Initializing...</>
+              ) : (
+                <><span>Access Terminal</span><ArrowRight size={24} className="group-hover:translate-x-2 transition-transform text-blue-500" /></>
+              )}
+            </button>
 
-          <button
-            onClick={onAbout}
-            className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400/80 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
-          >
-            <HelpCircle size={14} className="text-blue-500/80" />
-            <span>What is Accord Pro?</span>
-          </button>
+            <button
+              onClick={onAbout}
+              className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400/80 hover:text-white transition-colors flex items-center justify-center gap-2 drop-shadow-md"
+            >
+              <HelpCircle size={14} className="text-blue-500/80" />
+              <span>What is Accord Pro?</span>
+            </button>
+          </div>
         </div>
-      </div>
-    </Html>
+      </Html>
+    </Float>
   );
 }
 
@@ -89,7 +98,7 @@ function FadeController({ uiRef, isEntering }) {
   return null;
 }
 
-// 4. The Classroom Model (Safely cloned for stability)
+// 4. The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
   const clonedScene = useMemo(() => scene.clone(), [scene]);
@@ -128,6 +137,7 @@ export default function LandingPage({ onAuthenticate }) {
     }, 1200);
   };
 
+  // --- MOBILE FALLBACK UI ---
   if (isMobile) {
     return (
       <div className="w-screen h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
@@ -171,15 +181,14 @@ export default function LandingPage({ onAuthenticate }) {
     );
   }
 
+  // --- DESKTOP 3D UI ---
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
-        {/* Restored default gl tone mapping for visibility */}
+        {/* Reverted to standard, stable WebGL lighting */}
         <Canvas shadows gl={{ antialias: true }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
-          {/* Pushed fog far back to blend distant edges without hiding the room */}
-          <fog attach="fog" args={['#030712', 15, 40]} />
           
           <PerspectiveCamera makeDefault position={[0, 1.5, 6.0]} fov={45} />
           
@@ -191,8 +200,6 @@ export default function LandingPage({ onAuthenticate }) {
             <ambientLight intensity={1.2} />
             <directionalLight position={[6, 10, 6]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
             <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
-            
-            <spotLight position={[0, 4, 2]} angle={0.5} penumbra={1} intensity={2.5} color="#93c5fd" target-position={[0, 1.1, -3.2]} />
             
             <group>
               <Center>
