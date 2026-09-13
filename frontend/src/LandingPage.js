@@ -1,8 +1,8 @@
-import React, { useState, Suspense, useEffect } from 'react';
+import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight
 } from 'lucide-react';
 import * as THREE from 'three';
 import accordLogo from './accord.png';
@@ -26,7 +26,6 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
     <Float floatIntensity={0.5} floatingRange={[-0.05, 0.05]} speed={2}>
       <Html position={position} center zIndexRange={[50, 0]}>
         <div className="relative flex items-center justify-center animate-in fade-in duration-1000" style={{ animationDelay: `${delay}ms` }}>
-          
           <button
             onClick={() => setIsOpen(!isOpen)}
             className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] border ${
@@ -41,18 +40,11 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
               isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'
             }`}
           >
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="absolute top-3 right-3 text-slate-400 hover:text-white"
-            >
-              <X size={12} />
-            </button>
+            <button onClick={() => setIsOpen(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white"><X size={12} /></button>
             <h4 className="text-[10px] font-black uppercase tracking-wider text-white mb-2 flex items-center gap-2 pr-4">
               <Icon size={14} className="text-blue-400" /> {title}
             </h4>
-            <p className="text-[9px] text-slate-300 leading-relaxed font-medium">
-              {description}
-            </p>
+            <p className="text-[9px] text-slate-300 leading-relaxed font-medium">{description}</p>
           </div>
         </div>
       </Html>
@@ -71,7 +63,6 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             alt="Accord Pro" 
             className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-100 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
           />
-          
           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_4px_15px_rgba(0,0,0,0.8)]">
             Accord <span className="text-blue-400">Pro</span>
           </h2>
@@ -79,32 +70,20 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
             Secure Access Portal
           </p>
 
-          {/* Highly Visible Outline Buttons */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full pointer-events-auto">
-            
             <button
               onClick={onEnter}
               disabled={isEntering}
               className="px-8 py-3.5 rounded-full bg-transparent border-2 border-white text-white font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-white hover:text-slate-950 transition-all duration-300 flex items-center justify-center gap-3 drop-shadow-lg"
             >
-              {isEntering ? (
-                <><Loader2 size={16} className="animate-spin" /> Initializing...</>
-              ) : (
-                <>
-                  <span>Launch Platform</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
+              {isEntering ? <><Loader2 size={16} className="animate-spin" /> Initializing...</> : <><span>Launch Platform</span><ArrowRight size={16} /></>}
             </button>
-
             <button
               onClick={onAbout}
               className="px-8 py-3.5 rounded-full bg-transparent border-2 border-blue-400/60 text-blue-100 font-bold text-[10px] md:text-xs uppercase tracking-widest hover:border-blue-400 hover:bg-blue-400/20 transition-all duration-300 flex items-center justify-center gap-2 drop-shadow-lg"
             >
-              <HelpCircle size={16} className="text-blue-400" />
-              <span>What is Accord Pro?</span>
+              <HelpCircle size={16} className="text-blue-400" /><span>What is Accord Pro?</span>
             </button>
-
           </div>
         </div>
       </Html>
@@ -115,7 +94,6 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
 // The Classroom Model
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom2.glb');
-  
   useEffect(() => {
     if (scene) {
       scene.traverse((child) => {
@@ -127,7 +105,6 @@ function ClassroomModel() {
       });
     }
   }, [scene]);
-
   return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
@@ -135,6 +112,66 @@ function ClassroomModel() {
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
+  
+  // Smart Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [messages, setMessages] = useState([
+    { id: 1, sender: 'bot', text: 'Welcome to Accord Pro. How can we assist you with your institutional setup today?' }
+  ]);
+  const messagesEndRef = useRef(null);
+
+  // Quick Action Prompts
+  const quickQuestions = [
+    "How do I join?",
+    "Where is my invite code?",
+    "What is Accord Pro?"
+  ];
+
+  // Simple Keyword Matching Logic
+  const getBotResponse = (query) => {
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery.includes('join') || lowerQuery.includes('register') || lowerQuery.includes('sign up')) {
+      return "To join Accord Pro, you must be invited by your university administrator. Once registered, you can log in using your institutional email credentials.";
+    }
+    if (lowerQuery.includes('invite') || lowerQuery.includes('code')) {
+      return "Invite codes are distributed directly by your department head or IT administrator prior to the exam period. Please check your university inbox for the secure link.";
+    }
+    if (lowerQuery.includes('what') || lowerQuery.includes('about') || lowerQuery.includes('features')) {
+      return "Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room and proctor conflicts, and orchestrate university-wide exam sessions in real time.";
+    }
+    if (lowerQuery.includes('hello') || lowerQuery.includes('hi') || lowerQuery.includes('hey')) {
+      return "Hello! I am the Accord Pro virtual assistant. I can help answer questions about invite codes, joining the platform, or general features. What would you like to know?";
+    }
+    return "I am a virtual assistant designed to answer basic inquiries. For complex issues, please contact your university IT department directly. You can try asking me about invite codes, how to join, or what Accord Pro does.";
+  };
+
+  const submitMessage = (text) => {
+    if (!text.trim()) return;
+    
+    // Add User Message
+    const newUserMsg = { id: Date.now(), sender: 'user', text };
+    setMessages((prev) => [...prev, newUserMsg]);
+    setChatInput('');
+
+    // Generate and Add Bot Response
+    setTimeout(() => {
+      const responseText = getBotResponse(text);
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: responseText };
+      setMessages((prev) => [...prev, botMsg]);
+    }, 600); // 600ms delay to feel natural
+  };
+
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    submitMessage(chatInput);
+  };
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isChatOpen]);
 
   const handleEnterClassroom = () => {
     setIsEntering(true);
@@ -161,9 +198,7 @@ export default function LandingPage({ onAuthenticate }) {
             <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
             
             <group>
-              <Center>
-                <ClassroomModel />
-              </Center>
+              <Center><ClassroomModel /></Center>
               <BoardUI onEnter={handleEnterClassroom} onAbout={() => setIsAboutOpen(true)} isEntering={isEntering} />
               
               {!isEntering && !isAboutOpen && (
@@ -173,21 +208,16 @@ export default function LandingPage({ onAuthenticate }) {
                   <SpatialTooltip position={[-3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
                 </>
               )}
-
               <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
             </group>
             
             <CameraController isEntering={isEntering} />
             <OrbitControls
-              enabled={!isEntering && !isAboutOpen}
+              enabled={!isEntering && !isAboutOpen && !isChatOpen}
               enableZoom={true}
-              minDistance={1.8} 
-              maxDistance={6.5} 
-              maxPolarAngle={Math.PI / 2 + 0.05}
-              minPolarAngle={Math.PI / 6}
-              enablePan={false}
-              enableDamping={true}
-              dampingFactor={0.06}
+              minDistance={1.8} maxDistance={6.5} 
+              maxPolarAngle={Math.PI / 2 + 0.05} minPolarAngle={Math.PI / 6}
+              enablePan={false} enableDamping={true} dampingFactor={0.06}
             />
           </Suspense>
         </Canvas>
@@ -195,10 +225,84 @@ export default function LandingPage({ onAuthenticate }) {
 
       {/* Floating Chat Button Overlay */}
       {!isEntering && (
-        <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 z-20 transition-opacity duration-500">
-          <button className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform hover:scale-110 group">
-            <MessageCircle size={22} className="group-hover:animate-pulse" />
+        <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 z-30 transition-opacity duration-500">
+          <button 
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform hover:scale-105 group"
+          >
+            {isChatOpen ? <X size={22} /> : <MessageCircle size={22} className="group-hover:animate-pulse" />}
           </button>
+        </div>
+      )}
+
+      {/* Smart FAQ Chat Window */}
+      {isChatOpen && (
+        <div className="absolute bottom-24 right-6 md:right-10 w-80 max-w-[calc(100vw-3rem)] h-[28rem] bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-5 duration-300 pointer-events-auto">
+          {/* Header */}
+          <div className="bg-slate-950/80 px-4 py-3 border-b border-white/5 flex items-center gap-3">
+            <div className="relative">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse absolute -bottom-0.5 -right-0.5 border border-slate-900" />
+              <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                <ShieldCheck size={16} className="text-blue-400" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Accord Assistant</h3>
+              <p className="text-[9px] text-emerald-400 font-mono tracking-widest">Bot Online</p>
+            </div>
+          </div>
+
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div 
+                  className={`max-w-[85%] p-3 rounded-2xl text-[11px] leading-relaxed shadow-sm ${
+                    msg.sender === 'user' 
+                      ? 'bg-blue-600 text-white rounded-tr-sm' 
+                      : 'bg-slate-800/80 text-slate-200 border border-white/5 rounded-tl-sm'
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            
+            {/* Quick Action Chips (Only show if last message is from bot) */}
+            {messages[messages.length - 1].sender === 'bot' && (
+              <div className="flex flex-col gap-2 pt-2 items-start">
+                {quickQuestions.map((q, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => submitMessage(q)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/30 hover:bg-blue-500/20 hover:border-blue-400/60 text-blue-300 text-[10px] font-medium transition-colors text-left"
+                  >
+                    <span>{q}</span>
+                    <ChevronRight size={10} />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <form onSubmit={handleSendMessage} className="p-3 bg-slate-950/80 border-t border-white/5 flex items-center gap-2">
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask a question..." 
+              className="flex-1 bg-slate-800/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+            />
+            <button 
+              type="submit"
+              disabled={!chatInput.trim()}
+              className="w-9 h-9 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl flex items-center justify-center transition-colors"
+            >
+              <Send size={14} className="ml-0.5" />
+            </button>
+          </form>
         </div>
       )}
 
