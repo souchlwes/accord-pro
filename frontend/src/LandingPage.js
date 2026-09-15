@@ -2,10 +2,11 @@ import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal, Image as ImageIcon
 } from 'lucide-react';
 import * as THREE from 'three';
 import Groq from 'groq-sdk';
+import Tesseract from 'tesseract.js';
 import accordLogo from './accord.png';
 
 // Initialize Groq directly in the browser
@@ -59,16 +60,15 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Restored 3-Button Layout
+// Immersive UI
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       {/* 
-        CRITICAL FIX: 
-        The UI is now placed directly against the surface of the blackboard!
-        If it clips into the board or floats too far off, simply adjust the "-3.8" (Z-axis) slightly!
+        CRITICAL FIX: Flipped 180 degrees!
+        rotation is now [0, Math.PI, 0] so it faces outward instead of into the wall.
       */}
-      <Html transform position={[0, 0.5, -3.8]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
+      <Html transform position={[0, 0.5, -3.8]} rotation={[0, Math.PI, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
@@ -109,7 +109,6 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               </div>
             </div>
 
-            {/* Chatbot Icon exactly where it belongs */}
             <div className="relative group">
               <button
                 onClick={onChatToggle}
@@ -135,7 +134,6 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   );
 }
 
-// The New Classroom Model (Reads the GLB and paints the green board)
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom22.glb');
 
@@ -151,12 +149,9 @@ function ClassroomModel() {
           if (child.material) {
             child.material.side = THREE.DoubleSide;
 
-            // Target the specific green board materials from your GLB and paint them blue
             if ((child.material.name && child.material.name.includes('StingrayPBS7')) || child.name.includes('VERDE')) {
               child.material.color = accordBrandColor;
-            } 
-            // Lightly tint the rest of the room to match the brand
-            else if (child.material.color) {
+            } else if (child.material.color) {
               child.material.color.lerp(accordBrandColor, 0.12);
             }
           }
@@ -165,25 +160,26 @@ function ClassroomModel() {
     }
   }, [scene]);
 
-  // CRITICAL FIX: Changed from Math.PI / 2 to -Math.PI / 2
-  // This spins the East Wall to exactly face the camera!
-  // Lowered the room slightly on the Y-axis (-1.5) so the camera looks directly at the board
   return <primitive object={scene} scale={7.5} rotation={[0, -Math.PI / 2, 0]} position={[0, -1.5, 0]} />;
 }
 
-// The Main Interactive Landing Page
 export default function LandingPage({ onAuthenticate }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
   
-  // Smart Chat State
+  // Smart Chat States
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [extractedText, setExtractedText] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([
     { id: 1, sender: 'bot', text: 'System Online. I am the Accord Pro intelligent assistant. I can help you with invite codes, account statuses, and system operations.' }
   ]);
+  
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const quickQuestions = [
     "How do I join the platform?",
@@ -200,13 +196,40 @@ export default function LandingPage({ onAuthenticate }) {
     }, 1200);
   };
 
-  // Direct Groq API Call
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        setAttachment(reader.result);
+        setIsScanning(true);
+        setExtractedText('');
+        
+        try {
+          const { data: { text } } = await Tesseract.recognize(reader.result, 'eng');
+          setExtractedText(text);
+        } catch (error) {
+          console.error('OCR Extraction Error:', error);
+          setExtractedText('[Optical scan failed to read the text in this image.]');
+        } finally {
+          setIsScanning(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
   const submitMessage = async (text) => {
-    if (!text.trim()) return;
+    if (!text.trim() && !attachment) return;
     
-    const newUserMsg = { id: Date.now(), sender: 'user', text };
-    setMessages((prev) => [...prev, newUserMsg]);
+    const userDisplayMessage = text.trim() ? text : "Uploaded a screenshot for analysis.";
+    
+    setMessages((prev) => [...prev, { id: Date.now(), sender: 'user', text: userDisplayMessage, image: attachment }]);
     setChatInput('');
+    setAttachment(null);
+    const scannedTextBackup = extractedText;
+    setExtractedText('');
     setIsTyping(true);
 
     try {
@@ -216,23 +239,29 @@ export default function LandingPage({ onAuthenticate }) {
       Current System Time: ${currentTime}
       User Device/Platform: ${navigator.platform || 'Unknown Web Client'}
       
+      CORE PLATFORM BOUNDARIES (CRITICAL):
+      - Accord Pro is STRICTLY for Room/Proctor scheduling, conflict resolution, and dispatch.
+      - Accord Pro DOES NOT handle student registrations, grading, test results, or student portals. NEVER mention these features.
+
       CRITICAL RULES:
       1. ABSOLUTELY NO MARKDOWN FORMATTING. Do NOT use asterisks (*), hash symbols (#), or bullet points. Respond in pure, clean, plain text paragraphs.
       2. If the user explicitly asks to log in, launch the app, enter the terminal, or start the platform, you MUST include the exact phrase "[ACTION: LAUNCH_TERMINAL]" in your response.
+      3. DO NOT promise to open support tickets. Instruct the user to message their Head Admin directly.
       
       Core Knowledge Base:
       - Accord Pro: Streamlines university-wide exam management, eliminating scheduling friction by resolving room/proctor conflicts in real time.
-      - Core Features: Automated scheduling engine, real-time proctor dispatch (emergency substitutions), institutional omni-sight dashboard for audit trails.
-      - Onboarding/Access: Users MUST have a 6-character 'Invite Code' to join. Accounts remain strictly in a PENDING or BLOCKED state until a Head Admin approves them.
-      - Tech Stack: Built using React, Next.js, Supabase, and Cloudflare R2.`;
+      - Core Features: Automated scheduling engine, real-time proctor dispatch, institutional omni-sight dashboard.
+      - Onboarding/Access: Users MUST have a 6-character 'Invite Code' to join. Accounts remain strictly in a PENDING or BLOCKED state until a Head Admin approves them.`;
+
+      let apiUserContent = userDisplayMessage;
+      if (scannedTextBackup) {
+        apiUserContent += `\n\n[SYSTEM ALERT TO AI: The user attached a screenshot. We ran optical character recognition (OCR) on their screen and extracted the following raw text:\n"""\n${scannedTextBackup}\n"""\nRead this extracted text carefully to deduce what error they are seeing or what page they are on, and help them solve the issue.]`;
+      }
 
       const apiMessages = [
         { role: 'system', content: systemPrompt },
-        ...messages.map((m) => ({
-          role: m.sender === 'user' ? 'user' : 'assistant',
-          content: m.text
-        })),
-        { role: 'user', content: text }
+        ...messages.map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+        { role: 'user', content: apiUserContent }
       ];
 
       const chatCompletion = await groq.chat.completions.create({
@@ -277,12 +306,11 @@ export default function LandingPage({ onAuthenticate }) {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isTyping, isChatOpen]);
+  }, [messages, isTyping, isChatOpen, attachment]);
 
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
 
-      {/* Accord Pro Cinematic Filter Overlays */}
       <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-blue-950/40 via-transparent to-indigo-950/30 mix-blend-overlay" />
       <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/20 to-slate-950/80" />
 
@@ -296,7 +324,6 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            {/* Maintained Scene Lighting */}
             <ambientLight intensity={2.2} color="#bfdbfe" />
             <hemisphereLight skyColor="#60a5fa" groundColor="#0f172a" intensity={2.0} />
             
@@ -339,7 +366,6 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* Smart Chat Window */}
       {isChatOpen && (
         <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
           <div className="bg-gradient-to-r from-blue-900/60 to-slate-900/60 px-5 py-4 flex items-center justify-between border-b border-white/5">
@@ -362,16 +388,21 @@ export default function LandingPage({ onAuthenticate }) {
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div 
-                  className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
+              <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                {msg.image && (
+                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden shadow-lg bg-black/20">
+                    <img src={msg.image} alt="Uploaded screenshot" className="w-full h-auto object-cover max-h-48" />
+                  </div>
+                )}
+                {msg.text && (
+                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
                       ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
                       : 'bg-slate-800/80 text-slate-200 border border-white/10 rounded-tl-sm backdrop-blur-sm'
-                  }`}
-                >
-                  {msg.text}
-                </div>
+                  }`}>
+                    {msg.text}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -402,17 +433,62 @@ export default function LandingPage({ onAuthenticate }) {
             <div ref={messagesEndRef} />
           </div>
 
+          {attachment && (
+            <div className="px-4 py-3 bg-slate-900/80 flex items-start gap-3">
+              <div className="relative group">
+                <img src={attachment} alt="Preview" className={`w-16 h-16 object-cover rounded-xl shadow-md transition-opacity ${isScanning ? 'opacity-50' : 'opacity-100'}`} />
+                {isScanning && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 size={16} className="text-white animate-spin drop-shadow-md" />
+                  </div>
+                )}
+                <button 
+                  onClick={() => setAttachment(null)}
+                  disabled={isScanning}
+                  className="absolute -top-2 -right-2 bg-rose-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:scale-110 disabled:hidden"
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              </div>
+              <div className="flex-1 mt-1">
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                  {isScanning ? 'Scanning Text...' : 'Image Attached'}
+                </p>
+                <p className="text-[9px] text-slate-500">
+                  {isScanning ? 'Extracting data for the AI.' : 'Memory will be wiped after chat.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-white/10 flex items-center gap-3">
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              onChange={handleFileSelect} 
+              className="hidden" 
+            />
+            <button 
+              type="button" 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isScanning || isTyping}
+              className="w-10 h-10 shrink-0 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-blue-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-all border border-white/5"
+              title="Attach temporary screenshot"
+            >
+              <ImageIcon size={18} strokeWidth={1.5} />
+            </button>
             <input 
               type="text" 
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Type your question..." 
-              className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner"
+              placeholder={isScanning ? "Scanning image..." : "Ask anything..."} 
+              disabled={isScanning}
+              className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner disabled:opacity-50"
             />
             <button 
               type="submit"
-              disabled={!chatInput.trim() || isTyping}
+              disabled={(!chatInput.trim() && !attachment) || isTyping || isScanning}
               className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)]"
             >
               <Send size={16} className="ml-0.5" />
@@ -429,7 +505,6 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
           <div className="bg-slate-900 border border-slate-700/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
