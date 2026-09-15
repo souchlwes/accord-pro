@@ -1,3 +1,4 @@
+import GlobalAIAssistant from './GlobalAIAssistant';
 import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import LandingPage from './LandingPage';
@@ -2598,7 +2599,7 @@ const executeAddDepartment = async (e) => {
     });
   };
 
- 
+ const renderScreens = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -3843,6 +3844,21 @@ const executeAddDepartment = async (e) => {
 
       </main>
     </div>
+  );
+};
+
+return (
+    <>
+      {renderScreens()}
+      {!showLanding && (
+        <GlobalAIAssistant 
+          session={session} 
+          profile={profile} 
+          authMode={authMode} 
+          activeTab={activeTab} 
+        />
+      )}
+    </>
   );
 }
 
