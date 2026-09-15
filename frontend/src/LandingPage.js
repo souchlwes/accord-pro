@@ -59,7 +59,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons (No background bubbles)
+// Immersive UI with Pure Outline Icons
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -129,16 +129,21 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   );
 }
 
-// The Classroom Model
+// The Classroom Model with Automatic Godray Removal
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom22.glb');
   useEffect(() => {
     if (scene) {
       scene.traverse((child) => {
         if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          if (child.material) child.material.side = THREE.DoubleSide;
+          // Hide broken godrays that cause the scene to turn dark
+          if (child.name.toLowerCase().includes('godray')) {
+            child.visible = false;
+          } else {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material) child.material.side = THREE.DoubleSide;
+          }
         }
       });
     }
@@ -187,17 +192,19 @@ export default function LandingPage({ onAuthenticate }) {
     try {
       const currentTime = new Date().toLocaleTimeString();
       const systemPrompt = `You are the Accord Pro Assistant, a highly intelligent, reliable, and functional AI for an institutional examination operations platform. 
-      Tone: Professional, helpful, concise. Do not use markdown formatting.
+      Tone: Professional, helpful, concise. 
       Current System Time: ${currentTime}
       User Device/Platform: ${navigator.platform || 'Unknown Web Client'}
+      
+      CRITICAL RULES:
+      1. ABSOLUTELY NO MARKDOWN FORMATTING. Do NOT use asterisks (*), hash symbols (#), or bullet points. Respond in pure, clean, plain text paragraphs.
+      2. If the user explicitly asks to log in, launch the app, enter the terminal, or start the platform, you MUST include the exact phrase "[ACTION: LAUNCH_TERMINAL]" in your response.
       
       Core Knowledge Base:
       - Accord Pro: Streamlines university-wide exam management, eliminating scheduling friction by resolving room/proctor conflicts in real time.
       - Core Features: Automated scheduling engine, real-time proctor dispatch (emergency substitutions), institutional omni-sight dashboard for audit trails.
       - Onboarding/Access: Users MUST have a 6-character 'Invite Code' to join. Accounts remain strictly in a PENDING or BLOCKED state until a Head Admin approves them.
-      - Tech Stack: Built using React, Next.js, Supabase, and Cloudflare R2.
-      
-      CRITICAL RULE: If the user explicitly asks to log in, launch the app, enter the terminal, or start the platform, you MUST include the exact phrase "[ACTION: LAUNCH_TERMINAL]" in your response.`;
+      - Tech Stack: Built using React, Next.js, Supabase, and Cloudflare R2.`;
 
       // Map conversation history so the AI remembers context
       const apiMessages = [
@@ -213,10 +220,13 @@ export default function LandingPage({ onAuthenticate }) {
         messages: apiMessages,
         model: 'openai/gpt-oss-20b', 
         temperature: 0.5,
-        max_tokens: 150,
+        max_tokens: 1024, // Expanded to prevent message cut-offs
       });
 
       let reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
+      
+      // Scrubber: Instantly deletes any Markdown asterisks or symbols the AI tries to use
+      reply = reply.replace(/[*#_`]/g, '');
       
       // Intercept actionable commands
       if (reply.includes('[ACTION: LAUNCH_TERMINAL]')) {
@@ -227,7 +237,7 @@ export default function LandingPage({ onAuthenticate }) {
         }, 1500);
       }
 
-      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply };
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply.trim() };
       setMessages((prev) => [...prev, botMsg]);
 
     } catch (error) {
@@ -267,9 +277,11 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[6, 12, 6]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={0.6} color="#60a5fa" />
+            {/* Boosted Lighting to brighten the Classroom */}
+            <ambientLight intensity={3.5} />
+            <hemisphereLight skyColor="#ffffff" groundColor="#1e293b" intensity={2.0} />
+            <directionalLight position={[6, 12, 6]} intensity={3.0} castShadow shadow-mapSize={[1024, 1024]} />
+            <directionalLight position={[-6, -4, -6]} intensity={1.5} color="#60a5fa" />
             
             <group>
               <Center><ClassroomModel /></Center>
@@ -326,11 +338,12 @@ export default function LandingPage({ onAuthenticate }) {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div 
-                  className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg ${
+                  /* whitespace-pre-wrap makes sure paragraphs format cleanly */
+                  className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
                       ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
                       : 'bg-slate-800/80 text-slate-200 border border-white/10 rounded-tl-sm backdrop-blur-sm'
