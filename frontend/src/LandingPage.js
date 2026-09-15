@@ -19,8 +19,7 @@ function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
       state.camera.position.lerp(new THREE.Vector3(0, 0.8, -1.0), delta * 2.5);
-      // Adjusted camera lookAt so it glances slightly towards the East wall board as you enter
-      state.camera.lookAt(1.0, 0.5, -4.5);
+      state.camera.lookAt(0, 0.8, -4.5);
     }
   });
   return null;
@@ -60,16 +59,15 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons 
-function BoardUI({ onEnter, onAbout, isEntering }) {
+// Immersive UI with Restored 3-Button Layout
+function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
-    <Float speed={1.2} rotationIntensity={0.01} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
+    <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       {/* 
-        CRITICAL UI PLACEMENT FIX: 
-        Moved to East Wall (X=3.8), lowered (Y=-0.2), and rotated -90 degrees (-Math.PI/2) 
-        Tweak position=[X, Y, Z] slightly if it doesn't align perfectly with your GLB board!
+        MOVED BACK TO NORTH (0, 0, 0) AND LOWERED (-0.2 on the Y axis)
+        Adjust the middle number if it needs to go higher or lower on your board!
       */}
-      <Html transform position={[3.8, -0.2, -2.5]} rotation={[0, -Math.PI / 2, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
+      <Html transform position={[0, -0.2, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
@@ -110,6 +108,25 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
               </div>
             </div>
 
+            {/* Chatbot Icon restored to the main menu row */}
+            <div className="relative group">
+              <button
+                onClick={onChatToggle}
+                className={`transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] ${
+                  isChatOpen 
+                    ? 'text-blue-500 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)]' 
+                    : 'text-slate-200 hover:text-blue-400 hover:drop-shadow-[0_0_15px_rgba(96,165,250,0.8)]'
+                }`}
+              >
+                {isChatOpen ? <X size={36} strokeWidth={1.5} /> : <MessageCircle size={36} strokeWidth={1.5} />}
+              </button>
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
+                  {isChatOpen ? 'Close Assistant' : 'Ask Assistant'}
+                </span>
+              </div>
+            </div>
+
           </div>
         </div>
       </Html>
@@ -117,33 +134,29 @@ function BoardUI({ onEnter, onAbout, isEntering }) {
   );
 }
 
-// The Classroom Model with Accord Pro Color Palette Tinting
+// The New Classroom Model (Reads the new GLB and paints the green board)
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom22.glb');
 
   useEffect(() => {
     if (scene) {
-      // Signature Accord Blue for the subtle material grading
       const accordBrandColor = new THREE.Color('#2563eb');
 
       scene.traverse((child) => {
         if (child.isMesh) {
-          if (child.name.toLowerCase().includes('godray')) {
-            child.visible = false;
-          } else {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            if (child.material) {
-              child.material.side = THREE.DoubleSide;
+          child.castShadow = true;
+          child.receiveShadow = true;
+          
+          if (child.material) {
+            child.material.side = THREE.DoubleSide;
 
-              // PAINT THE GREEN BOARD: Automatically makes the board strictly Accord Blue
-              if (child.material.name && child.material.name.toLowerCase().includes('board')) {
-                child.material.color = new THREE.Color('#2563eb');
-              } 
-              // Color filter: Blends 12% of Accord Blue into every OTHER mesh material
-              else if (child.material.color) {
-                child.material.color.lerp(accordBrandColor, 0.12);
-              }
+            // Target the specific green board materials from your GLB and paint them blue
+            if (child.material.name.includes('StingrayPBS7') || child.name.includes('VERDE')) {
+              child.material.color = accordBrandColor;
+            } 
+            // Lightly tint the rest of the room to match the brand
+            else if (child.material.color) {
+              child.material.color.lerp(accordBrandColor, 0.12);
             }
           }
         }
@@ -151,7 +164,9 @@ function ClassroomModel() {
     }
   }, [scene]);
 
-  return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
+  // Using a primitive loader perfectly handles all 300+ meshes in your file automatically.
+  // Adjust the scale or position array here if the room is too big or off-center!
+  return <primitive object={scene} scale={1} position={[0, -1, 0]} />;
 }
 
 // The Main Interactive Landing Page
@@ -226,7 +241,7 @@ export default function LandingPage({ onAuthenticate }) {
       });
 
       let reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
-      reply = reply.replace(/[*#_`]/g, '');
+      reply = reply.replace(/[*#_`]/g, ''); // Markdown Scrubber
       
       if (reply.includes('[ACTION: LAUNCH_TERMINAL]')) {
         reply = reply.replace('[ACTION: LAUNCH_TERMINAL]', 'Initializing secure terminal access now...');
@@ -265,25 +280,6 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
 
-      {/* Sleek Top Navbar Pill for Chatbot */}
-      {!isEntering && (
-        <div className="absolute top-6 md:top-8 right-6 md:right-10 z-[100] animate-in fade-in slide-in-from-top-4 duration-700">
-          <button 
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md transition-all border ${
-              isChatOpen 
-                ? 'bg-slate-800 text-white border-slate-700' 
-                : 'bg-slate-900/60 text-blue-400 border-blue-500/30 hover:bg-slate-900 hover:border-blue-500 hover:scale-105'
-            }`}
-          >
-            {isChatOpen ? <X size={16} /> : <Terminal size={16} />}
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              {isChatOpen ? 'Close' : 'AI Assistant'}
-            </span>
-          </button>
-        </div>
-      )}
-
       {/* Accord Pro Cinematic Filter Overlays */}
       <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-blue-950/40 via-transparent to-indigo-950/30 mix-blend-overlay" />
       <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/20 to-slate-950/80" />
@@ -291,7 +287,6 @@ export default function LandingPage({ onAuthenticate }) {
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
-          {/* Shifted PerspectiveCamera to start with a better view of the East wall */}
           <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
           
           <Suspense fallback={
@@ -299,7 +294,7 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            {/* Accord Pro Palette Lighting Configuration */}
+            {/* Maintained Scene Lighting */}
             <ambientLight intensity={2.2} color="#bfdbfe" />
             <hemisphereLight skyColor="#60a5fa" groundColor="#0f172a" intensity={2.0} />
             
@@ -315,14 +310,16 @@ export default function LandingPage({ onAuthenticate }) {
               <BoardUI 
                 onEnter={handleEnterClassroom} 
                 onAbout={() => setIsAboutOpen(true)} 
+                onChatToggle={() => setIsChatOpen(!isChatOpen)}
+                isChatOpen={isChatOpen}
                 isEntering={isEntering} 
               />
               
               {!isEntering && !isAboutOpen && (
                 <>
-                  <SpatialTooltip position={[3.5, 0.6, 1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
+                  <SpatialTooltip position={[-2.5, 0.6, 1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
                   <SpatialTooltip position={[2, 0.5, -2]} icon={Users} title="Live Proctor Routing" description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." delay={1000} />
-                  <SpatialTooltip position={[3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
+                  <SpatialTooltip position={[-3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
                 </>
               )}
               <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
@@ -342,7 +339,7 @@ export default function LandingPage({ onAuthenticate }) {
 
       {/* Smart Chat Window */}
       {isChatOpen && (
-        <div className="absolute top-20 md:top-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[75vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-top-6 fade-in duration-500 pointer-events-auto">
+        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
           <div className="bg-gradient-to-r from-blue-900/60 to-slate-900/60 px-5 py-4 flex items-center justify-between border-b border-white/5">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -356,6 +353,9 @@ export default function LandingPage({ onAuthenticate }) {
                 <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
               </div>
             </div>
+            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
+              <X size={16} />
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
@@ -416,6 +416,14 @@ export default function LandingPage({ onAuthenticate }) {
               <Send size={16} className="ml-0.5" />
             </button>
           </form>
+        </div>
+      )}
+
+      {!isEntering && !isAboutOpen && !isChatOpen && (
+        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
+          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+            <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
+          </div>
         </div>
       )}
 
