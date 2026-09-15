@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, ShieldCheck, Send, Image as ImageIcon } from 'lucide-react';
+import { MessageCircle, X, ShieldCheck, Send, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
@@ -19,14 +19,22 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // SMART FEATURE 1: Deep Context Injection
   const getUserContext = () => {
     if (!session) return `User is currently on the authentication screen. Auth Mode: ${authMode}. They may need help logging in, resetting a password, or finding an invite code.`;
     if (profile?.status === 'BLOCKED') return `User's account is currently BLOCKED by an admin.`;
     if (profile?.status === 'PENDING') return `User's account is PENDING. They are waiting for a Head Admin to approve their access.`;
-    return `User is logged in as ${profile?.role} in the ${profile?.assigned_dept || 'Global'} department. They are currently viewing the '${activeTab}' tab.`;
+    return `User is logged in as ${profile?.role} in the ${profile?.assigned_dept || 'Global'} department. They are currently actively working inside the '${activeTab}' tab.`;
   };
 
-  // Converts the selected file into an ephemeral Base64 string in the browser memory
+  // SMART FEATURE 2: Context-Aware Quick Questions
+  const getDynamicQuestions = () => {
+    if (!session) return ["Where do I get an invite code?", "Why is my account pending?"];
+    if (activeTab === 'users') return ["How do I approve a pending user?", "How do I edit staff roles?"];
+    if (activeTab === 'dashboard') return ["How do I resolve a double-booking?", "How do I export the schedule?"];
+    return ["How do I use this section?", "How do I log availability?"];
+  };
+
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -36,33 +44,32 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
       };
       reader.readAsDataURL(file);
     }
-    // Reset input so the user can select the same file again if they delete it
     e.target.value = '';
   };
 
   const submitMessage = async (text) => {
     if (!text.trim() && !attachment) return;
     
-    // Save the user's message and the temporary image locally so they can see it
     setMessages((prev) => [...prev, { id: Date.now(), sender: 'user', text, image: attachment }]);
     setChatInput('');
     setAttachment(null);
     setIsTyping(true);
 
     try {
+      const currentTime = new Date().toLocaleTimeString();
       const systemPrompt = `You are the Accord Pro Assistant, an intelligent, reliable AI for an institutional examination operations platform. 
       
       CURRENT LIVE CONTEXT:
+      Time: ${currentTime}
       ${getUserContext()}
 
       CRITICAL RULES:
       1. Be highly reliable, concise, and professional.
       2. ABSOLUTELY NO MARKDOWN. Do NOT use asterisks (*), hash symbols (#), or bullet points. Respond in pure, clean, plain text paragraphs.
       3. If the user is on the login/register screen, proactively guide them on obtaining 6-character invite codes from their admin.
-      4. DO NOT promise to open support tickets, create cases, or contact customer service. If you cannot resolve an issue, instruct the user to message their Head Admin directly via the internal Accord Chat.`;
+      4. DO NOT ask the user to upload screenshots, images, or files.
+      5. DO NOT promise to open support tickets. If you cannot resolve an issue, instruct the user to message their Head Admin directly via the internal Accord Chat.`;
 
-      // IMPORTANT: We ONLY send the text to the API. 
-      // The current model is text-only. If we send the base64 image, the API will crash.
       const apiMessages = [
         { role: 'system', content: systemPrompt },
         ...messages.map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
@@ -91,26 +98,27 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping, isOpen, attachment]);
 
+  const dynamicQuestions = getDynamicQuestions();
+
   return (
     <>
-      {/* Professional, Subtle Edge Tab */}
+      {/* Ultra-Subtle Top Edge Tab (No borders, low opacity, ceiling drop) */}
       {!isOpen && (
-        <div className="fixed bottom-0 right-8 md:right-16 z-[9999] animate-in slide-in-from-bottom-6 duration-500">
+        <div className="fixed top-0 right-10 md:right-24 z-[9999] animate-in slide-in-from-top-6 duration-500">
           <button 
             onClick={() => setIsOpen(true)}
-            className="bg-slate-900 hover:bg-blue-600 text-slate-400 hover:text-white border-t border-x border-slate-700/50 hover:border-blue-500 px-6 py-2.5 rounded-t-xl flex items-center gap-2.5 transition-all shadow-2xl group"
+            className="bg-slate-900/40 hover:bg-slate-900/80 text-slate-500 hover:text-blue-400 px-5 py-1.5 rounded-b-xl flex items-center gap-2 transition-all backdrop-blur-md shadow-sm"
           >
-            <MessageCircle size={16} className="text-blue-500 group-hover:text-white transition-colors" />
-            <span className="text-[10px] font-black uppercase tracking-widest mt-0.5">Need Help?</span>
+            <MessageCircle size={14} className="opacity-70" strokeWidth={2} />
+            <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-80">Need Help?</span>
           </button>
         </div>
       )}
 
-      {/* Embedded Chat Window */}
+      {/* Embedded Chat Window (Sliding down from the top) */}
       {isOpen && (
-        <div className="fixed bottom-0 right-4 md:right-16 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[80vh] bg-slate-900/95 backdrop-blur-2xl border-t border-x border-blue-500/30 rounded-t-[2rem] shadow-[0_30px_80px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-bottom-10 fade-in duration-300">
-          
-          <div className="bg-gradient-to-r from-blue-900/80 to-slate-900/80 px-5 py-4 flex items-center justify-between border-b border-white/5">
+        <div className="fixed top-10 right-4 md:right-16 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[80vh] bg-slate-900/95 backdrop-blur-2xl rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-top-6 fade-in duration-300">
+          <div className="bg-gradient-to-r from-blue-900/40 to-slate-900/60 px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <ShieldCheck size={20} className="text-blue-400" strokeWidth={1.5} />
               <div>
@@ -127,9 +135,8 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
             {messages.map((msg) => (
               <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                 
-                {/* Ephemeral Image Display in Chat Bubble */}
                 {msg.image && (
-                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden border border-white/10 shadow-lg">
+                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden shadow-lg bg-black/20">
                     <img src={msg.image} alt="Uploaded screenshot" className="w-full h-auto object-cover max-h-48" />
                   </div>
                 )}
@@ -137,8 +144,8 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
                 {msg.text && (
                   <div className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
-                      ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
-                      : 'bg-slate-800/90 text-slate-200 border border-white/5 rounded-tl-sm'
+                      ? 'bg-blue-600 text-white rounded-tr-sm' 
+                      : 'bg-slate-800/90 text-slate-200 rounded-tl-sm'
                   }`}>
                     {msg.text}
                   </div>
@@ -148,21 +155,36 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
             
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-slate-800/90 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16 border border-white/5">
+                <div className="bg-slate-800/90 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16">
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}
+
+            {/* Smart Feature: Context-Aware Quick Action Chips */}
+            {messages[messages.length - 1].sender === 'bot' && !isTyping && (
+              <div className="flex flex-col gap-2 pt-2 items-end">
+                {dynamicQuestions.map((q, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => submitMessage(q)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-500/10 hover:bg-blue-500/30 text-blue-300 text-[10px] font-bold tracking-wide transition-all shadow-md"
+                  >
+                    <span>{q}</span>
+                    <ChevronRight size={12} className="text-blue-500" strokeWidth={2} />
+                  </button>
+                ))}
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Ephemeral Image Preview Area (Before Sending) */}
           {attachment && (
-            <div className="px-4 py-3 bg-slate-900 border-t border-white/5 flex items-start gap-3">
+            <div className="px-4 py-3 bg-slate-900/80 flex items-start gap-3">
               <div className="relative group">
-                <img src={attachment} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-blue-500/50 shadow-md" />
+                <img src={attachment} alt="Preview" className="w-16 h-16 object-cover rounded-xl shadow-md" />
                 <button 
                   onClick={() => setAttachment(null)}
                   className="absolute -top-2 -right-2 bg-rose-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:scale-110"
@@ -177,9 +199,8 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
             </div>
           )}
 
-          <form onSubmit={(e) => { e.preventDefault(); submitMessage(chatInput); }} className="p-4 bg-slate-950 border-t border-white/10 flex items-center gap-3">
+          <form onSubmit={(e) => { e.preventDefault(); submitMessage(chatInput); }} className="p-4 bg-slate-950/50 flex items-center gap-3">
             
-            {/* Hidden File Input */}
             <input 
               type="file" 
               accept="image/*" 
@@ -188,11 +209,10 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
               className="hidden" 
             />
             
-            {/* Upload Button */}
             <button 
               type="button" 
               onClick={() => fileInputRef.current?.click()}
-              className="w-10 h-10 shrink-0 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-blue-400 rounded-xl flex items-center justify-center transition-all border border-white/5"
+              className="w-10 h-10 shrink-0 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-blue-400 rounded-xl flex items-center justify-center transition-all shadow-sm"
               title="Attach temporary screenshot"
             >
               <ImageIcon size={18} strokeWidth={1.5} />
@@ -203,7 +223,7 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask anything..." 
-              className="flex-1 bg-slate-900 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
+              className="flex-1 bg-slate-900/80 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all shadow-inner"
             />
             
             <button 
