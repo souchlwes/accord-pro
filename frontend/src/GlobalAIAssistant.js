@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, ShieldCheck, Send } from 'lucide-react';
+import { Terminal, X, ShieldCheck, Send } from 'lucide-react';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
@@ -17,7 +17,7 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
   const messagesEndRef = useRef(null);
 
   const getUserContext = () => {
-    if (!session) return `User is currently on the authentication screen. Auth Mode: ${authMode}.`;
+    if (!session) return `User is currently on the authentication screen. Auth Mode: ${authMode}. They may need help logging in, resetting a password, or finding an invite code.`;
     if (profile?.status === 'BLOCKED') return `User's account is currently BLOCKED by an admin.`;
     if (profile?.status === 'PENDING') return `User's account is PENDING. They are waiting for a Head Admin to approve their access.`;
     return `User is logged in as ${profile?.role} in the ${profile?.assigned_dept || 'Global'} department. They are currently viewing the '${activeTab}' tab.`;
@@ -56,7 +56,7 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
 
       let reply = chatCompletion.choices[0]?.message?.content || "System offline.";
       
-      // The Scrubber: Strips out any stubborn markdown characters the AI tries to sneak in
+      // The Scrubber: Instantly deletes any Markdown asterisks or symbols the AI tries to sneak in
       reply = reply.replace(/[*#_`]/g, '');
 
       setMessages((prev) => [...prev, { id: Date.now() + 1, sender: 'bot', text: reply.trim() }]);
@@ -73,22 +73,27 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
 
   return (
     <>
-      {/* Floating Toggle Button: Adjusted to clear mobile nav (bottom-28) and sit beautifully on desktop (md:bottom-10) */}
-      <div className="fixed bottom-28 md:bottom-10 right-6 md:right-10 z-[9999]">
+      {/* Sleek, Unobtrusive Pill Toggle */}
+      <div className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-[9999]">
         <button 
           onClick={() => setIsOpen(!isOpen)}
-          className={`p-4 rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.4)] transition-all hover:scale-110 border ${
-            isOpen ? 'bg-slate-800 text-white border-slate-700' : 'bg-blue-600 text-white border-blue-500'
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md transition-all border ${
+            isOpen 
+              ? 'bg-slate-800 text-white border-slate-700' 
+              : 'bg-slate-900/60 text-blue-400 border-blue-500/30 hover:bg-slate-900 hover:border-blue-500 hover:scale-105'
           }`}
         >
-          {isOpen ? <X size={24} strokeWidth={1.5} /> : <MessageCircle size={24} strokeWidth={1.5} />}
+          {isOpen ? <X size={16} /> : <Terminal size={16} />}
+          <span className="text-[10px] font-black uppercase tracking-widest">
+            {isOpen ? 'Close' : 'AI Assistant'}
+          </span>
         </button>
       </div>
 
       {/* Glassmorphic Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-48 md:bottom-28 right-6 md:right-10 w-[calc(100vw-3rem)] md:w-96 h-[32rem] max-h-[65vh] bg-slate-900/90 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div className="bg-gradient-to-r from-blue-900/60 to-slate-900/60 px-5 py-4 flex items-center gap-3 border-b border-white/5">
+        <div className="fixed bottom-40 md:bottom-24 right-4 md:right-8 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[65vh] bg-slate-900/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-bottom-6 fade-in duration-300">
+          <div className="bg-gradient-to-r from-blue-900/80 to-slate-900/80 px-5 py-4 flex items-center gap-3 border-b border-white/5">
             <ShieldCheck size={20} className="text-blue-400" strokeWidth={1.5} />
             <div>
               <h3 className="text-sm font-black uppercase tracking-wider text-white">Accord Assistant</h3>
@@ -99,11 +104,11 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
           <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {/* whitespace-pre-wrap ensures paragraphs separate nicely instead of mashing into one block */}
+                {/* whitespace-pre-wrap makes paragraphs render cleanly without markdown */}
                 <div className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                   msg.sender === 'user' 
-                    ? 'bg-blue-600 text-white rounded-tr-sm' 
-                    : 'bg-slate-800/90 text-slate-200 rounded-tl-sm border border-white/5'
+                    ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
+                    : 'bg-slate-800/90 text-slate-200 border border-white/5 rounded-tl-sm'
                 }`}>
                   {msg.text}
                 </div>
