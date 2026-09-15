@@ -59,8 +59,8 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons (No background bubbles)
-function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
+// Immersive UI with Pure Outline Icons
+function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       <Html transform position={[0, 0.3, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
@@ -104,24 +104,6 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               </div>
             </div>
 
-            <div className="relative group">
-              <button
-                onClick={onChatToggle}
-                className={`transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] ${
-                  isChatOpen 
-                    ? 'text-blue-500 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)]' 
-                    : 'text-slate-200 hover:text-blue-400 hover:drop-shadow-[0_0_15px_rgba(96,165,250,0.8)]'
-                }`}
-              >
-                {isChatOpen ? <X size={36} strokeWidth={1.5} /> : <MessageCircle size={36} strokeWidth={1.5} />}
-              </button>
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
-                  {isChatOpen ? 'Close Assistant' : 'Ask Assistant'}
-                </span>
-              </div>
-            </div>
-
           </div>
         </div>
       </Html>
@@ -129,25 +111,36 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   );
 }
 
-// The Classroom Model with Automatic Godray Removal
+// The Classroom Model with Accord Pro Color Palette Tinting
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom22.glb');
+
   useEffect(() => {
     if (scene) {
+      // Signature Accord Blue for the subtle material grading
+      const accordBrandColor = new THREE.Color('#2563eb');
+
       scene.traverse((child) => {
         if (child.isMesh) {
-          // Hide broken godrays that cause the scene to turn dark
           if (child.name.toLowerCase().includes('godray')) {
             child.visible = false;
           } else {
             child.castShadow = true;
             child.receiveShadow = true;
-            if (child.material) child.material.side = THREE.DoubleSide;
+            if (child.material) {
+              child.material.side = THREE.DoubleSide;
+
+              // Color filter: Blends 12% of Accord Blue into every mesh material
+              if (child.material.color) {
+                child.material.color.lerp(accordBrandColor, 0.12);
+              }
+            }
           }
         }
       });
     }
   }, [scene]);
+
   return <primitive object={scene} scale={7.5} rotation={[0, Math.PI, 0]} />;
 }
 
@@ -180,7 +173,7 @@ export default function LandingPage({ onAuthenticate }) {
     }, 1200);
   };
 
-  // Direct Groq API Call with Memory & Actionable Triggers
+  // Direct Groq API Call
   const submitMessage = async (text) => {
     if (!text.trim()) return;
     
@@ -206,7 +199,6 @@ export default function LandingPage({ onAuthenticate }) {
       - Onboarding/Access: Users MUST have a 6-character 'Invite Code' to join. Accounts remain strictly in a PENDING or BLOCKED state until a Head Admin approves them.
       - Tech Stack: Built using React, Next.js, Supabase, and Cloudflare R2.`;
 
-      // Map conversation history so the AI remembers context
       const apiMessages = [
         { role: 'system', content: systemPrompt },
         ...messages.map((m) => ({
@@ -220,18 +212,14 @@ export default function LandingPage({ onAuthenticate }) {
         messages: apiMessages,
         model: 'openai/gpt-oss-20b', 
         temperature: 0.5,
-        max_tokens: 1024, // Expanded to prevent message cut-offs
+        max_tokens: 1024,
       });
 
       let reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
-      
-      // Scrubber: Instantly deletes any Markdown asterisks or symbols the AI tries to use
       reply = reply.replace(/[*#_`]/g, '');
       
-      // Intercept actionable commands
       if (reply.includes('[ACTION: LAUNCH_TERMINAL]')) {
         reply = reply.replace('[ACTION: LAUNCH_TERMINAL]', 'Initializing secure terminal access now...');
-        // Trigger the actual login animation
         setTimeout(() => {
           handleEnterClassroom();
         }, 1500);
@@ -267,6 +255,29 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
       
+      {/* Sleek Top Navbar Pill for Chatbot */}
+      {!isEntering && (
+        <div className="absolute top-6 md:top-8 right-6 md:right-10 z-[100] animate-in fade-in slide-in-from-top-4 duration-700">
+          <button 
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md transition-all border ${
+              isChatOpen 
+                ? 'bg-slate-800 text-white border-slate-700' 
+                : 'bg-slate-900/60 text-blue-400 border-blue-500/30 hover:bg-slate-900 hover:border-blue-500 hover:scale-105'
+            }`}
+          >
+            {isChatOpen ? <X size={16} /> : <Terminal size={16} />}
+            <span className="text-[10px] font-black uppercase tracking-widest">
+              {isChatOpen ? 'Close' : 'AI Assistant'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Accord Pro Cinematic Filter Overlays (CSS Mix-Blend Color Grading) */}
+      <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-blue-950/40 via-transparent to-indigo-950/30 mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/20 to-slate-950/80" />
+
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
@@ -277,25 +288,24 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            {/* 1. Bright Base Illumination */}
-            <ambientLight intensity={2.5} />
-            <hemisphereLight skyColor="#ffffff" groundColor="#1e293b" intensity={2.0} />
+            {/* Accord Pro Palette Lighting Configuration */}
+            <ambientLight intensity={2.2} color="#bfdbfe" />
+            <hemisphereLight skyColor="#60a5fa" groundColor="#0f172a" intensity={2.0} />
             
-            {/* 2. Indoor "Fluorescent" Lightbulbs to eliminate ceiling shadows */}
-            <pointLight position={[0, 3, -2]} intensity={100} distance={30} color="#ffffff" />
-            <pointLight position={[0, 3, 2]} intensity={100} distance={30} color="#ffffff" />
-            <pointLight position={[-3, 3, 0]} intensity={100} distance={30} color="#60a5fa" />
+            {/* Indoor Accord Accent Lighting */}
+            <pointLight position={[0, 3, -2]} intensity={85} distance={30} color="#93c5fd" />
+            <pointLight position={[0, 3, 2]} intensity={85} distance={30} color="#ffffff" />
+            <pointLight position={[-3, 3, 0]} intensity={110} distance={30} color="#3b82f6" />
             
-            {/* 3. The Sun (Outside) */}
-            <directionalLight position={[6, 12, 6]} intensity={2.0} castShadow shadow-mapSize={[1024, 1024]} />
+            {/* External Direct Directional Lights */}
+            <directionalLight position={[6, 12, 6]} intensity={2.2} color="#dbeafe" castShadow shadow-mapSize={[1024, 1024]} />
+            <directionalLight position={[-6, -4, -6]} intensity={1.8} color="#1d4ed8" />
             
             <group>
               <Center><ClassroomModel /></Center>
               <BoardUI 
                 onEnter={handleEnterClassroom} 
                 onAbout={() => setIsAboutOpen(true)} 
-                onChatToggle={() => setIsChatOpen(!isChatOpen)}
-                isChatOpen={isChatOpen}
                 isEntering={isEntering} 
               />
               
@@ -323,8 +333,7 @@ export default function LandingPage({ onAuthenticate }) {
 
       {/* Smart Chat Window */}
       {isChatOpen && (
-        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
-          {/* Header */}
+        <div className="absolute top-20 md:top-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[75vh] md:h-[32rem] bg-slate-900/80 backdrop-blur-2xl border border-blue-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-top-6 fade-in duration-500 pointer-events-auto">
           <div className="bg-gradient-to-r from-blue-900/60 to-slate-900/60 px-5 py-4 flex items-center justify-between border-b border-white/5">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -338,17 +347,12 @@ export default function LandingPage({ onAuthenticate }) {
                 <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
               </div>
             </div>
-            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
-              <X size={16} />
-            </button>
           </div>
 
-          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div 
-                  /* whitespace-pre-wrap ensures paragraphs format cleanly */
                   className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
                       ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
@@ -370,7 +374,6 @@ export default function LandingPage({ onAuthenticate }) {
               </div>
             )}
             
-            {/* Quick Action Chips */}
             {messages[messages.length - 1].sender === 'bot' && !isTyping && (
               <div className="flex flex-col gap-2 pt-2 items-end">
                 {quickQuestions.map((q, i) => (
@@ -388,7 +391,6 @@ export default function LandingPage({ onAuthenticate }) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-white/10 flex items-center gap-3">
             <input 
               type="text" 
