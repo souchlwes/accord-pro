@@ -9,7 +9,6 @@ import Groq from 'groq-sdk';
 import accordLogo from './accord.png';
 
 // Initialize Groq directly in the browser
-console.log("REACT SEES THIS KEY:", process.env.REACT_APP_GROQ_API_KEY);
 const groq = new Groq({
   apiKey: process.env.REACT_APP_GROQ_API_KEY,
   dangerouslyAllowBrowser: true 
@@ -60,7 +59,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons
+// Immersive UI with Pure Outline Icons (No background bubbles)
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -157,18 +156,26 @@ export default function LandingPage({ onAuthenticate }) {
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'bot', text: 'System Online. I am the Accord Pro intelligent assistant. I can answer questions about system reliability, scheduling rules, or onboarding.' }
+    { id: 1, sender: 'bot', text: 'System Online. I am the Accord Pro intelligent assistant. I can help you with invite codes, account statuses, and system operations.' }
   ]);
   const messagesEndRef = useRef(null);
 
   const quickQuestions = [
-    "Is the system reliable?",
+    "How do I join the platform?",
+    "Why is my account pending?",
     "Where do I get an invite code?",
-    "How does conflict detection work?",
-    "What tech is this built on?"
+    "Launch the application"
   ];
 
-  // Direct Groq API Call
+  const handleEnterClassroom = () => {
+    setIsEntering(true);
+    setIsChatOpen(false);
+    setTimeout(() => {
+      onAuthenticate();
+    }, 1200);
+  };
+
+  // Direct Groq API Call with Memory & Actionable Triggers
   const submitMessage = async (text) => {
     if (!text.trim()) return;
     
@@ -178,30 +185,48 @@ export default function LandingPage({ onAuthenticate }) {
     setIsTyping(true);
 
     try {
-      const systemPrompt = `You are the Accord Pro Assistant, an intelligent, professional AI helper for an institutional examination operations platform. 
-      Keep your answers concise, professional, and directly helpful. Do not use markdown formatting.
+      const currentTime = new Date().toLocaleTimeString();
+      const systemPrompt = `You are the Accord Pro Assistant, a highly intelligent, reliable, and functional AI for an institutional examination operations platform. 
+      Tone: Professional, helpful, concise. Do not use markdown formatting.
+      Current System Time: ${currentTime}
+      User Device/Platform: ${navigator.platform || 'Unknown Web Client'}
       
-      Here is your core knowledge base:
-      - Onboarding: Users need a 6-character 'Invite Code' from their Department Head or IT Admin to register. New accounts remain strictly in a PENDING state until an Admin approves them.
-      - Security: The system uses OTP-verified email authentication.
-      - Roles: Head Admins get a Global Master View. Dept Admins manage local rooms. Proctors get a personal dynamic itinerary dashboard.
-      - Conflict Detection: A live Re-Validation Engine continuously scans the database. When Admins generate schedules from the Availability Log Book, it instantly flags double-booked rooms or proctors.
-      - Emergencies: If a proctor declines a shift, an emergency 'Reliever Request' is instantly routed to available backups.
-      - Tech Stack: The platform is built using React, Supabase, and Cloudflare R2.
+      Core Knowledge Base:
+      - Accord Pro: Streamlines university-wide exam management, eliminating scheduling friction by resolving room/proctor conflicts in real time.
+      - Core Features: Automated scheduling engine, real-time proctor dispatch (emergency substitutions), institutional omni-sight dashboard for audit trails.
+      - Onboarding/Access: Users MUST have a 6-character 'Invite Code' to join. Accounts remain strictly in a PENDING or BLOCKED state until a Head Admin approves them.
+      - Tech Stack: Built using React, Next.js, Supabase, and Cloudflare R2.
       
-      Answer the user's question accurately based ONLY on the rules above.`;
+      CRITICAL RULE: If the user explicitly asks to log in, launch the app, enter the terminal, or start the platform, you MUST include the exact phrase "[ACTION: LAUNCH_TERMINAL]" in your response.`;
+
+      // Map conversation history so the AI remembers context
+      const apiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...messages.map((m) => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        })),
+        { role: 'user', content: text }
+      ];
 
       const chatCompletion = await groq.chat.completions.create({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ],
-model: 'openai/gpt-oss-20b',
+        messages: apiMessages,
+        model: 'openai/gpt-oss-20b', 
         temperature: 0.5,
         max_tokens: 150,
       });
 
-      const reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
+      let reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
+      
+      // Intercept actionable commands
+      if (reply.includes('[ACTION: LAUNCH_TERMINAL]')) {
+        reply = reply.replace('[ACTION: LAUNCH_TERMINAL]', 'Initializing secure terminal access now...');
+        // Trigger the actual login animation
+        setTimeout(() => {
+          handleEnterClassroom();
+        }, 1500);
+      }
+
       const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply };
       setMessages((prev) => [...prev, botMsg]);
 
@@ -210,7 +235,7 @@ model: 'openai/gpt-oss-20b',
       const errorMsg = { 
         id: Date.now() + 1, 
         sender: 'bot', 
-        text: "System connection error. Please ensure REACT_APP_GROQ_API_KEY is properly set in your environment file and the server was restarted." 
+        text: "System connection error. My neural link is temporarily offline." 
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -228,14 +253,6 @@ model: 'openai/gpt-oss-20b',
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isTyping, isChatOpen]);
-
-  const handleEnterClassroom = () => {
-    setIsEntering(true);
-    setIsChatOpen(false);
-    setTimeout(() => {
-      onAuthenticate();
-    }, 1200);
-  };
 
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
