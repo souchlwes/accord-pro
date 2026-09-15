@@ -59,7 +59,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons
+// Immersive UI with Pure Outline Icons (No background bubbles)
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
@@ -277,11 +277,17 @@ export default function LandingPage({ onAuthenticate }) {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
             </Html>
           }>
-            {/* Boosted Lighting to brighten the Classroom */}
-            <ambientLight intensity={3.5} />
+            {/* 1. Bright Base Illumination */}
+            <ambientLight intensity={2.5} />
             <hemisphereLight skyColor="#ffffff" groundColor="#1e293b" intensity={2.0} />
-            <directionalLight position={[6, 12, 6]} intensity={3.0} castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={1.5} color="#60a5fa" />
+            
+            {/* 2. Indoor "Fluorescent" Lightbulbs to eliminate ceiling shadows */}
+            <pointLight position={[0, 3, -2]} intensity={100} distance={30} color="#ffffff" />
+            <pointLight position={[0, 3, 2]} intensity={100} distance={30} color="#ffffff" />
+            <pointLight position={[-3, 3, 0]} intensity={100} distance={30} color="#60a5fa" />
+            
+            {/* 3. The Sun (Outside) */}
+            <directionalLight position={[6, 12, 6]} intensity={2.0} castShadow shadow-mapSize={[1024, 1024]} />
             
             <group>
               <Center><ClassroomModel /></Center>
@@ -342,7 +348,7 @@ export default function LandingPage({ onAuthenticate }) {
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div 
-                  /* whitespace-pre-wrap makes sure paragraphs format cleanly */
+                  /* whitespace-pre-wrap ensures paragraphs format cleanly */
                   className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
                       ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
