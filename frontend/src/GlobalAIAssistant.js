@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal, X, ShieldCheck, Send } from 'lucide-react';
+import { MessageCircle, X, ShieldCheck, Send } from 'lucide-react';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
@@ -51,7 +51,7 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
         messages: apiMessages,
         model: 'openai/gpt-oss-20b', 
         temperature: 0.5,
-        max_tokens: 1024, // Expanded to prevent message cut-offs
+        max_tokens: 1024,
       });
 
       let reply = chatCompletion.choices[0]?.message?.content || "System offline.";
@@ -73,32 +73,33 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
 
   return (
     <>
-      {/* Sleek, Unobtrusive Pill Toggle */}
-      <div className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-[9999]">
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md transition-all border ${
-            isOpen 
-              ? 'bg-slate-800 text-white border-slate-700' 
-              : 'bg-slate-900/60 text-blue-400 border-blue-500/30 hover:bg-slate-900 hover:border-blue-500 hover:scale-105'
-          }`}
-        >
-          {isOpen ? <X size={16} /> : <Terminal size={16} />}
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            {isOpen ? 'Close' : 'AI Assistant'}
-          </span>
-        </button>
-      </div>
+      {/* Professional, Subtle Edge Tab */}
+      {!isOpen && (
+        <div className="fixed bottom-0 right-8 md:right-16 z-[9999] animate-in slide-in-from-bottom-6 duration-500">
+          <button 
+            onClick={() => setIsOpen(true)}
+            className="bg-slate-900 hover:bg-blue-600 text-slate-400 hover:text-white border-t border-x border-slate-700/50 hover:border-blue-500 px-6 py-2.5 rounded-t-xl flex items-center gap-2.5 transition-all shadow-2xl group"
+          >
+            <MessageCircle size={16} className="text-blue-500 group-hover:text-white transition-colors" />
+            <span className="text-[10px] font-black uppercase tracking-widest mt-0.5">Need Help?</span>
+          </button>
+        </div>
+      )}
 
-      {/* Glassmorphic Chat Window */}
+      {/* Embedded Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-40 md:bottom-24 right-4 md:right-8 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[65vh] bg-slate-900/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-bottom-6 fade-in duration-300">
-          <div className="bg-gradient-to-r from-blue-900/80 to-slate-900/80 px-5 py-4 flex items-center gap-3 border-b border-white/5">
-            <ShieldCheck size={20} className="text-blue-400" strokeWidth={1.5} />
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">Accord Assistant</h3>
-              <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
+        <div className="fixed bottom-0 right-4 md:right-16 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[80vh] bg-slate-900/95 backdrop-blur-2xl border-t border-x border-blue-500/30 rounded-t-[2rem] shadow-[0_30px_80px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className="bg-gradient-to-r from-blue-900/80 to-slate-900/80 px-5 py-4 flex items-center justify-between border-b border-white/5">
+            <div className="flex items-center gap-3">
+              <ShieldCheck size={20} className="text-blue-400" strokeWidth={1.5} />
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Accord Assistant</h3>
+                <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
+              </div>
             </div>
+            <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-xl transition-all">
+              <X size={16} />
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
@@ -126,13 +127,13 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); submitMessage(chatInput); }} className="p-4 bg-slate-900 border-t border-white/10 flex items-center gap-3">
+          <form onSubmit={(e) => { e.preventDefault(); submitMessage(chatInput); }} className="p-4 bg-slate-950 border-t border-white/10 flex items-center gap-3">
             <input 
               type="text" 
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask anything..." 
-              className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
+              placeholder="Type your question..." 
+              className="flex-1 bg-slate-900 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
             />
             <button type="submit" disabled={!chatInput.trim() || isTyping} className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-md">
               <Send size={16} strokeWidth={1.5} className="ml-0.5" />
