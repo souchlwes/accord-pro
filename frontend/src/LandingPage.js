@@ -19,7 +19,8 @@ function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
       state.camera.position.lerp(new THREE.Vector3(0, 0.8, -1.0), delta * 2.5);
-      state.camera.lookAt(0, 0.8, -4.5);
+      // Adjusted camera lookAt so it glances slightly towards the East wall board as you enter
+      state.camera.lookAt(1.0, 0.5, -4.5);
     }
   });
   return null;
@@ -59,11 +60,16 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
   );
 }
 
-// Immersive UI with Pure Outline Icons
+// Immersive UI with Pure Outline Icons 
 function BoardUI({ onEnter, onAbout, isEntering }) {
   return (
-    <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
-      <Html transform position={[0, 0.3, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
+    <Float speed={1.2} rotationIntensity={0.01} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
+      {/* 
+        CRITICAL UI PLACEMENT FIX: 
+        Moved to East Wall (X=3.8), lowered (Y=-0.2), and rotated -90 degrees (-Math.PI/2) 
+        Tweak position=[X, Y, Z] slightly if it doesn't align perfectly with your GLB board!
+      */}
+      <Html transform position={[3.8, -0.2, -2.5]} rotation={[0, -Math.PI / 2, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
@@ -130,8 +136,12 @@ function ClassroomModel() {
             if (child.material) {
               child.material.side = THREE.DoubleSide;
 
-              // Color filter: Blends 12% of Accord Blue into every mesh material
-              if (child.material.color) {
+              // PAINT THE GREEN BOARD: Automatically makes the board strictly Accord Blue
+              if (child.material.name && child.material.name.toLowerCase().includes('board')) {
+                child.material.color = new THREE.Color('#2563eb');
+              } 
+              // Color filter: Blends 12% of Accord Blue into every OTHER mesh material
+              else if (child.material.color) {
                 child.material.color.lerp(accordBrandColor, 0.12);
               }
             }
@@ -254,7 +264,7 @@ export default function LandingPage({ onAuthenticate }) {
 
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
-      
+
       {/* Sleek Top Navbar Pill for Chatbot */}
       {!isEntering && (
         <div className="absolute top-6 md:top-8 right-6 md:right-10 z-[100] animate-in fade-in slide-in-from-top-4 duration-700">
@@ -274,13 +284,14 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {/* Accord Pro Cinematic Filter Overlays (CSS Mix-Blend Color Grading) */}
+      {/* Accord Pro Cinematic Filter Overlays */}
       <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-blue-950/40 via-transparent to-indigo-950/30 mix-blend-overlay" />
       <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/20 to-slate-950/80" />
 
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#030712']} />
+          {/* Shifted PerspectiveCamera to start with a better view of the East wall */}
           <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
           
           <Suspense fallback={
@@ -292,12 +303,10 @@ export default function LandingPage({ onAuthenticate }) {
             <ambientLight intensity={2.2} color="#bfdbfe" />
             <hemisphereLight skyColor="#60a5fa" groundColor="#0f172a" intensity={2.0} />
             
-            {/* Indoor Accord Accent Lighting */}
             <pointLight position={[0, 3, -2]} intensity={85} distance={30} color="#93c5fd" />
             <pointLight position={[0, 3, 2]} intensity={85} distance={30} color="#ffffff" />
             <pointLight position={[-3, 3, 0]} intensity={110} distance={30} color="#3b82f6" />
             
-            {/* External Direct Directional Lights */}
             <directionalLight position={[6, 12, 6]} intensity={2.2} color="#dbeafe" castShadow shadow-mapSize={[1024, 1024]} />
             <directionalLight position={[-6, -4, -6]} intensity={1.8} color="#1d4ed8" />
             
@@ -311,9 +320,9 @@ export default function LandingPage({ onAuthenticate }) {
               
               {!isEntering && !isAboutOpen && (
                 <>
-                  <SpatialTooltip position={[-2.5, 0.6, 1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
+                  <SpatialTooltip position={[3.5, 0.6, 1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
                   <SpatialTooltip position={[2, 0.5, -2]} icon={Users} title="Live Proctor Routing" description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." delay={1000} />
-                  <SpatialTooltip position={[-3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
+                  <SpatialTooltip position={[3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
                 </>
               )}
               <Sparkles count={250} scale={14} size={1.2} speed={0.1} opacity={0.2} color="#60a5fa" />
@@ -407,14 +416,6 @@ export default function LandingPage({ onAuthenticate }) {
               <Send size={16} className="ml-0.5" />
             </button>
           </form>
-        </div>
-      )}
-
-      {!isEntering && !isAboutOpen && !isChatOpen && (
-        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
-          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-            <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
-          </div>
         </div>
       )}
 
