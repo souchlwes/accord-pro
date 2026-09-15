@@ -64,10 +64,11 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
       {/* 
-        MOVED BACK TO NORTH (0, 0, 0) AND LOWERED (-0.2 on the Y axis)
-        Adjust the middle number if it needs to go higher or lower on your board!
+        CRITICAL FIX: 
+        The UI is now placed directly against the surface of the blackboard!
+        If it clips into the board or floats too far off, simply adjust the "-3.8" (Z-axis) slightly!
       */}
-      <Html transform position={[0, -0.2, -3.5]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
+      <Html transform position={[0, 0.5, -3.8]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
@@ -108,7 +109,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               </div>
             </div>
 
-            {/* Chatbot Icon restored to the main menu row */}
+            {/* Chatbot Icon exactly where it belongs */}
             <div className="relative group">
               <button
                 onClick={onChatToggle}
@@ -134,7 +135,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   );
 }
 
-// The New Classroom Model (Reads the new GLB and paints the green board)
+// The New Classroom Model (Reads the GLB and paints the green board)
 function ClassroomModel() {
   const { scene } = useGLTF(process.env.PUBLIC_URL + '/classroom22.glb');
 
@@ -151,7 +152,7 @@ function ClassroomModel() {
             child.material.side = THREE.DoubleSide;
 
             // Target the specific green board materials from your GLB and paint them blue
-            if (child.material.name.includes('StingrayPBS7') || child.name.includes('VERDE')) {
+            if ((child.material.name && child.material.name.includes('StingrayPBS7')) || child.name.includes('VERDE')) {
               child.material.color = accordBrandColor;
             } 
             // Lightly tint the rest of the room to match the brand
@@ -164,9 +165,10 @@ function ClassroomModel() {
     }
   }, [scene]);
 
-  // Using a primitive loader perfectly handles all 300+ meshes in your file automatically.
-  // Adjust the scale or position array here if the room is too big or off-center!
-  return <primitive object={scene} scale={1} position={[0, -1, 0]} />;
+  // CRITICAL FIX: Changed from Math.PI / 2 to -Math.PI / 2
+  // This spins the East Wall to exactly face the camera!
+  // Lowered the room slightly on the Y-axis (-1.5) so the camera looks directly at the board
+  return <primitive object={scene} scale={7.5} rotation={[0, -Math.PI / 2, 0]} position={[0, -1.5, 0]} />;
 }
 
 // The Main Interactive Landing Page
@@ -241,7 +243,7 @@ export default function LandingPage({ onAuthenticate }) {
       });
 
       let reply = chatCompletion.choices[0]?.message?.content || "I am currently rebooting. Please try again in a moment.";
-      reply = reply.replace(/[*#_`]/g, ''); // Markdown Scrubber
+      reply = reply.replace(/[*#_`]/g, ''); 
       
       if (reply.includes('[ACTION: LAUNCH_TERMINAL]')) {
         reply = reply.replace('[ACTION: LAUNCH_TERMINAL]', 'Initializing secure terminal access now...');
