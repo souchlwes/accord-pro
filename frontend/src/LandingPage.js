@@ -19,8 +19,8 @@ const groq = new Groq({
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
-      state.camera.position.lerp(new THREE.Vector3(0, 0.8, -1.0), delta * 2.5);
-      state.camera.lookAt(0, 0.8, -4.5);
+      state.camera.position.lerp(new THREE.Vector3(0, 1.2, -1.0), delta * 2.5);
+      state.camera.lookAt(0, 1.2, -4.5);
     }
   });
   return null;
@@ -36,21 +36,21 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
         <div className="relative flex items-center justify-center animate-in fade-in duration-1000" style={{ animationDelay: `${delay}ms` }}>
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(120,164,190,0.4)] border ${
-              isOpen ? 'bg-[#4d82a1] border-white scale-125' : 'bg-[#1c5c7d]/40 border-[#78a4be] hover:scale-125 hover:bg-[#1c5c7d]/80'
+            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_0_15px_rgba(74,96,112,0.4)] border ${
+              isOpen ? 'bg-[#4A6070] border-white scale-125' : 'bg-[#2B3A45]/60 border-[#7A93A3] hover:scale-125 hover:bg-[#4A6070]'
             }`}
           >
             <div className={`w-1.5 h-1.5 bg-white rounded-full ${isOpen ? '' : 'animate-pulse'}`} />
           </button>
 
           <div 
-            className={`absolute top-8 left-1/2 -translate-x-1/2 w-52 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transition-all duration-400 origin-top shadow-[0_10px_40px_rgba(11,65,104,0.6)] ${
+            className={`absolute top-8 left-1/2 -translate-x-1/2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/5 rounded-2xl p-4 transition-all duration-400 origin-top shadow-[0_10px_40px_rgba(15,23,42,0.8)] ${
               isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'
             }`}
           >
-            <button onClick={() => setIsOpen(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white"><X size={12} /></button>
+            <button onClick={() => setIsOpen(false)} className="absolute top-3 right-3 text-slate-500 hover:text-white"><X size={12} /></button>
             <h4 className="text-[10px] font-black uppercase tracking-wider text-white mb-2 flex items-center gap-2 pr-4">
-              <Icon size={14} className="text-[#78a4be]" /> {title}
+              <Icon size={14} className="text-[#7A93A3]" /> {title}
             </h4>
             <p className="text-[9px] text-slate-300 leading-relaxed font-medium">{description}</p>
           </div>
@@ -63,18 +63,23 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
 // Immersive UI
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
-    <Float speed={1.2} rotationIntensity={0.03} floatIntensity={0.15} floatingRange={[-0.02, 0.02]}>
-      <Html transform position={[0, 0.5, -3.8]} rotation={[0, Math.PI, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
+    <Float speed={1.2} rotationIntensity={0.02} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
+      {/* 
+        CRITICAL FIX: 
+        Rotation [0,0,0] perfectly faces the camera. 
+        Moved UP to Y: 1.6 and perfectly flush against the board at Z: -3.85
+      */}
+      <Html transform position={[0, 1.6, -3.85]} rotation={[0, 0, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           <img 
             src={accordLogo} 
             alt="Accord Pro" 
-            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-100 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain brightness-0 invert opacity-90 mb-4 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]" 
           />
           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2 italic drop-shadow-[0_4px_15px_rgba(0,0,0,0.8)]">
-            Accord <span className="text-[#78a4be]">Pro</span>
+            Accord <span className="text-[#7A93A3]">Pro</span>
           </h2>
-          <p className="text-[10px] md:text-xs font-bold text-slate-200 uppercase tracking-[0.5em] mb-10 md:mb-12 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+          <p className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-[0.5em] mb-10 md:mb-12 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
             Secure Access Portal
           </p>
 
@@ -84,12 +89,12 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
               <button
                 onClick={onEnter}
                 disabled={isEntering}
-                className="text-white hover:text-[#78a4be] transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(120,164,190,0.6)]"
+                className="text-slate-200 hover:text-[#7A93A3] transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(122,147,163,0.5)]"
               >
-                {isEntering ? <Loader2 size={36} className="animate-spin text-[#78a4be]" /> : <Terminal size={36} strokeWidth={1.5} />}
+                {isEntering ? <Loader2 size={36} className="animate-spin text-[#7A93A3]" /> : <Terminal size={36} strokeWidth={1.5} />}
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Launch Platform</span>
+                <span className="bg-slate-900/90 border border-white/5 text-slate-200 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Launch Platform</span>
               </div>
             </div>
 
@@ -101,7 +106,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
                 <HelpCircle size={36} strokeWidth={1.5} />
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">What is Accord Pro?</span>
+                <span className="bg-slate-900/90 border border-white/5 text-slate-200 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">What is Accord Pro?</span>
               </div>
             </div>
 
@@ -110,14 +115,14 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
                 onClick={onChatToggle}
                 className={`transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] ${
                   isChatOpen 
-                    ? 'text-[#78a4be] drop-shadow-[0_0_15px_rgba(120,164,190,0.6)]' 
-                    : 'text-slate-200 hover:text-[#78a4be] hover:drop-shadow-[0_0_15px_rgba(120,164,190,0.6)]'
+                    ? 'text-[#7A93A3] drop-shadow-[0_0_15px_rgba(122,147,163,0.5)]' 
+                    : 'text-slate-200 hover:text-[#7A93A3] hover:drop-shadow-[0_0_15px_rgba(122,147,163,0.5)]'
                 }`}
               >
                 {isChatOpen ? <X size={36} strokeWidth={1.5} /> : <MessageCircle size={36} strokeWidth={1.5} />}
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
+                <span className="bg-slate-900/90 border border-white/5 text-slate-200 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
                   {isChatOpen ? 'Close Assistant' : 'Ask Assistant'}
                 </span>
               </div>
@@ -135,8 +140,8 @@ function ClassroomModel() {
 
   useEffect(() => {
     if (scene) {
-      // Using the deep retro teal from your palette for the board and tint
-      const accordBrandColor = new THREE.Color('#1c5c7d');
+      // Retro Gray-Blue Palette
+      const retroBrandColor = new THREE.Color('#4A6070');
 
       scene.traverse((child) => {
         if (child.isMesh) {
@@ -147,10 +152,10 @@ function ClassroomModel() {
             child.material.side = THREE.DoubleSide;
 
             if ((child.material.name && child.material.name.includes('StingrayPBS7')) || child.name.includes('VERDE')) {
-              child.material.color = accordBrandColor;
+              child.material.color = retroBrandColor;
             } else if (child.material.color) {
-              // Softer tinting percentage to match the retro vibe
-              child.material.color.lerp(accordBrandColor, 0.10);
+              // Smooth, dusty tinting across the entire room
+              child.material.color.lerp(retroBrandColor, 0.15);
             }
           }
         }
@@ -309,29 +314,30 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
 
-      <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-[#0b4168]/40 via-transparent to-slate-950/60 mix-blend-overlay" />
-      <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/40 to-slate-950/90" />
+      <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-to-tr from-[#2B3A45]/50 via-transparent to-slate-950/70 mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-slate-950/30 to-slate-950/90" />
 
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
-          <color attach="background" args={['#030712']} />
-          <PerspectiveCamera makeDefault position={[0, 1.5, 5.5]} fov={45} />
+          <color attach="background" args={['#0f172a']} />
+          {/* Camera starts looking perfectly toward the North (Z: -4.5) to see the board */}
+          <PerspectiveCamera makeDefault position={[0, 1.6, 5.5]} fov={45} />
           
           <Suspense fallback={
             <Html center style={{ position: 'absolute', top: '-35vh' }}>
-              <Loader2 className="w-10 h-10 text-[#78a4be] animate-spin opacity-80" />
+              <Loader2 className="w-10 h-10 text-[#4A6070] animate-spin opacity-80" />
             </Html>
           }>
-            {/* Retro Lighting Adjustments - Softer, less intense, dusty blue hues */}
-            <ambientLight intensity={1.5} color="#a6c4d6" />
-            <hemisphereLight skyColor="#78a4be" groundColor="#0b4168" intensity={1.2} />
+            {/* Retro Gray-Blue Lighting */}
+            <ambientLight intensity={1.8} color="#B0C4D1" />
+            <hemisphereLight skyColor="#7A93A3" groundColor="#1e293b" intensity={1.5} />
             
-            <pointLight position={[0, 3, -2]} intensity={50} distance={30} color="#78a4be" />
-            <pointLight position={[0, 3, 2]} intensity={50} distance={30} color="#c9dce8" />
-            <pointLight position={[-3, 3, 0]} intensity={70} distance={30} color="#4d82a1" />
+            <pointLight position={[0, 3, -2]} intensity={60} distance={30} color="#7A93A3" />
+            <pointLight position={[0, 3, 2]} intensity={60} distance={30} color="#D6E0E6" />
+            <pointLight position={[-3, 3, 0]} intensity={80} distance={30} color="#4A6070" />
             
-            <directionalLight position={[6, 12, 6]} intensity={1.5} color="#c9dce8" castShadow shadow-mapSize={[1024, 1024]} />
-            <directionalLight position={[-6, -4, -6]} intensity={1.2} color="#0b4168" />
+            <directionalLight position={[6, 12, 6]} intensity={1.5} color="#D6E0E6" castShadow shadow-mapSize={[1024, 1024]} />
+            <directionalLight position={[-6, -4, -6]} intensity={1.2} color="#2B3A45" />
             
             <group>
               <Center><ClassroomModel /></Center>
@@ -350,7 +356,7 @@ export default function LandingPage({ onAuthenticate }) {
                   <SpatialTooltip position={[-3.5, 1.8, -3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
                 </>
               )}
-              <Sparkles count={200} scale={14} size={1.5} speed={0.1} opacity={0.3} color="#78a4be" />
+              <Sparkles count={200} scale={14} size={1.2} speed={0.1} opacity={0.3} color="#7A93A3" />
             </group>
             
             <CameraController isEntering={isEntering} />
@@ -365,14 +371,15 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
+      {/* Smart Chat Window */}
       {isChatOpen && (
-        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/85 backdrop-blur-2xl border border-[#325c77]/30 rounded-3xl shadow-[0_20px_60px_rgba(11,65,104,0.6)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
-          <div className="bg-gradient-to-r from-[#0b4168]/80 to-slate-900/90 px-5 py-4 flex items-center justify-between border-b border-[#325c77]/50">
+        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/90 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[0_20px_60px_rgba(15,23,42,0.9)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
+          <div className="bg-slate-800/50 px-5 py-4 flex items-center justify-between border-b border-white/5">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse absolute -bottom-0.5 -right-0.5 border-2 border-slate-900" />
-                <div className="w-10 h-10 bg-[#1c5c7d]/30 rounded-full flex items-center justify-center border border-[#4d82a1]/40 shadow-[0_0_15px_rgba(77,130,161,0.2)]">
-                  <ShieldCheck size={18} className="text-[#78a4be]" />
+                <div className="w-10 h-10 bg-[#4A6070]/30 rounded-full flex items-center justify-center border border-[#7A93A3]/30">
+                  <ShieldCheck size={18} className="text-[#7A93A3]" />
                 </div>
               </div>
               <div>
@@ -380,7 +387,7 @@ export default function LandingPage({ onAuthenticate }) {
                 <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
               </div>
             </div>
-            <button onClick={() => setIsChatOpen(false)} className="text-[#78a4be] hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
+            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
               <X size={16} />
             </button>
           </div>
@@ -389,15 +396,15 @@ export default function LandingPage({ onAuthenticate }) {
             {messages.map((msg) => (
               <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                 {msg.image && (
-                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden shadow-lg bg-black/20 border border-[#325c77]/50">
+                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden shadow-lg bg-black/20">
                     <img src={msg.image} alt="Uploaded screenshot" className="w-full h-auto object-cover max-h-48" />
                   </div>
                 )}
                 {msg.text && (
                   <div className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
-                      ? 'bg-[#1c5c7d] text-white rounded-tr-sm border border-[#4d82a1]' 
-                      : 'bg-slate-800/60 text-slate-200 border border-[#325c77]/50 rounded-tl-sm backdrop-blur-sm'
+                      ? 'bg-[#4A6070] text-white rounded-tr-sm border border-white/5' 
+                      : 'bg-slate-800/60 text-slate-300 border border-white/5 rounded-tl-sm backdrop-blur-sm'
                   }`}>
                     {msg.text}
                   </div>
@@ -407,10 +414,10 @@ export default function LandingPage({ onAuthenticate }) {
 
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-slate-800/60 border border-[#325c77]/50 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16">
-                  <div className="w-1.5 h-1.5 bg-[#78a4be] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-[#78a4be] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-[#78a4be] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="bg-slate-800/60 border border-white/5 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16">
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}
@@ -421,10 +428,10 @@ export default function LandingPage({ onAuthenticate }) {
                   <button 
                     key={i}
                     onClick={() => submitMessage(q)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#1c5c7d]/20 border border-[#4d82a1]/30 hover:bg-[#1c5c7d]/50 hover:border-[#4d82a1] text-[#78a4be] text-[10px] font-bold tracking-wide transition-all shadow-md"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-800/50 border border-white/5 hover:bg-[#4A6070]/40 text-slate-300 text-[10px] font-bold tracking-wide transition-all shadow-sm"
                   >
                     <span>{q}</span>
-                    <ChevronRight size={12} className="text-[#4d82a1]" />
+                    <ChevronRight size={12} className="text-[#7A93A3]" />
                   </button>
                 ))}
               </div>
@@ -433,12 +440,12 @@ export default function LandingPage({ onAuthenticate }) {
           </div>
 
           {attachment && (
-            <div className="px-4 py-3 bg-[#0b4168]/50 border-t border-[#325c77]/50 flex items-start gap-3">
+            <div className="px-4 py-3 bg-slate-800/30 flex items-start gap-3">
               <div className="relative group">
-                <img src={attachment} alt="Preview" className={`w-16 h-16 object-cover rounded-xl shadow-md border border-[#4d82a1]/40 transition-opacity ${isScanning ? 'opacity-50' : 'opacity-100'}`} />
+                <img src={attachment} alt="Preview" className={`w-16 h-16 object-cover rounded-xl shadow-md border border-white/5 transition-opacity ${isScanning ? 'opacity-50' : 'opacity-100'}`} />
                 {isScanning && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 size={16} className="text-[#78a4be] animate-spin drop-shadow-md" />
+                    <Loader2 size={16} className="text-[#7A93A3] animate-spin drop-shadow-md" />
                   </div>
                 )}
                 <button 
@@ -450,7 +457,7 @@ export default function LandingPage({ onAuthenticate }) {
                 </button>
               </div>
               <div className="flex-1 mt-1">
-                <p className="text-[10px] font-black text-[#78a4be] uppercase tracking-widest">
+                <p className="text-[10px] font-black text-[#7A93A3] uppercase tracking-widest">
                   {isScanning ? 'Scanning Text...' : 'Image Attached'}
                 </p>
                 <p className="text-[9px] text-slate-400">
@@ -460,7 +467,7 @@ export default function LandingPage({ onAuthenticate }) {
             </div>
           )}
 
-          <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-[#325c77]/50 flex items-center gap-3">
+          <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-white/5 flex items-center gap-3">
             <input 
               type="file" 
               accept="image/*" 
@@ -472,7 +479,7 @@ export default function LandingPage({ onAuthenticate }) {
               type="button" 
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanning || isTyping}
-              className="w-10 h-10 shrink-0 bg-slate-800 hover:bg-[#1c5c7d]/60 text-[#78a4be] disabled:opacity-50 rounded-xl flex items-center justify-center transition-all border border-[#325c77]/50"
+              className="w-10 h-10 shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-all border border-white/5"
               title="Attach temporary screenshot"
             >
               <ImageIcon size={18} strokeWidth={1.5} />
@@ -483,12 +490,12 @@ export default function LandingPage({ onAuthenticate }) {
               onChange={(e) => setChatInput(e.target.value)}
               placeholder={isScanning ? "Scanning image..." : "Ask anything..."} 
               disabled={isScanning}
-              className="flex-1 bg-slate-950 border border-[#325c77]/50 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#4d82a1] focus:ring-1 focus:ring-[#4d82a1] transition-all shadow-inner disabled:opacity-50"
+              className="flex-1 bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#4A6070] focus:ring-1 focus:ring-[#4A6070] transition-all shadow-inner disabled:opacity-50"
             />
             <button 
               type="submit"
               disabled={(!chatInput.trim() && !attachment) || isTyping || isScanning}
-              className="w-10 h-10 shrink-0 bg-[#1c5c7d] hover:bg-[#4d82a1] disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-[0_0_10px_rgba(77,130,161,0.3)]"
+              className="w-10 h-10 shrink-0 bg-[#4A6070] hover:bg-[#7A93A3] disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-[0_0_10px_rgba(74,96,112,0.3)]"
             >
               <Send size={16} className="ml-0.5" />
             </button>
@@ -496,33 +503,26 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {!isEntering && !isAboutOpen && !isChatOpen && (
-        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60">
-          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(120,164,190,0.1)]">
-            <div className="w-1 h-2 bg-[#78a4be] rounded-full animate-bounce" />
-          </div>
-        </div>
-      )}
-
+      {/* "WHAT IS ACCORD PRO?" MODAL */}
       {isAboutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
-          <div className="bg-slate-900 border border-[#325c77]/70 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-[0_30px_60px_rgba(11,65,104,0.4)] relative flex flex-col max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-6 pb-6 border-b border-[#325c77]/50">
+          <div className="bg-slate-900 border border-white/5 w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.8)] relative flex flex-col max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-6 pb-6 border-b border-white/5">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#78a4be] block mb-1">System Overview</span>
-                <h2 className="text-xl sm:text-3xl font-black uppercase tracking-tight text-white italic">About Accord <span className="text-[#4d82a1]">Pro</span></h2>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#7A93A3] block mb-1">System Overview</span>
+                <h2 className="text-xl sm:text-3xl font-black uppercase tracking-tight text-white italic">About Accord <span className="text-[#4A6070]">Pro</span></h2>
               </div>
               <button onClick={() => setIsAboutOpen(false)} className="bg-white/5 hover:bg-rose-500 text-slate-400 hover:text-white p-2 md:p-2.5 rounded-xl transition-all"><X size={18} /></button>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6 font-medium">Accord Pro is an institutional examination operations platform designed to eliminate scheduling friction, resolve room and proctor conflicts, and orchestrate university-wide exam sessions in real time.</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-8">
-              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-[#325c77]/30 shadow-inner"><CalendarCheck2 className="text-[#78a4be] mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Conflict-Free</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Guarantees no double-booked rooms or proctors across departments.</p></div>
-              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-[#325c77]/30 shadow-inner"><Users className="text-[#a6c4d6] mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Proctor Dispatch</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Real-time availability logs and emergency substitution routing.</p></div>
-              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-[#325c77]/30 shadow-inner"><ShieldCheck className="text-emerald-400 mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Omni-Sight</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Master university timelines with role-restricted audit trails.</p></div>
+              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner"><CalendarCheck2 className="text-[#7A93A3] mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Conflict-Free</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Guarantees no double-booked rooms or proctors across departments.</p></div>
+              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner"><Users className="text-[#4A6070] mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Proctor Dispatch</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Real-time availability logs and emergency substitution routing.</p></div>
+              <div className="bg-slate-800/40 p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner"><ShieldCheck className="text-emerald-400 mb-2 md:mb-3" size={20} /><h4 className="text-[10px] md:text-xs font-black uppercase tracking-wider text-white mb-1.5">Omni-Sight</h4><p className="text-[9px] md:text-[10px] text-slate-400 leading-normal">Master university timelines with role-restricted audit trails.</p></div>
             </div>
-            <div className="mt-auto flex items-center justify-end gap-2 md:gap-3 pt-4 border-t border-[#325c77]/50">
+            <div className="mt-auto flex items-center justify-end gap-2 md:gap-3 pt-4 border-t border-white/5">
               <button onClick={() => setIsAboutOpen(false)} className="px-4 py-2 md:px-6 md:py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-[10px] md:text-xs uppercase tracking-widest transition-all">Close</button>
-              <button onClick={() => { setIsAboutOpen(false); handleEnterClassroom(); }} className="px-4 py-2 md:px-6 md:py-3 rounded-xl bg-[#1c5c7d] hover:bg-[#4d82a1] text-white font-black text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-[#1c5c7d]/30 transition-all flex items-center gap-2"><span>Launch App</span><ArrowRight size={14} /></button>
+              <button onClick={() => { setIsAboutOpen(false); handleEnterClassroom(); }} className="px-4 py-2 md:px-6 md:py-3 rounded-xl bg-[#4A6070] hover:bg-[#7A93A3] text-white font-black text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-[#4A6070]/30 transition-all flex items-center gap-2"><span>Launch App</span><ArrowRight size={14} /></button>
             </div>
           </div>
         </div>
