@@ -15,7 +15,7 @@ const groq = new Groq({
   dangerouslyAllowBrowser: true 
 });
 
-// Cinematic Camera Glide (Flipped to glide South towards the new board location)
+// Cinematic Camera Glide
 function CameraController({ isEntering }) {
   useFrame((state, delta) => {
     if (isEntering) {
@@ -65,9 +65,8 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.02} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
       {/* 
-        CRITICAL FIX: 
-        Position is now +3.85 (South wall).
-        Rotation is Math.PI (180 degrees) so the UI faces North towards the camera.
+        Position is +3.85 (South wall).
+        Rotation is Math.PI (180 degrees) so UI faces North towards the camera.
       */}
       <Html transform position={[0, 1.6, 3.85]} rotation={[0, Math.PI, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
@@ -323,15 +322,15 @@ export default function LandingPage({ onAuthenticate }) {
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#0f172a']} />
-          {/* 
-            CRITICAL FIX: 
-            The Camera now starts at the North wall (Z: -5.5) so it looks South toward the new UI position!
-          */}
+          {/* Camera starts at the North wall (Z: -5.5) looking South toward the UI */}
           <PerspectiveCamera makeDefault position={[0, 1.6, -5.5]} fov={45} />
           
           <Suspense fallback={
             <Html center style={{ position: 'absolute', top: '-35vh' }}>
-              <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
+                <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Loading Environment</span>
+              </div>
             </Html>
           }>
             <ambientLight intensity={1.2} color="#fff0de" />
@@ -506,6 +505,16 @@ export default function LandingPage({ onAuthenticate }) {
               <Send size={16} className="ml-0.5" />
             </button>
           </form>
+        </div>
+      )}
+
+      {/* RESTORED: Bouncing Interaction Indicator */}
+      {!isEntering && !isAboutOpen && !isChatOpen && (
+        <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60 transition-opacity duration-1000">
+          <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+            <div className="w-1 h-2 bg-blue-500 rounded-full animate-bounce" />
+          </div>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 drop-shadow-md">Drag to explore</span>
         </div>
       )}
 
