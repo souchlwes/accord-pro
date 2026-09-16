@@ -1,6 +1,6 @@
 import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float, useProgress } from '@react-three/drei';
 import { 
   HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal, Image as ImageIcon
 } from 'lucide-react';
@@ -14,6 +14,31 @@ const groq = new Groq({
   apiKey: process.env.REACT_APP_GROQ_API_KEY,
   dangerouslyAllowBrowser: true 
 });
+
+// PREMIUM LOADING OVERLAY
+function EnvironmentLoader() {
+  const { active, progress } = useProgress();
+
+  if (!active) return null;
+
+  return (
+    <div className="absolute inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950 text-white transition-opacity duration-1000">
+      <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6 opacity-80" />
+      
+      {/* Sleek Progress Bar */}
+      <div className="w-48 md:w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden mb-4 shadow-inner">
+        <div 
+          className="h-full bg-blue-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+          style={{ width: `${progress}%` }} 
+        />
+      </div>
+      
+      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+        Loading Environment • {Math.round(progress)}%
+      </span>
+    </div>
+  );
+}
 
 // Cinematic Camera Glide
 function CameraController({ isEntering }) {
@@ -64,10 +89,6 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
 function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
   return (
     <Float speed={1.2} rotationIntensity={0.02} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
-      {/* 
-        Position is +3.85 (South wall).
-        Rotation is Math.PI (180 degrees) so UI faces North towards the camera.
-      */}
       <Html transform position={[0, 1.6, 3.85]} rotation={[0, Math.PI, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 select-none ${isEntering ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
           
@@ -319,20 +340,14 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
 
+      <EnvironmentLoader />
+
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
         <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#0f172a']} />
-          {/* Camera starts at the North wall (Z: -5.5) looking South toward the UI */}
           <PerspectiveCamera makeDefault position={[0, 1.6, -5.5]} fov={45} />
           
-          <Suspense fallback={
-            <Html center style={{ position: 'absolute', top: '-35vh' }}>
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-10 h-10 text-blue-500 animate-spin opacity-80" />
-                <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Loading Environment</span>
-              </div>
-            </Html>
-          }>
+          <Suspense fallback={<Html center></Html>}>
             <ambientLight intensity={1.2} color="#fff0de" />
             <hemisphereLight skyColor="#ffffff" groundColor="#4a3b2c" intensity={1.0} />
             
@@ -355,7 +370,6 @@ export default function LandingPage({ onAuthenticate }) {
               
               {!isEntering && !isAboutOpen && (
                 <>
-                  {/* Tooltip coordinates mirrored so they appear correctly from the new North Camera view */}
                   <SpatialTooltip position={[2.5, 0.6, -1]} icon={CalendarCheck2} title="Smart Room Allocation" description="Zero double-booking. The system dynamically maps out available exam rooms across campus in real time." delay={500} />
                   <SpatialTooltip position={[-2, 0.5, 2]} icon={Users} title="Live Proctor Routing" description="Instantly reassign invigilators across departments when schedule conflicts or emergencies arise." delay={1000} />
                   <SpatialTooltip position={[3.5, 1.8, 3.5]} icon={ShieldCheck} title="Master Timeline" description="A unified, role-restricted dashboard providing a bird's-eye view of every ongoing exam." delay={1500} />
