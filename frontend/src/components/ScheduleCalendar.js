@@ -10,7 +10,18 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
   const [viewMode, setViewMode] = useState('DAY'); // 'DAY' or 'WEEK'
   const [currentPage, setCurrentPage] = useState(0); 
   
+  // --- LIVE TIME TRACKER ---
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
   const rowHeight = 120; 
+
+  // Update current time every minute for the live red indicator line
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayStr = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
 
   const sortedDates = useMemo(() => {
     return [...new Set(examDates)].filter(Boolean).sort();
@@ -31,19 +42,13 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
   }, [sortedDates, viewMode, currentPage]);
 
   const handlePrev = () => {
-    if (viewMode === 'DAY') {
-      setCurrentPage(p => Math.max(0, p - 1));
-    } else {
-      setCurrentPage(p => Math.max(0, p - 5));
-    }
+    if (viewMode === 'DAY') setCurrentPage(p => Math.max(0, p - 1));
+    else setCurrentPage(p => Math.max(0, p - 5));
   };
 
   const handleNext = () => {
-    if (viewMode === 'DAY') {
-      setCurrentPage(p => Math.min(sortedDates.length - 1, p + 1));
-    } else {
-      setCurrentPage(p => Math.min(sortedDates.length - 1, p + 5));
-    }
+    if (viewMode === 'DAY') setCurrentPage(p => Math.min(sortedDates.length - 1, p + 1));
+    else setCurrentPage(p => Math.min(sortedDates.length - 1, p + 5));
   };
 
   // --- COLLISION & LAYOUT ENGINE ---
@@ -51,13 +56,12 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
     const dailyGroups = {};
     
     const filtered = scheduleData.filter(item => {
-      // FIX: Safely inline the search term so the variable can't be lost
       const sTerm = (searchTerm || "").toLowerCase();
       const matchesSearch = 
         (item.subject_code || "").toLowerCase().includes(sTerm) ||
         (item.room || "").toLowerCase().includes(sTerm) ||
         (item.proctor || "").toLowerCase().includes(sTerm) ||
-        (item.dept_code || "").toLowerCase().includes(sTerm); // Now searches by Department too!
+        (item.dept_code || "").toLowerCase().includes(sTerm); 
         
       const matchesYear = activeFilters.includes(Number(item.year_level));
       return matchesSearch && matchesYear;
@@ -102,12 +106,13 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
     return dailyGroups;
   }, [searchTerm, activeFilters, scheduleData]);
 
+  // Apple Calendar-style translucent pastel colors
   const yearStyles = {
-    1: "bg-blue-50 border-blue-500 text-blue-900 shadow-blue-100",
-    2: "bg-emerald-50 border-emerald-400 text-emerald-900 shadow-emerald-100",
-    3: "bg-amber-50 border-amber-400 text-amber-900 shadow-amber-100",
-    4: "bg-purple-50 border-purple-400 text-purple-900 shadow-purple-100",
-    5: "bg-rose-50 border-rose-500 text-rose-900 shadow-rose-100",
+    1: "bg-blue-500/10 border-blue-500/50 text-blue-900 shadow-sm",
+    2: "bg-emerald-500/10 border-emerald-500/50 text-emerald-900 shadow-sm",
+    3: "bg-amber-500/10 border-amber-500/50 text-amber-900 shadow-sm",
+    4: "bg-purple-500/10 border-purple-500/50 text-purple-900 shadow-sm",
+    5: "bg-rose-500/10 border-rose-500/50 text-rose-900 shadow-sm",
   };
 
   const getTopOffset = (timeStr) => {
@@ -125,73 +130,68 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
   };
 
   return (
-    <div className="flex flex-col w-full h-[95vh] bg-slate-50 rounded-[3rem] shadow-2xl border border-slate-200 overflow-hidden mt-8 relative">
+    <div className="flex flex-col w-full h-[95vh] bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-slate-200/60 overflow-hidden mt-8 relative font-sans antialiased">
       
-      {/* TOOLBAR */}
-      <div className="bg-slate-950 p-8 flex flex-wrap items-center justify-between gap-6 text-white relative z-50">
-        <div className="flex items-center gap-6">
-          <div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-500/20"><Layers size={28}/></div>
+      {/* PREMIUM FROSTED TOOLBAR */}
+      <div className="bg-slate-900/95 backdrop-blur-2xl px-6 py-5 md:px-8 md:py-6 flex flex-wrap items-center justify-between gap-6 text-white relative z-50 border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 w-10 h-10 md:w-12 md:h-12 rounded-[1rem] shadow-lg shadow-blue-500/30 flex items-center justify-center border border-white/10">
+            <Layers size={22} className="text-white"/>
+          </div>
           <div>
-            <h2 className="text-2xl font-black uppercase tracking-tighter">Global Examination Masterlist</h2>
-            <p className="text-[10px] text-slate-500 font-black tracking-[0.3em] uppercase mt-1 italic">Multi-Block Visualizer</p>
+            <h2 className="text-lg md:text-xl font-black uppercase tracking-tight leading-none text-slate-50">Master Timeline</h2>
+            <p className="text-[9px] md:text-[10px] text-blue-400 font-semibold tracking-widest uppercase mt-1">Global System View</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
           
-          {/* iOS STYLE VIEW TOGGLE */}
-          <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
-            <button onClick={() => { setViewMode('DAY'); setCurrentPage(0); }} className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase ${viewMode === 'DAY' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+          {/* iOS STYLE SEGMENTED CONTROL */}
+          <div className="flex bg-black/40 p-1 rounded-[1rem] border border-white/5 shadow-inner">
+            <button onClick={() => { setViewMode('DAY'); setCurrentPage(0); }} className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all uppercase ${viewMode === 'DAY' ? 'bg-white/10 text-white shadow-sm border border-white/10' : 'text-slate-400 hover:text-slate-200'}`}>
               Day
             </button>
-            <button onClick={() => { setViewMode('WEEK'); setCurrentPage(0); }} className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase ${viewMode === 'WEEK' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+            <button onClick={() => { setViewMode('WEEK'); setCurrentPage(0); }} className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all uppercase ${viewMode === 'WEEK' ? 'bg-white/10 text-white shadow-sm border border-white/10' : 'text-slate-400 hover:text-slate-200'}`}>
               Week
             </button>
           </div>
 
-          {/* iOS STYLE PAGINATION CONTROLS */}
-          <div className="flex items-center bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
-            <button 
-              onClick={handlePrev} 
-              disabled={currentPage === 0 || sortedDates.length === 0} 
-              className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-all"
-            >
-              <ChevronLeft size={16}/>
+          {/* DATE NAVIGATION PILL */}
+          <div className="flex items-center bg-black/40 p-1 rounded-[1rem] border border-white/5 shadow-inner">
+            <button onClick={handlePrev} disabled={currentPage === 0 || sortedDates.length === 0} className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-all rounded-xl hover:bg-white/5">
+              <ChevronLeft size={16} strokeWidth={2.5}/>
             </button>
-            <div className="px-4 text-[10px] font-black text-blue-400 uppercase tracking-widest text-center min-w-[140px]">
+            <div className="px-4 text-[10px] font-black text-white uppercase tracking-widest text-center min-w-[140px]">
               {sortedDates.length === 0 ? 'NO DATES' : 
                 viewMode === 'DAY' ? new Date(sortedDates[currentPage]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
                 : `BLOCK ${Math.floor(currentPage / 5) + 1}`
               }
             </div>
-            <button 
-              onClick={handleNext} 
-              disabled={sortedDates.length === 0 || (viewMode === 'DAY' ? currentPage >= sortedDates.length - 1 : currentPage + 5 >= sortedDates.length)} 
-              className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-all"
-            >
-              <ChevronRight size={16}/>
+            <button onClick={handleNext} disabled={sortedDates.length === 0 || (viewMode === 'DAY' ? currentPage >= sortedDates.length - 1 : currentPage + 5 >= sortedDates.length)} className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-all rounded-xl hover:bg-white/5">
+              <ChevronRight size={16} strokeWidth={2.5}/>
             </button>
           </div>
 
-          {/* YEAR FILTERS */}
-          <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+          {/* MAC OS STYLE YEAR FILTERS */}
+          <div className="hidden md:flex bg-black/40 p-1 rounded-[1rem] border border-white/5 shadow-inner">
             {[1, 2, 3, 4, 5].map(y => (
               <button 
                 key={y}
                 onClick={() => setActiveFilters(prev => prev.includes(y) ? prev.filter(x => x!==y) : [...prev, y])}
-                className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all ${activeFilters.includes(y) ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`w-10 h-8 rounded-xl text-[10px] font-black transition-all flex items-center justify-center ${activeFilters.includes(y) ? 'bg-white/10 text-white shadow-sm border border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                title={`Toggle Year ${y}`}
               >
-                YR {y}
+                Y{y}
               </button>
             ))}
           </div>
 
-          {/* SEARCH BAR */}
-          <div className="relative w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18}/>
+          {/* SLEEK SEARCH BAR */}
+          <div className="relative w-full md:w-56">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={14}/>
             <input 
-              placeholder="Search resource or dept..." 
-              className="w-full pl-12 pr-6 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-xs font-bold text-white outline-none focus:ring-2 ring-blue-500 transition-all"
+              placeholder="Search timeline..." 
+              className="w-full pl-9 pr-4 py-2.5 bg-black/40 border border-white/5 rounded-[1rem] text-[11px] font-medium text-white placeholder:text-slate-500 outline-none focus:border-blue-500/50 transition-all shadow-inner"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -199,77 +199,113 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
         </div>
       </div>
 
-      {/* DATE HEADER */}
-      <div className="flex bg-white border-b border-slate-200 z-40">
-        <div className="w-24 border-r border-slate-200 flex items-center justify-center font-black text-[9px] text-slate-300 uppercase [writing-mode:vertical-lr] rotate-180 bg-slate-50/50">TIMELINE GRID</div>
+      {/* DATE HEADER ALIGNMENT */}
+      <div className="flex bg-slate-50/80 backdrop-blur-xl border-b border-slate-200 z-40 shrink-0 sticky top-0">
+        <div className="w-20 md:w-24 border-r border-slate-200 flex items-center justify-center">
+          <Clock size={16} className="text-slate-300" strokeWidth={2} />
+        </div>
         {visibleDates.length === 0 ? (
-          <div className="flex-1 py-8 text-center"><p className="text-slate-400 text-sm font-black uppercase tracking-widest">No Dates Available</p></div>
-        ) : visibleDates.map((date, idx) => (
-          <div key={idx} className="flex-1 py-8 text-center border-r border-slate-100 last:border-0 relative group">
-            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.25em] mb-1">{new Date(date).toLocaleDateString('en-US', { weekday: 'long' })}</p>
-            <p className="text-4xl font-black text-slate-900 tracking-tighter italic">{new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-          </div>
-        ))}
+          <div className="flex-1 py-6 text-center"><p className="text-slate-400 text-xs font-black uppercase tracking-widest">No active sessions</p></div>
+        ) : visibleDates.map((date, idx) => {
+          const isToday = date === todayStr;
+          return (
+            <div key={idx} className="flex-1 py-4 text-center border-r border-slate-200 last:border-0 relative">
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-0.5 ${isToday ? 'text-rose-500' : 'text-slate-400'}`}>
+                {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+              </p>
+              <div className={`mx-auto w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full text-lg md:text-xl font-black tracking-tight ${isToday ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20' : 'text-slate-800'}`}>
+                {new Date(date).toLocaleDateString('en-US', { day: 'numeric' })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* CALENDAR GRID */}
-      <div className="flex-1 overflow-y-auto relative flex scroll-smooth custom-scrollbar">
-        {/* TIME LABELS */}
-        <div className="w-24 sticky left-0 z-30 bg-white/90 backdrop-blur-xl border-r border-slate-200">
+      <div className="flex-1 overflow-y-auto relative flex scroll-smooth custom-scrollbar bg-white">
+        
+        {/* TIME LABELS (Y-AXIS) */}
+        <div className="w-20 md:w-24 sticky left-0 z-30 bg-white/90 backdrop-blur-xl border-r border-slate-200 shrink-0">
           {Array.from({ length: 14 }, (_, i) => i + 8).map(hr => (
-            <div key={hr} style={{ height: rowHeight }} className="relative border-b border-slate-50 flex items-start justify-center pt-4">
-              <span className="text-[12px] font-black text-slate-400 font-mono">{String(hr).padStart(2, '0')}:00</span>
+            <div key={hr} style={{ height: rowHeight }} className="relative border-b border-slate-100 flex items-start justify-center pt-2">
+              <span className="text-[10px] md:text-xs font-semibold text-slate-400">{String(hr % 12 || 12)} {hr >= 12 ? 'PM' : 'AM'}</span>
             </div>
           ))}
         </div>
 
-        {/* COLUMNS */}
-        <div className={`flex flex-1 relative ${viewMode === 'WEEK' ? 'min-w-[1200px]' : 'min-w-full'}`}>
-          {visibleDates.map((date) => (
-            <div key={date} className="flex-1 border-r border-slate-100 relative group bg-white">
-              {Array.from({ length: 14 }).map((_, hr) => (
-                <div key={hr} style={{ height: rowHeight }} className="border-b border-slate-50 w-full" />
-              ))}
+        {/* COLUMNS (X-AXIS) */}
+        <div className={`flex flex-1 relative ${viewMode === 'WEEK' ? 'min-w-[1000px]' : 'min-w-full'}`}>
+          
+          {/* BACKGROUND GRID LINES */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col z-0">
+            {Array.from({ length: 14 }).map((_, hr) => (
+              <div key={hr} style={{ height: rowHeight }} className="border-b border-slate-100 w-full" />
+            ))}
+          </div>
 
-              {/* DYNAMIC CARDS */}
+          {/* LIVE CURRENT TIME INDICATOR */}
+          {(() => {
+            const currentHr = currentTime.getHours();
+            const currentMin = currentTime.getMinutes();
+            if (currentHr >= 8 && currentHr < 22) {
+              const topOffset = getTopOffset(`${currentHr}:${currentMin}`);
+              return (
+                <div 
+                  className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                  style={{ top: topOffset, transform: 'translateY(-50%)' }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-rose-500 ml-[-4px] shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
+                  <div className="h-[2px] bg-rose-500/80 w-full shadow-[0_1px_4px_rgba(244,63,94,0.3)]" />
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {visibleDates.map((date) => (
+            <div key={date} className="flex-1 border-r border-slate-100 relative group z-10">
+              
+              {/* DYNAMIC TRANSLUCENT CARDS */}
               {(processedSchedules[date] || []).map((exam, i) => {
                 const isConflict = exam.hasConflict;
                 return (
                   <div
                     key={exam.id || i}
                     onClick={() => setSelectedExam(exam)}
-                    className={`absolute border-l-[5px] rounded-[1.2rem] p-3 shadow-md z-10 transition-all hover:z-50 hover:scale-[1.02] cursor-pointer group/card ${isConflict ? 'bg-rose-50 border-rose-600 text-rose-950 animate-pulse' : yearStyles[exam.year_level]}`}
+                    className={`absolute rounded-[1rem] p-2.5 md:p-3 shadow-sm z-10 transition-all duration-200 hover:z-50 hover:shadow-lg hover:scale-[1.02] cursor-pointer group/card border-l-[4px] backdrop-blur-md overflow-hidden ${isConflict ? 'bg-rose-500/10 border-rose-500 text-rose-950 animate-pulse' : yearStyles[exam.year_level]}`}
                     style={{
-                      top: getTopOffset(exam.start_time),
-                      height: getHeight(exam.start_time, exam.end_time) - 4,
-                      left: `${exam.visualLeft}%`,
-                      width: `calc(${exam.visualWidth}% - 10px)`,
-                      marginLeft: '5px'
+                      top: getTopOffset(exam.start_time) + 1,
+                      height: getHeight(exam.start_time, exam.end_time) - 2,
+                      left: `calc(${exam.visualLeft}% + 2px)`,
+                      width: `calc(${exam.visualWidth}% - 4px)`,
                     }}
                   >
-                    <div className="flex justify-between items-start mb-1 overflow-hidden">
-                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-white/90 truncate max-w-[80%]">
+                    <div className="flex justify-between items-start mb-0.5 md:mb-1 opacity-90">
+                        <span className="text-[8px] md:text-[9px] font-black uppercase tracking-wider truncate">
                           {exam.dept_code} {exam.year_level}{exam.section}
                         </span>
-                        <Maximize2 size={12} className="opacity-0 group-hover/card:opacity-40 transition-opacity" />
+                        <Maximize2 size={10} className="opacity-0 group-hover/card:opacity-50 transition-opacity shrink-0" />
                     </div>
                     
-                    <h4 className="text-[10px] font-black leading-tight uppercase truncate mb-2">
+                    <h4 className="text-[10px] md:text-[11px] font-black leading-tight uppercase truncate mb-1">
                         {exam.subject_code}
                     </h4>
                     
-                    <div className="space-y-1 opacity-80 group-hover/card:opacity-100 transition-opacity">
-                        <div className="flex items-center gap-1.5 text-[8px] font-black">
-                            <MapPin size={10} className="text-slate-400"/>
-                            {exam.room}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[8px] font-black truncate uppercase">
-                            <User size={10} className="text-slate-400"/>
-                            {exam.proctor}
-                        </div>
-                    </div>
+                    {/* Hide extra details if the card is extremely short (e.g. 30 min block) */}
+                    {getHeight(exam.start_time, exam.end_time) > 50 && (
+                      <div className="space-y-0.5 md:space-y-1 opacity-70 group-hover/card:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-semibold truncate">
+                              <MapPin size={9} strokeWidth={2.5}/>
+                              {exam.room}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-semibold truncate uppercase">
+                              <User size={9} strokeWidth={2.5}/>
+                              {exam.proctor}
+                          </div>
+                      </div>
+                    )}
 
-                    {isConflict && <ShieldAlert size={16} className="absolute bottom-2 right-2 text-rose-600"/>}
+                    {isConflict && <ShieldAlert size={14} className="absolute bottom-2 right-2 text-rose-600 drop-shadow-sm"/>}
                   </div>
                 );
               })}
@@ -278,57 +314,62 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
         </div>
       </div>
 
-      {/* DETAIL MODAL */}
+      {/* APPLE-STYLE DETAIL MODAL */}
       {selectedExam && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/40 backdrop-blur-md">
-            <div className="bg-white w-full max-w-lg rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className={`p-10 text-white relative bg-slate-900`}>
-                    <button onClick={() => setSelectedExam(null)} className="absolute top-8 right-8 hover:rotate-90 transition-all">
-                        <X size={24} />
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-200">
+            <div className="bg-white/90 backdrop-blur-3xl w-full max-w-sm md:max-w-md rounded-[2.5rem] shadow-[0_30px_80px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+                
+                {/* Modal Header */}
+                <div className="px-8 pt-8 pb-6 relative">
+                    <button onClick={() => setSelectedExam(null)} className="absolute top-6 right-6 p-2 bg-slate-200/50 hover:bg-slate-300/50 rounded-full text-slate-500 transition-all">
+                        <X size={16} strokeWidth={3} />
                     </button>
-                    <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-60">Examination Record</span>
-                    <h3 className="text-5xl font-black mt-4 italic tracking-tighter">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 mb-1 block">Event Details</span>
+                    <h3 className="text-3xl font-black tracking-tight text-slate-900 leading-none mb-1">
                       {selectedExam.dept_code} {selectedExam.year_level}{selectedExam.section}
                     </h3>
-                    <p className="text-xl font-bold mt-2 uppercase text-blue-400">{selectedExam.subject_name}</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{selectedExam.subject_name}</p>
                 </div>
                 
-                <div className="p-10 space-y-8 bg-white">
-                    <div className="grid grid-cols-2 gap-8">
+                {/* Modal Body */}
+                <div className="px-8 pb-8 space-y-5">
+                    <div className="bg-slate-100/50 rounded-2xl p-1 divide-y divide-slate-200/50 border border-slate-200/50">
+                      
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><Clock size={14} strokeWidth={2.5}/></div>
                         <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Time Window</span>
-                            <p className="font-black text-slate-900"><Clock size={16} className="inline mr-2 text-blue-500"/>{selectedExam.start_time} - {selectedExam.end_time}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Time & Date</p>
+                          <p className="text-xs font-bold text-slate-800">{selectedExam.start_time} - {selectedExam.end_time} • {selectedExam.exam_date}</p>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><MapPin size={14} strokeWidth={2.5}/></div>
                         <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Schedule Date</span>
-                            <p className="font-black text-slate-900"><CalendarIcon size={16} className="inline mr-2 text-blue-500"/>{selectedExam.exam_date}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Location</p>
+                          <p className="text-xs font-bold text-slate-800">Room {selectedExam.room}</p>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><User size={14} strokeWidth={2.5}/></div>
                         <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Assigned Room</span>
-                            <p className="font-black text-xl text-slate-900"><MapPin size={16} className="inline mr-2 text-emerald-500"/>{selectedExam.room}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Invigilator</p>
+                          <p className="text-xs font-bold text-slate-800 uppercase">{selectedExam.proctor}</p>
                         </div>
-                        <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Assigned Proctor</span>
-                            <p className="font-black text-slate-900 uppercase"><User size={16} className="inline mr-2 text-amber-500"/>{selectedExam.proctor}</p>
-                        </div>
+                      </div>
+
                     </div>
 
                     {selectedExam.hasConflict && (
-                        <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-3xl flex items-center gap-6 text-rose-700">
-                            <ShieldAlert size={32} />
+                        <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-start gap-4 text-rose-700 shadow-sm">
+                            <ShieldAlert size={20} className="shrink-0 mt-0.5" />
                             <div>
-                                <p className="font-black uppercase text-xs">Conflict Alert</p>
-                                <p className="text-[11px] italic mt-1">Resource clash detected with {selectedExam.conflictWith || "Global Schedule"}</p>
+                                <p className="font-black uppercase text-[10px] tracking-wide mb-0.5">Double-Booking Detected</p>
+                                <p className="text-[11px] font-medium leading-relaxed">Resource clash detected with {selectedExam.conflictWith || "another schedule in the Global Timeline"}.</p>
                             </div>
                         </div>
                     )}
-
-                    <button 
-                        onClick={() => setSelectedExam(null)}
-                        className="w-full bg-slate-950 text-white py-6 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-600 transition-all"
-                    >
-                        Close Details
-                    </button>
                 </div>
             </div>
         </div>
