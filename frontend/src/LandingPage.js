@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import * as THREE from 'three';
 import Groq from 'groq-sdk';
-import Tesseract from 'tesseract.js';
 import accordLogo from './accord.png';
 
 // Initialize Groq directly in the browser
@@ -210,6 +209,9 @@ export default function LandingPage({ onAuthenticate }) {
         setExtractedText('');
         
         try {
+          // THE MAGIC TRICK: This downloads Tesseract instantly in the background 
+          // ONLY when a user uploads a file!
+          const Tesseract = (await import('tesseract.js')).default;
           const { data: { text } } = await Tesseract.recognize(reader.result, 'eng');
           setExtractedText(text);
         } catch (error) {
