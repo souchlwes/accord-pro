@@ -294,18 +294,27 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
         </div>
       </div>
 
-      {/* RESTORED PREMIUM DETAIL MODAL (MOBILE RESPONSIVE) */}
+      {/* RESTORED PREMIUM DETAIL MODAL (MOBILE RESPONSIVE & CLICK-FIXED) */}
       {selectedExam && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
-            <div className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                
+        <div 
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md"
+            onClick={() => setSelectedExam(null)} 
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()} 
+                className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            >
                 {/* Dark Header */}
                 <div className="p-8 md:p-10 text-white relative bg-slate-900">
-                    <button onClick={() => setSelectedExam(null)} className="absolute top-6 right-6 md:top-8 md:right-8 hover:rotate-90 transition-all text-slate-400 hover:text-white">
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedExam(null); }} 
+                        className="absolute top-6 right-6 md:top-8 md:right-8 hover:rotate-90 transition-all text-slate-400 hover:text-white z-50 p-2"
+                    >
                         <X size={24} />
                     </button>
                     <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] opacity-60">Examination Record</span>
-                    <h3 className="text-3xl md:text-5xl font-black mt-3 md:mt-4 italic tracking-tighter leading-none">
+                    <h3 className="text-3xl md:text-5xl font-black mt-3 md:mt-4 italic tracking-tighter leading-none pr-8">
                       {selectedExam.dept_code} {selectedExam.year_level}{selectedExam.section}
                     </h3>
                     <p className="text-sm md:text-xl font-bold mt-2 md:mt-3 uppercase text-blue-400 truncate pr-6">{selectedExam.subject_name}</p>
@@ -343,7 +352,8 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
                     )}
 
                     <button 
-                        onClick={() => setSelectedExam(null)}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedExam(null); }}
                         className="w-full bg-slate-950 text-white py-4 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-blue-600 transition-all active:scale-95"
                     >
                         Close Details
