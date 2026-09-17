@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Bot
 } from 'lucide-react';
 
 
@@ -1039,7 +1039,7 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, onShowAI, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
 
   useEffect(() => {
@@ -1252,6 +1252,12 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           <div className="flex gap-2">
             {!isViewMode && (
               <>
+
+{/* AI ASSISTANT BUTTON */}
+                <button onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
+                  <Bot size={18} />
+                </button>
+
                 <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
                   <MessageSquare size={18} />
                   {unreadMessageCount > 0 && (
@@ -1539,7 +1545,8 @@ function App() {
   
   // --- NEW TOUR STATE GOES HERE ---
   const [replayTour, setReplayTour] = useState(false);
-  
+  const [isAIOpen, setIsAIOpen] = useState(false); // NEW AI STATE
+
   // --- AUTH & REGISTRATION STATES ---
   const [email, setEmail] = useStickyState('', 'draft_email');
   const [password, setPassword] = useState('');
@@ -1899,7 +1906,22 @@ useEffect(() => {
     };
   }, [session, profile]);
 
-  const conflictCount = useMemo(() => globalSchedule.filter(s => s.hasConflict).length, [globalSchedule]);
+  // --- ADVANCED SYSTEM HEALTH METRICS ---
+  const systemMetrics = useMemo(() => {
+    // 1. Conflicts & Flags
+    const activeConflicts = globalSchedule.filter(s => s.hasConflict || s.flagged).length;
+    
+    // 2. Proctor Readiness (Who has actually logged hours vs Total Proctors)
+    const totalProctors = allProfiles.filter(p => p.role === 'PROCTOR').length;
+    const readyProctors = new Set(globalAvailability.map(a => a.proctor_id)).size;
+    const readinessPercent = totalProctors === 0 ? 0 : Math.round((readyProctors / totalProctors) * 100);
+    
+    // 3. Pending IAM Approvals
+    const pendingStaff = allProfiles.filter(p => p.status === 'PENDING').length;
+
+    return { activeConflicts, totalProctors, readyProctors, readinessPercent, pendingStaff };
+  }, [globalSchedule, allProfiles, globalAvailability]);
+
   const visibleDepartments = useMemo(() => {
     if (isHeadAdmin) return departments;
     return departments.filter(d => d.code === profile?.assigned_dept);
@@ -2778,6 +2800,18 @@ const executeAddDepartment = async (e) => {
           )}
         </div>
         
+
+        {/* LOGIN PAGE AI SUPPORT PILL */}
+        {!session && !showLanding && (
+          <button 
+            onClick={() => setIsAIOpen(true)} 
+            className="fixed bottom-8 right-8 z-[100] bg-slate-900 text-white px-5 py-4 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 hover:bg-blue-600 transition-all border border-slate-700 hover:scale-105 group animate-in slide-in-from-bottom-10"
+          >
+            <Bot size={20} className="text-blue-400 group-hover:text-white transition-colors" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Ask AI Support</span>
+          </button>
+        )}
+        
         {/* We put the Toast here too so errors show on the login screen! */}
         {appToast && (
           <div className={`fixed bottom-10 right-10 z-[400] p-6 rounded-2xl shadow-2xl flex items-center gap-4 text-white font-black text-[10px] uppercase tracking-widest animate-in slide-in-from-right-10 ${appToast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-blue-500/50'}`}>
@@ -3199,6 +3233,15 @@ const executeAddDepartment = async (e) => {
           <Users size={24} className="md:w-7 md:h-7" />
         </button>
 
+{/* SYSTEM AI ASSISTANT */}
+        <button 
+          onClick={() => setIsAIOpen(true)}
+          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${isAIOpen ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          title="Accord AI Assistant"
+        >
+          <Bot size={24} className="md:w-7 md:h-7" />
+        </button>
+
         {/* GLOBAL CHAT ICON */}
         <button 
           id="tour-chat-btn"
@@ -3327,6 +3370,79 @@ const executeAddDepartment = async (e) => {
                   </div>
                 </div>
 
+                {/* --- 1.5 SYSTEM HEALTH & ACTION DOCK --- */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-bottom-6 duration-700 delay-100">
+                  
+                  {/* Card 1: Re-Validation Engine Status */}
+                  <div 
+                    onClick={() => document.getElementById('tour-conflict-engine')?.scrollIntoView({ behavior: 'smooth' })}
+                    className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between group ${systemMetrics.activeConflicts > 0 ? 'bg-rose-50 border-rose-200 shadow-rose-500/10' : 'bg-emerald-50 border-emerald-200 shadow-emerald-500/10'}`}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`p-3 rounded-2xl ${systemMetrics.activeConflicts > 0 ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                        {systemMetrics.activeConflicts > 0 ? <AlertTriangle size={20}/> : <ShieldCheck size={20}/>}
+                      </div>
+                      <ChevronRight size={20} className={`opacity-0 group-hover:opacity-100 transition-all ${systemMetrics.activeConflicts > 0 ? 'text-rose-400' : 'text-emerald-400'}`}/>
+                    </div>
+                    <div>
+                      <h4 className={`text-4xl font-black tracking-tighter ${systemMetrics.activeConflicts > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {systemMetrics.activeConflicts}
+                      </h4>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${systemMetrics.activeConflicts > 0 ? 'text-rose-400' : 'text-emerald-500'}`}>
+                        {systemMetrics.activeConflicts === 0 ? 'Zero Timeline Conflicts' : 'Active Conflicts Detected'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Proctor Readiness (With Micro-Visualization) */}
+                  <div 
+                    onClick={() => setActiveTab('users')}
+                    className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 cursor-pointer transition-all hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl shadow-sm flex flex-col justify-between group"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                        <Users size={20}/>
+                      </div>
+                      <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1 rounded-lg uppercase">Capacity</span>
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-end mb-2">
+                        <h4 className="text-3xl font-black tracking-tighter text-slate-900">{systemMetrics.readinessPercent}%</h4>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase mb-1">{systemMetrics.readyProctors} / {systemMetrics.totalProctors} Logged</span>
+                      </div>
+                      {/* Tailwind CSS Progress Bar */}
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-blue-600 h-2.5 rounded-full transition-all duration-1000 ease-out" 
+                          style={{ width: `${systemMetrics.readinessPercent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: IAM Gatekeeper Actions */}
+                  <div 
+                    onClick={() => setActiveTab('users')}
+                    className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between group ${systemMetrics.pendingStaff > 0 ? 'bg-amber-500 border-amber-600 text-white shadow-amber-500/20' : 'bg-white border-slate-100 text-slate-800'}`}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`p-3 rounded-2xl ${systemMetrics.pendingStaff > 0 ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <Lock size={20}/>
+                      </div>
+                      {systemMetrics.pendingStaff > 0 && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span></span>}
+                    </div>
+                    <div>
+                      <h4 className="text-4xl font-black tracking-tighter">
+                        {systemMetrics.pendingStaff}
+                      </h4>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${systemMetrics.pendingStaff > 0 ? 'text-amber-100' : 'text-slate-400'}`}>
+                        Pending Approvals
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+
                 {/* --- 2. GLOBAL RESOURCES & CONFLICTS (FROSTED BENTO) --- */}
                 <div className="grid grid-cols-1 gap-8">
                <div id="tour-conflict-engine" className="grid grid-cols-1 gap-8"></div>
@@ -3373,32 +3489,65 @@ const executeAddDepartment = async (e) => {
                            <div className="h-1 flex-1 bg-slate-200 rounded-full ml-4 opacity-50"></div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {depts.map(dept => (
-                            <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/80 hover:border-blue-500 hover:-translate-y-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer group flex flex-col">
-                              <div className="flex justify-between items-start mb-6">
-                                <div>
-                                  <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {depts.map(dept => {
+                            // --- LIVE COVERAGE CALCULATION ---
+                            const deptSchedule = globalSchedule.filter(s => s.dept_code === dept.code);
+                            const totalSlots = deptSchedule.length;
+                            const filledSlots = deptSchedule.filter(s => s.proctor && s.proctor !== 'TBA').length;
+                            const fillPercentage = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
+
+                            return (
+                              <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/80 hover:border-blue-500 hover:-translate-y-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer group flex flex-col relative overflow-hidden">
+                                
+                                {/* Bottom Progress Bar */}
+                                <div className="absolute bottom-0 left-0 h-1.5 bg-slate-100 w-full">
+                                  <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
                                 </div>
-                                <div className="text-right">
-                                  <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
-                                  <span className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-black tracking-widest border border-slate-200">{dept.invite_code || 'N/A'}</span>
+
+                                <div className="flex justify-between items-start mb-6">
+                                  <div>
+                                    <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                                  </div>
+                                  <div className="text-right z-10">
+                                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Stops the card from opening the workspace!
+                                        navigator.clipboard.writeText(dept.invite_code || '');
+                                        setAppToast({ message: `Copied ${dept.invite_code} to clipboard!`, type: "success" });
+                                      }}
+                                      className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-black tracking-widest border border-slate-200 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300 transition-all shadow-sm active:scale-95"
+                                      title="Copy to clipboard"
+                                    >
+                                      {dept.invite_code || 'N/A'}
+                                    </button>
+                                  </div>
                                 </div>
+                                
+                                <div className="flex gap-4 mt-auto mb-4">
+                                  <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
+                                    <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
+                                  </div>
+                                  <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
+                                    <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
+                                  </div>
+                                </div>
+
+                                {/* Live Coverage Stats */}
+                                <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-100">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Schedule Coverage</span>
+                                  <span className={`text-[10px] font-black uppercase ${fillPercentage === 100 ? 'text-emerald-500' : fillPercentage === 0 ? 'text-slate-400' : 'text-blue-600'}`}>
+                                    {fillPercentage}% Filled
+                                  </span>
+                                </div>
+
                               </div>
-                              
-                              <div className="flex gap-4 mt-auto">
-                                <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
-                                  <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
-                                  <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
-                                </div>
-                                <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
-                                  <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
-                                  <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -3888,12 +4037,14 @@ return (
         />
       )}
 
-      {!showLanding && (
+     {!showLanding && (
         <GlobalAIAssistant 
           session={session} 
           profile={profile} 
           authMode={authMode} 
           activeTab={activeTab} 
+          isOpen={isAIOpen}
+          onClose={() => setIsAIOpen(false)}
         />
       )}
     </>
