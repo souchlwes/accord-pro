@@ -1303,7 +1303,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       <div className="flex bg-slate-50/50 p-3 gap-2 border-b border-slate-100">
         {['subjects', 'proctors', 'rooms', 'generate', 'preview'].map(t => (
           <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === t ? 'bg-white shadow-xl text-blue-600 scale-[1.02] border border-slate-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>
-            {t} {t === 'preview' && consolidatedPreview.length > 0 && `(${consolidatedPreview.length})`}
+{t} {t === 'preview' && filteredPreview.length > 0 && `(${filteredPreview.length})`}
           </button>
         ))}
       </div>
