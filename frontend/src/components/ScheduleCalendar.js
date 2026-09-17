@@ -366,4 +366,4 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
   );
 };
 
-export default ScheduleCalendar;
+export default React.memo(ScheduleCalendar);
