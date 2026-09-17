@@ -95,7 +95,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [memberSearchQuery, setMemberSearchQuery] = useState(""); 
   
   // Custom Modals & Inline Confirmations
-  const [createModal, setCreateModal] = useState(null); // 'group' | 'announcement' | null
+  const [createModal, setCreateModal] = useState(null); // 'group' | 'broadcast' | null
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomParticipants, setNewRoomParticipants] = useState([]); // Array of selected users
   const [modalSearchQuery, setModalSearchQuery] = useState(""); // Live search inside the modal
@@ -201,7 +201,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
   const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  // NEW: Quick Add Presets Logic for Modal
+  // Quick Add Presets Logic for Modal
   const addPresetToRoom = (type, deptCode = null) => {
       let usersToAdd = [];
       if (type === 'dept') usersToAdd = systemUsers.filter(u => u.assigned_dept === deptCode);
@@ -213,7 +213,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       setNewRoomParticipants(prev => [...prev, ...newUsers]);
   };
 
-  // NEW: Secure Custom Room Creation
+  // Secure Custom Room Creation
   const submitCreateRoom = async () => {
      if (!newRoomName.trim()) return;
      
@@ -240,7 +240,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           }).catch(err => console.error(err));
        });
      } else {
-       setChatError("Failed to create room.");
+       setChatError("Failed to create room. Ensure the name is valid.");
        setTimeout(() => setChatError(""), 3000);
      }
      
@@ -272,7 +272,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       const payload = {
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
         text, receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
-        room_id: (type === 'group' || type === 'announcement') ? target.id : null,
+        room_id: (type === 'group' || type === 'broadcast') ? target.id : null,
         attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
 
@@ -287,7 +287,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               });
           } else if (type === 'dm' && target?.email) {
               fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg }) }).catch(err => console.error(err));
-          } else if (type === 'group' || type === 'announcement') {
+          } else if (type === 'group' || type === 'broadcast') {
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               targetedEmails.forEach(singleEmail => {
@@ -313,7 +313,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       if (error) throw error;
 
       const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName);
-      await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'file' });
+      await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'document' });
     } catch (err) {
       setChatError("Upload failed. File might be too large.");
       setTimeout(() => setChatError(""), 3000);
@@ -368,7 +368,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                   <input type="text" placeholder="Search staff by name to add..." value={modalSearchQuery} onChange={e => setModalSearchQuery(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors" />
                </div>
 
-               {/* SEARCH RESULTS (Only shows when typing to save space) */}
+               {/* SEARCH RESULTS */}
                {modalSearchQuery && (
                  <div className="max-h-[120px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/10 rounded-xl mb-4 p-1 shrink-0">
                     {systemUsers.filter(u => u.full_name?.toLowerCase().includes(modalSearchQuery.toLowerCase()) && !newRoomParticipants.some(p => p.id === u.id)).map(u => (
@@ -487,7 +487,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
             {sidebarTab === 'announcements' && (
               <>
                 {profile.role !== 'PROCTOR' && (
-                  <button onClick={() => setCreateModal('announcement')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
+                  <button onClick={() => setCreateModal('broadcast')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
                     <Hash size={14}/> New Targeted Announcement
                   </button>
                 )}
@@ -495,8 +495,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                    <div className="w-10 h-10 bg-amber-500/20 text-amber-400 border border-amber-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
                    <div><h4 className="text-xs font-bold text-slate-200">Global Campus</h4><p className="text-[10px] text-slate-500">All Staff Broadcasts</p></div>
                 </button>
-                {rooms.filter(r => r.type === 'announcement' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
-                  <button key={r.id} onClick={() => openPane('announcement', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+                {rooms.filter(r => r.type === 'broadcast' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
+                  <button key={r.id} onClick={() => openPane('broadcast', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
                     <div className="w-10 h-10 bg-rose-500/20 text-rose-400 border border-rose-400/30 rounded-full flex items-center justify-center shrink-0"><Hash size={16}/></div>
                     <div className="flex-1 overflow-hidden"><h4 className="text-xs font-bold text-slate-200 truncate">{r.name}</h4></div>
                   </button>
@@ -516,7 +516,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         ) : (
           activePanes.map(pane => {
              const isGlobal = pane.id === 'global';
-             const isRoom = pane.type === 'group' || pane.type === 'announcement';
+             const isRoom = pane.type === 'group' || pane.type === 'broadcast';
              const target = pane.target;
              const activeThread = activeThreads[pane.id];
              const detailsOpen = roomDetailsOpen[pane.id];
@@ -628,7 +628,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
-                     {(!isRoom || pane.type !== 'announcement' || profile.role !== 'PROCTOR') && (
+                     {(!isRoom || pane.type !== 'broadcast' || profile.role !== 'PROCTOR') && (
                        <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
                           {editingIds[pane.id] && (
                              <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
