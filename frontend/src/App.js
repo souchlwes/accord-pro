@@ -1254,11 +1254,11 @@ const [dashboardView, setDashboardView] = useState('upcoming');
               <>
 
 {/* AI ASSISTANT BUTTON */}
-                <button onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
+                <button id="tour-proctor-ai" onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
                   <Headphones size={18} />
                 </button>
 
-                <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
+                <button id="tour-proctor-chat" onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
                   <MessageSquare size={18} />
                   {unreadMessageCount > 0 && (
                     <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] font-black text-white shadow-lg animate-bounce">
@@ -1266,14 +1266,14 @@ const [dashboardView, setDashboardView] = useState('upcoming');
                     </span>
                   )}
                 </button>
-                <button onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
-                <button onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
+                <button id="tour-proctor-help" onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
+                <button id="tour-proctor-notify" onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
                   <Bell size={18} />
                   {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
                 </button>
                 
                 {/* --- INJECTED SETTINGS ICON --- */}
-                <button onClick={onShowPassword} className="bg-white/10 hover:bg-slate-500 text-white p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
+                <button id="tour-proctor-settings" onClick={onShowPassword} className="bg-white/10 hover:bg-slate-500 text-white p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
                   <Settings size={18} />
                 </button>
               </>
@@ -1281,7 +1281,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             {isViewMode ? (
               <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
             ) : (
-<button onClick={onLogout} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
+<button id="tour-proctor-logout" onClick={onLogout} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
 )}
           </div>
         </div>
@@ -2808,7 +2808,7 @@ const executeAddDepartment = async (e) => {
             className="fixed bottom-8 right-8 z-[100] bg-slate-900 text-white px-5 py-4 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 hover:bg-blue-600 transition-all border border-slate-700 hover:scale-105 group animate-in slide-in-from-bottom-10"
           >
             <Headphones size={20} className="text-blue-400 group-hover:text-white transition-colors" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Ask AI Support</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Need Help?</span>
           </button>
         )}
         
@@ -3229,14 +3229,16 @@ const executeAddDepartment = async (e) => {
         </button>
 
         <button 
+          id="tour-nav-users"
           onClick={() => setActiveTab("users")}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'users' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <Users size={24} className="md:w-7 md:h-7" />
         </button>
 
-{/* SYSTEM AI ASSISTANT */}
+        {/* SYSTEM AI ASSISTANT */}
         <button 
+          id="tour-ai-btn"
           onClick={() => setIsAIOpen(true)}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${isAIOpen ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
           title="Accord AI Assistant"
@@ -3260,6 +3262,7 @@ const executeAddDepartment = async (e) => {
 
         {/* ADMIN NOTIFICATION BELL */}
         <button 
+          id="tour-notify-btn"
           onClick={() => setShowNotifications(true)}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showNotifications ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
@@ -3279,6 +3282,7 @@ const executeAddDepartment = async (e) => {
         <div className="md:mt-auto flex flex-row md:flex-col gap-1 md:gap-4">
           {/* SETTINGS / CHANGE PASSWORD */}
           <button 
+            id="tour-settings-btn"
             onClick={() => setShowPasswordModal(true)} 
             className="p-3 md:p-5 text-slate-500 hover:bg-white/10 hover:text-white rounded-2xl transition-all active:scale-90"
             title="Change Password"
@@ -3287,7 +3291,11 @@ const executeAddDepartment = async (e) => {
           </button>
 
           {/* LOGOUT */}
-          <button onClick={handleHardReset} className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all active:scale-90">
+          <button 
+            id="tour-logout-btn" 
+            onClick={handleHardReset} 
+            className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all active:scale-90"
+          >
             <LogOut size={24} className="md:w-7 md:h-7" />
           </button>
         </div>
