@@ -1,6 +1,6 @@
 import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float, useProgress } from '@react-three/drei';
+import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
   HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal, Image as ImageIcon
 } from 'lucide-react';
@@ -9,40 +9,11 @@ import Groq from 'groq-sdk';
 import Tesseract from 'tesseract.js';
 import accordLogo from './accord.png';
 
-
-
 // Initialize Groq directly in the browser
-console.log("My API Key is:", process.env.REACT_APP_GROQ_API_KEY);
-
 const groq = new Groq({
   apiKey: process.env.REACT_APP_GROQ_API_KEY,
   dangerouslyAllowBrowser: true 
 });
-
-// PREMIUM LOADING OVERLAY
-function EnvironmentLoader() {
-  const { active, progress } = useProgress();
-
-  if (!active) return null;
-
-  return (
-    <div className="absolute inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950 text-white transition-opacity duration-1000">
-      <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6 opacity-80" />
-      
-      {/* Sleek Progress Bar */}
-      <div className="w-48 md:w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden mb-4 shadow-inner">
-        <div 
-          className="h-full bg-blue-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
-          style={{ width: `${progress}%` }} 
-        />
-      </div>
-      
-      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-        Loading Environment • {Math.round(progress)}%
-      </span>
-    </div>
-  );
-}
 
 // Cinematic Camera Glide
 function CameraController({ isEntering }) {
@@ -344,14 +315,19 @@ export default function LandingPage({ onAuthenticate }) {
   return (
     <div className="w-screen h-screen bg-slate-950 text-white relative overflow-hidden font-sans select-none">
 
-      <EnvironmentLoader />
-
       <div className="w-full h-full cursor-grab active:cursor-grabbing absolute inset-0 z-0">
-        <Canvas shadows gl={{ antialias: false }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
+        <Canvas shadows gl={{ antialias: false, powerPreference: "high-performance" }} dpr={[1, 1.5]} performance={{ min: 0.5 }}>
           <color attach="background" args={['#0f172a']} />
           <PerspectiveCamera makeDefault position={[0, 1.6, -5.5]} fov={45} />
           
-          <Suspense fallback={<Html center></Html>}>
+          <Suspense fallback={
+            <Html center>
+              <div className="flex flex-col items-center justify-center gap-3 bg-slate-900/80 px-8 py-6 rounded-2xl backdrop-blur-md border border-white/5">
+                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase whitespace-nowrap">Loading Environment...</span>
+              </div>
+            </Html>
+          }>
             <ambientLight intensity={1.2} color="#fff0de" />
             <hemisphereLight skyColor="#ffffff" groundColor="#4a3b2c" intensity={1.0} />
             
@@ -526,7 +502,7 @@ export default function LandingPage({ onAuthenticate }) {
         </div>
       )}
 
-      {/* RESTORED: Bouncing Interaction Indicator */}
+      {/* Bouncing Interaction Indicator */}
       {!isEntering && !isAboutOpen && !isChatOpen && (
         <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-2 md:gap-3 opacity-60 transition-opacity duration-1000">
           <div className="w-6 h-10 md:w-8 md:h-12 border-2 border-white/20 rounded-full flex justify-center p-1.5 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
