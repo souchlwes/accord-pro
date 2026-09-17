@@ -372,67 +372,71 @@ export default function LandingPage({ onAuthenticate }) {
         </Canvas>
       </div>
 
-      {/* Smart Chat Window */}
+     {/* Smart Chat Window */}
       {isChatOpen && (
-        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-96 h-[80vh] md:h-[32rem] bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto">
-          <div className="bg-slate-800/50 px-5 py-4 flex items-center justify-between border-b border-white/5">
+        <div className="absolute top-[10%] md:top-auto md:bottom-24 right-4 md:right-10 w-[calc(100vw-2rem)] md:w-[400px] h-[80vh] md:h-[36rem] bg-slate-900/70 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-[0_0_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden z-30 animate-in slide-in-from-bottom-10 fade-in duration-500 pointer-events-auto font-sans antialiased">
+          
+          {/* iOS-Style Glass Header */}
+          <div className="bg-white/5 backdrop-blur-xl border-b border-white/10 px-6 py-5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse absolute -bottom-0.5 -right-0.5 border-2 border-slate-900" />
-                <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/30">
-                  <ShieldCheck size={18} className="text-blue-400" />
-                </div>
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/20">
+                <img src={accordLogo} alt="Accord Logo" className="w-6 h-6 object-contain brightness-0 invert drop-shadow-sm" />
               </div>
               <div>
-                <h3 className="text-sm font-black uppercase tracking-wider text-white">Accord Assistant</h3>
-                <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
+                <h3 className="text-[13px] font-black uppercase tracking-tight text-white leading-tight">Accord Assistant</h3>
+                <p className="text-[10px] text-emerald-400 font-semibold tracking-wider flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> System Online
+                </p>
               </div>
             </div>
-            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-xl">
-              <X size={16} />
+            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white bg-black/20 hover:bg-black/40 p-2.5 rounded-full transition-all border border-white/5">
+              <X size={16} strokeWidth={2.5} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                
                 {msg.image && (
-                  <div className="mb-2 max-w-[85%] rounded-2xl overflow-hidden shadow-lg bg-black/40 border border-white/5">
+                  <div className="mb-2 max-w-[80%] rounded-[1.5rem] overflow-hidden shadow-xl bg-black/40 border border-white/10">
                     <img src={msg.image} alt="Uploaded screenshot" className="w-full h-auto object-cover max-h-48" />
                   </div>
                 )}
+                
                 {msg.text && (
-                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-[11px] leading-relaxed shadow-lg whitespace-pre-wrap ${
+                  <div className={`max-w-[85%] px-5 py-3.5 rounded-[1.5rem] text-[13px] leading-relaxed tracking-wide shadow-lg whitespace-pre-wrap ${
                     msg.sender === 'user' 
-                      ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-500' 
-                      : 'bg-slate-800/80 text-slate-200 border border-white/5 rounded-tl-sm backdrop-blur-sm'
+                      ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
+                      : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
                   }`}>
                     {msg.text}
                   </div>
                 )}
               </div>
             ))}
-
+            
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-slate-800/80 border border-white/5 rounded-2xl rounded-tl-sm p-3.5 flex items-center gap-1.5 w-16">
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-[1.5rem] rounded-bl-sm px-5 py-4 flex items-center gap-1.5 w-max shadow-sm">
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}
-            
+
             {messages[messages.length - 1].sender === 'bot' && !isTyping && (
-              <div className="flex flex-col gap-2 pt-2 items-end">
+              <div className="flex flex-col gap-2.5 pt-2 items-end">
                 {quickQuestions.map((q, i) => (
                   <button 
                     key={i}
                     onClick={() => submitMessage(q)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-[10px] font-bold tracking-wide transition-all shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 text-[11px] font-bold tracking-wide transition-all shadow-sm active:scale-95"
                   >
                     <span>{q}</span>
-                    <ChevronRight size={12} className="text-blue-400" />
+                    <ChevronRight size={14} strokeWidth={2.5} className="opacity-70" />
                   </button>
                 ))}
               </div>
@@ -440,35 +444,37 @@ export default function LandingPage({ onAuthenticate }) {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Attachment Preview Pillar */}
           {attachment && (
-            <div className="px-4 py-3 bg-slate-900/80 flex items-start gap-3 border-t border-white/5">
+            <div className="px-5 py-4 bg-black/40 backdrop-blur-xl border-t border-white/5 flex items-start gap-4">
               <div className="relative group">
-                <img src={attachment} alt="Preview" className={`w-16 h-16 object-cover rounded-xl shadow-md border border-white/10 transition-opacity ${isScanning ? 'opacity-50' : 'opacity-100'}`} />
+                <img src={attachment} alt="Preview" className={`w-14 h-14 object-cover rounded-2xl shadow-lg border border-white/10 transition-opacity ${isScanning ? 'opacity-50' : 'opacity-100'}`} />
                 {isScanning && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 size={16} className="text-blue-400 animate-spin drop-shadow-md" />
+                    <Loader2 size={16} className="text-white animate-spin drop-shadow-md" />
                   </div>
                 )}
                 <button 
                   onClick={() => setAttachment(null)}
                   disabled={isScanning}
-                  className="absolute -top-2 -right-2 bg-rose-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:scale-110 disabled:hidden"
+                  className="absolute -top-2 -right-2 bg-slate-800 text-slate-300 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-xl hover:bg-rose-500 hover:text-white disabled:hidden border border-white/10"
                 >
-                  <X size={12} strokeWidth={2.5} />
+                  <X size={12} strokeWidth={3} />
                 </button>
               </div>
               <div className="flex-1 mt-1">
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                <p className="text-[11px] font-black text-blue-400 tracking-wide mb-0.5">
                   {isScanning ? 'Scanning Text...' : 'Image Attached'}
                 </p>
-                <p className="text-[9px] text-slate-400">
-                  {isScanning ? 'Extracting data for the AI.' : 'Memory will be wiped after chat.'}
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {isScanning ? 'Extracting data for analysis.' : 'Context attached to next prompt.'}
                 </p>
               </div>
             </div>
           )}
 
-          <form onSubmit={handleSendMessage} className="p-4 bg-slate-900 border-t border-white/5 flex items-center gap-3">
+          {/* Premium Input Console */}
+          <form onSubmit={handleSendMessage} className="p-4 bg-black/20 backdrop-blur-2xl border-t border-white/10 flex items-end gap-2 shrink-0">
             <input 
               type="file" 
               accept="image/*" 
@@ -476,31 +482,36 @@ export default function LandingPage({ onAuthenticate }) {
               onChange={handleFileSelect} 
               className="hidden" 
             />
+            
             <button 
               type="button" 
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanning || isTyping}
-              className="w-10 h-10 shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-blue-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-all border border-white/5"
-              title="Attach temporary screenshot"
+              className="w-10 h-10 mb-0.5 shrink-0 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-blue-400 disabled:opacity-50 rounded-full flex items-center justify-center transition-all border border-transparent shadow-sm"
+              title="Attach screenshot"
             >
-              <ImageIcon size={18} strokeWidth={1.5} />
+              <ImageIcon size={18} strokeWidth={2} />
             </button>
-            <input 
-              type="text" 
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder={isScanning ? "Scanning image..." : "Ask anything..."} 
-              disabled={isScanning}
-              className="flex-1 bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner disabled:opacity-50"
-            />
-            <button 
-              type="submit"
-              disabled={(!chatInput.trim() && !attachment) || isTyping || isScanning}
-              className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl flex items-center justify-center transition-all shadow-md"
-            >
-              <Send size={16} className="ml-0.5" />
-            </button>
+
+            <div className="flex-1 relative">
+              <input 
+                type="text" 
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder={isScanning ? "Scanning image..." : "Ask Accord Assistant..."} 
+                disabled={isScanning}
+                className="w-full bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl pl-5 pr-12 py-3.5 text-[13px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner disabled:opacity-50 font-medium"
+              />
+              <button 
+                type="submit" 
+                disabled={(!chatInput.trim() && !attachment) || isTyping || isScanning} 
+                className="absolute right-1.5 top-1.5 bottom-1.5 w-9 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95"
+              >
+                <Send size={14} strokeWidth={2.5} className="ml-0.5" />
+              </button>
+            </div>
           </form>
+
         </div>
       )}
 
