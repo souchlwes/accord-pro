@@ -73,25 +73,17 @@ const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
   );
 };
 
-// --- GLOBAL & DIRECT REAL-TIME CHAT PANEL ---
+// --- GLOBAL & DIRECT REAL-TIME CHAT PANEL (MULTI-PANE EDITION) ---
 const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
-const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
-  const [chatMode, setChatMode] = useState("global"); 
-  const [dmTarget, setDmTarget] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [activePanes, setActivePanes] = useState([{ type: 'global', id: 'global' }]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [activeThread, setActiveThread] = useState(null);
-  const [localToast, setLocalToast] = useState(null);
+  const [unreadDMs, setUnreadDMs] = useState({});
+  const [inputs, setInputs] = useState({});
+  const [editingId, setEditingId] = useState(null); // Preserved editing state
   
-  // Session-based Unread Tracker for DMs
-  const [unreadDMs, setUnreadDMs] = useState({}); 
-  
-  // REAL-TIME DIRECTORY (Replaces isolated state)
+  const messagesEndRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
-  
-  const inputRef = useRef(null);
-  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     const fetchChatData = async () => {
@@ -102,7 +94,6 @@ const [messages, setMessages] = useState([]);
       
       if (msgData) {
         setMessages(msgData);
-        
         const initialUnread = {};
         msgData.forEach(m => {
           if (m.receiver_id === profile.id) {
@@ -124,21 +115,15 @@ const [messages, setMessages] = useState([]);
           if (!m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id) {
             setMessages(prev => [...prev, m]); 
             
-            if (m.sender_id !== profile.id) {
-              setLocalToast(`New message from ${m.sender_name}`);
-              setTimeout(() => setLocalToast(null), 4000);
-
-              if (m.receiver_id === profile.id) {
+            if (m.sender_id !== profile.id && m.receiver_id === profile.id) {
                  setUnreadDMs(prev => {
-                    if (chatMode !== 'dm' || dmTarget?.id !== m.sender_id) {
-                       return { ...prev, [m.sender_id]: (prev[m.sender_id] || 0) + 1 };
-                    } else {
-                       // Update memory if we are actively chatting with them!
+                    const isPaneOpen = activePanes.some(p => p.id === m.sender_id);
+                    if (isPaneOpen) {
                        localStorage.setItem(`last_read_dm_${profile.id}_${m.sender_id}`, new Date().toISOString());
-                       return prev;
+                       return { ...prev, [m.sender_id]: 0 };
                     }
+                    return { ...prev, [m.sender_id]: (prev[m.sender_id] || 0) + 1 };
                  });
-              }
             }
           }
         } else if (payload.eventType === 'UPDATE') {
@@ -146,268 +131,213 @@ const [messages, setMessages] = useState([]);
         } else if (payload.eventType === 'DELETE') {
           setMessages(prev => prev.filter(m => m.id !== payload.old.id));
         }
-      })
-      .subscribe();
+      }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile?.id, chatMode, dmTarget]);
+  }, [profile?.id, activePanes]);
 
-  const handleSend = async (e) => {
+  useEffect(() => {
+    Object.keys(messagesEndRefs.current).forEach(key => {
+       messagesEndRefs.current[key]?.scrollIntoView({ behavior: "smooth" });
+    });
+  }, [messages, activePanes]);
+
+  const openPane = (user) => {
+     if (!activePanes.find(p => p.id === user.id)) {
+         setActivePanes(prev => [...prev, { type: 'dm', id: user.id, target: user }]);
+     }
+     setUnreadDMs(prev => ({...prev, [user.id]: 0}));
+     localStorage.setItem(`last_read_dm_${profile.id}_${user.id}`, new Date().toISOString());
+  };
+
+  const closePane = (id) => {
+     setActivePanes(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleSend = async (e, paneId, target) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    const text = inputs[paneId];
+    if (!text?.trim()) return;
+
     if (editingId) {
       await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
       setEditingId(null);
     } else {
       const { error } = await supabase.from('messages').insert([{
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
-        text, 
-        receiver_id: chatMode === 'dm' ? dmTarget.id : null,
-        parent_id: activeThread ? activeThread.id : null
+        text, receiver_id: paneId === 'global' ? null : target.id, parent_id: null
       }]);
 
-      if (!error) {
-        const payloads = [];
-        const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
-
-        // ONLY send system bell notifications for Global Campus Announcements
-        // DMs and Replies will now only show the red badge inside the chat panel!
-        if (chatMode === 'global' && isAdmin && !activeThread) {
-          const createPayload = (u, titleMsg, customMessage = text) => {
-            if (u.role === 'HEAD_ADMIN') return { target_role: 'HEAD_ADMIN', title: titleMsg, message: customMessage, type: 'info' };
-            if (u.role === 'DEPT_ADMIN') return { target_dept: u.assigned_dept, title: titleMsg, message: customMessage, type: 'info' };
-            return { target_user_id: u.id, title: titleMsg, message: customMessage, type: 'info' };
-          };
-
-          const uniqueTargets = new Set();
-          systemUsers.forEach(u => {
-            const p = createPayload(u, `Campus Announcement: ${profile.full_name}`);
-            const key = p.target_role || p.target_dept || p.target_user_id; 
-            if (!uniqueTargets.has(key)) {
-              uniqueTargets.add(key);
-              payloads.push(p);
-            }
-          });
-        }
-
-        if (payloads.length > 0) {
-          await supabase.from('notifications').insert(payloads);
-        }
+      if (!error && paneId === 'global') {
+          const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
+          if (isAdmin) {
+              fetch('/api/notify', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ emails: systemUsers.filter(u => u.email).map(u => u.email), title: `Campus Announcement`, message: text })
+              }).catch(err => console.error("Chat API failed:", err));
+          }
+      } else if (!error && paneId !== 'global' && target?.email) {
+          fetch('/api/notify', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ emails: [target.email], title: `New Message from ${profile.full_name}`, message: text })
+          }).catch(err => console.error("Chat API failed:", err));
       }
     }
-
-    // --- NEW: FIRE NOTIFY API FOR CHAT ---
-        let chatEmails = [];
-        if (chatMode === 'global' && !activeThread) {
-           chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
-        } else if (chatMode === 'dm' && dmTarget?.email) {
-           chatEmails = [dmTarget.email];
-        }
-
-        // Loop through and send individual chat notifications
-        chatEmails.forEach(singleEmail => {
-           fetch('/api/notify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                emails: singleEmail, 
-                title: chatMode === 'dm' ? `New Direct Message from ${profile.full_name}` : `Campus Announcement from ${profile.full_name}`, 
-                message: text 
-              })
-           }).catch(err => console.error("Chat Email API failed for " + singleEmail + ":", err));
-        });
-// -------------------------------------
-  
-    setText(""); 
+    setInputs(prev => ({ ...prev, [paneId]: '' }));
   };
-    
-  const displayedMessages = messages.filter(m => {
-    if (activeThread) return m.parent_id === activeThread.id;
-    if (chatMode === 'global') return !m.receiver_id && !m.parent_id;
-    if (chatMode === 'dm' && dmTarget) {
-      return !m.parent_id && ((m.sender_id === profile.id && m.receiver_id === dmTarget.id) || (m.sender_id === dmTarget.id && m.receiver_id === profile.id));
-    }
-    return false;
-  });
-
-  // Auto-scroll to bottom whenever messages update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [displayedMessages]);
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[400px] max-w-full bg-slate-50 shadow-2xl z-[200] flex flex-col border-l-[8px] border-indigo-500 animate-in slide-in-from-right-full duration-500">
+    <div id="accord-chat-panel" className="fixed inset-2 md:inset-10 z-[200] bg-slate-900/70 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300 font-sans antialiased">
       
-      {localToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl z-50 animate-bounce">
-          {localToast}
-        </div>
-      )}
-
-      <div className="bg-slate-900 p-6 flex justify-between items-center text-white shadow-md z-10">
-        <div>
-          <h3 className="text-2xl font-black uppercase flex items-center gap-3"><MessageSquare className="text-indigo-400" size={24} /> Accord Chat</h3>
-          <p className="text-[9px] font-black uppercase text-slate-400">Communication Hub</p>
-        </div>
-        <button onClick={onClose} className="bg-white/10 p-3 rounded-2xl hover:bg-rose-500 transition-all"><X size={20}/></button>
-      </div>
-
-      {!activeThread && chatMode !== 'dm' && (
-        <div className="flex bg-white border-b-2">
-          <button onClick={() => setChatMode('global')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 ${chatMode === 'global' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>Campus</button>
-          <button onClick={() => setChatMode('directory')} className={`flex-1 py-4 text-xs font-black uppercase border-b-4 relative ${chatMode === 'directory' ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}`}>
-             Direct
-             {Object.values(unreadDMs).some(count => count > 0) && (
-               <span className="absolute top-2 right-8 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black text-white shadow-md animate-pulse">
-                 {Object.values(unreadDMs).reduce((a, b) => a + b, 0)}
-               </span>
-             )}
-          </button>
-        </div>
-      )}
-
-    {!activeThread && chatMode === 'dm' && dmTarget && (
-        <div className="bg-white p-4 border-b-2 flex justify-between items-center shadow-sm z-10">
+      {/* LEFT SIDEBAR: DIRECTORY */}
+      <div className="w-[300px] shrink-0 bg-black/40 flex flex-col border-r border-white/10">
+        <div className="p-6 pb-4 border-b border-white/10 flex justify-between items-center bg-white/5 shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={() => { setChatMode('directory'); setDmTarget(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-colors"><ArrowLeft size={16}/></button>
-            
-            {/* --- NEW: ADDED AVATAR TO HEADER --- */}
-            <UserAvatar fullName={dmTarget.full_name} avatarUrl={dmTarget.avatar_url} size={32} />
-            
-            <div><h4 className="text-sm font-black text-slate-900 uppercase">{dmTarget.full_name}</h4><span className="text-[9px] font-black uppercase text-indigo-500">{dmTarget.role}</span></div>
+             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shadow-lg"><MessageSquare size={14} className="text-white" /></div>
+             <div>
+                <h3 className="text-[13px] font-black uppercase tracking-tight text-white leading-tight">Messages</h3>
+                <p className="text-[9px] text-blue-400 font-semibold tracking-widest uppercase">Internal Network</p>
+             </div>
           </div>
-          <button onClick={() => {
-            onClose(); // Closes the chat panel
-            onViewProctor(dmTarget); // Opens their dashboard
-          }} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2 text-[9px] font-black uppercase tracking-widest" title="View Profile Dashboard">
-            <LayoutDashboard size={14}/> View
+          <button onClick={onClose} className="text-slate-400 hover:text-white bg-white/5 hover:bg-rose-500 p-2 rounded-full transition-all border border-transparent hover:border-rose-400"><X size={14} strokeWidth={2.5}/></button>
+        </div>
+
+        <div className="p-4 border-b border-white/5 shrink-0">
+           <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+              <input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-white/5 text-white placeholder:text-slate-500 p-3 pl-10 rounded-2xl text-xs font-medium border border-white/10 outline-none focus:border-blue-500 transition-all"/>
+           </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
+          <button onClick={() => { if(!activePanes.find(p=>p.id==='global')) setActivePanes(prev=>[{type:'global', id:'global'}, ...prev]) }} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+             <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
+             <div>
+                <h4 className="text-xs font-bold text-slate-200">Global Campus</h4>
+                <p className="text-[10px] text-slate-500 font-medium">Broadcast Announcements</p>
+             </div>
           </button>
-        </div>
-      )}
-
-      {(chatMode === 'global' || chatMode === 'dm') && (
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50">
           
-{activeThread && (
-            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 shadow-md mb-6 relative">
-               <button 
-                 onClick={() => {
-                    const targetUser = systemUsers.find(u => u.id === activeThread.sender_id);
-                    if (targetUser) onViewProctor(targetUser);
-                 }}
-                 className="text-[10px] font-black text-indigo-700 uppercase mb-2 flex items-center gap-1.5 hover:text-indigo-500 transition-colors w-max"
-                 title="View Profile Dashboard"
-               >
-                 <User size={12}/> {activeThread.sender_name}
-               </button>
-               <p className="text-sm font-bold text-slate-800">{activeThread.text}</p>
-               <span className="text-[8px] font-black text-slate-400 uppercase mt-2 block border-t border-indigo-50 pt-2">Original Post</span>
-            </div>
-          )}
-
-          {displayedMessages.length === 0 && <div className="text-center py-20 text-slate-400 uppercase text-xs font-black tracking-widest">No Messages</div>}
+          <div className="pt-4 pb-2 px-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Direct Messages</div>
           
-          {displayedMessages.map(m => {
-            const isMe = m.sender_id === profile.id;
-            const replyCount = messages.filter(r => r.parent_id === m.id).length;
-
-            return (
-              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
-{!isMe && (
-                  <button 
-                    onClick={() => {
-                       const targetUser = systemUsers.find(u => u.id === m.sender_id);
-                       if (targetUser) onViewProctor(targetUser);
-                    }}
-                    className="text-[10px] font-black text-slate-700 uppercase mb-1 ml-1 flex items-center gap-1 hover:text-indigo-600 transition-colors cursor-pointer group/name text-left"
-                    title="View Profile Dashboard"
-                  >
-                    <User size={10} className="opacity-50 group-hover/name:opacity-100 transition-opacity" />
-                    {m.sender_name} 
-                    <span className="text-[8px] text-slate-400 font-bold group-hover/name:text-indigo-400 transition-colors">({m.sender_role})</span>
-                  </button>
-                )}
-                <div className="flex items-center gap-2 max-w-[90%]">
-                  {isMe && (
-                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                      <button onClick={() => { setEditingId(m.id); setText(m.text); inputRef.current?.focus(); }} className="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-lg border shadow-sm"><Edit2 size={12}/></button>
-                      <button onClick={async () => { if(window.confirm("Delete?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-500 bg-white rounded-lg border shadow-sm"><Trash2 size={12}/></button>
-                    </div>
-                  )}
-                  <div className={`p-4 rounded-3xl shadow-sm relative ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border-2 text-slate-800 rounded-tl-sm'}`}>
-                    <p className="text-xs md:text-sm font-bold leading-relaxed">{m.text}</p>
-                    {m.is_edited && <span className="text-[7px] italic opacity-50 block text-right mt-1">Edited</span>}
-                  </div>
-                  {!isMe && !activeThread && (
-                    <button onClick={() => setActiveThread(m)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-indigo-600 bg-white rounded-full border shadow-sm transition-opacity" title="Reply in Thread"><Reply size={14}/></button>
-                  )}
+          {systemUsers.filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+             <button key={u.id} onClick={() => openPane(u)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left relative group">
+                <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={40} />
+                <div className="flex-1 overflow-hidden">
+                   <h4 className="text-xs font-bold text-slate-200 truncate">{u.full_name}</h4>
+                   <p className="text-[10px] text-slate-500 font-medium truncate">{u.role}</p>
                 </div>
-                <div className="flex gap-2 items-center mt-1 px-1">
-                   <span className="text-[8px] font-black text-slate-400 uppercase">{formatRelativeTime(m.created_at)}</span>
-                   {!activeThread && replyCount > 0 && (
-                     <button onClick={() => setActiveThread(m)} className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 uppercase cursor-pointer">
-                        {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
-                     </button>
-                   )}
-                </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
-
-    {chatMode === 'directory' && !activeThread && (
-        <div className="flex-1 overflow-y-auto bg-slate-50 custom-scrollbar flex flex-col">
-          <div className="p-4 border-b bg-white sticky top-0"><input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-black text-xs border-2 outline-none focus:border-indigo-500 transition-all"/></div>
-          {[...systemUsers].sort((a, b) => {
-            const aMsgs = messages.filter(m => (m.sender_id === a.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === a.id));
-            const bMsgs = messages.filter(m => (m.sender_id === b.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === b.id));
-            const aLatest = aMsgs.length > 0 ? new Date(aMsgs[aMsgs.length - 1].created_at).getTime() : 0;
-            const bLatest = bMsgs.length > 0 ? new Date(bMsgs[bMsgs.length - 1].created_at).getTime() : 0;
-            return bLatest - aLatest || (a.full_name || "").localeCompare(b.full_name || "");
-        }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => ( 
-            <div key={u.id} className="w-full text-left p-5 bg-white hover:bg-indigo-50 border-b flex justify-between items-center group transition-all">
-           
-              {/* --- NEW: WRAPPED IN A FLEX CONTAINER WITH AVATAR --- */}
-              <div className="flex items-center gap-3">
-                <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={32} />
-                <div>
-                  <h4 className="text-xs font-black uppercase text-slate-900 group-hover:text-indigo-600 transition-colors">{u.full_name}</h4>
-                  <span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 items-center">
-                 {unreadDMs[u.id] > 0 && (
-                   <span className="bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-full mr-2 shadow-sm animate-pulse">
-                     {unreadDMs[u.id]} NEW
+                {unreadDMs[u.id] > 0 && (
+                   <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-pulse shrink-0">
+                     {unreadDMs[u.id]}
                    </span>
-                 )}
-
-                 <button onClick={() => onViewProctor(u)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-500 hover:text-white text-slate-400 transition-all" title="View Dashboard"><LayoutDashboard size={16}/></button>
-               <button onClick={() => { 
-                    setDmTarget(u); 
-                    setChatMode('dm'); 
-                    setUnreadDMs(prev => ({...prev, [u.id]: 0})); 
-                    localStorage.setItem(`last_read_dm_${profile.id}_${u.id}`, new Date().toISOString());
-                 }} className="p-3 bg-slate-100 rounded-xl hover:bg-indigo-500 hover:text-white text-slate-400 transition-all" title="Send Message">
-                    <MessageSquare size={16}/>
-                 </button>  
-              </div>
-            </div>
+                )}
+             </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {chatMode !== 'directory' && (
-        <div className="p-4 bg-white border-t-2">
-          {editingId && <div className="flex justify-between items-center mb-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-200"><span className="text-[9px] font-black text-amber-600 uppercase italic">Editing Message...</span><button onClick={() => { setEditingId(null); setText(""); }}><X size={12} className="text-amber-600"/></button></div>}
-          <form onSubmit={handleSend} className="flex items-center gap-2 bg-slate-50 p-2 rounded-[2rem] border-2 focus-within:border-indigo-500 transition-colors">
-            <input ref={inputRef} type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder={activeThread ? "Reply to thread..." : "Type a message..."} className="flex-1 bg-transparent border-none outline-none px-4 text-xs font-bold text-slate-800"/>
-            <button type="submit" disabled={!text.trim()} className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-500 disabled:opacity-50 transition-all active:scale-95"><Send size={16} /></button>
-          </form>
-        </div>
-      )}
+      {/* RIGHT AREA: HORIZONTAL MULTI-PANE VIEW */}
+      <div className="flex-1 flex overflow-x-auto custom-scrollbar bg-slate-900/50">
+         {activePanes.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center opacity-30">
+               <img src={accordLogo} alt="Accord Logo" className="w-24 h-24 object-contain brightness-0 invert drop-shadow-sm mb-4" />
+               <p className="text-xs font-black tracking-widest uppercase text-white">Select a chat to begin</p>
+            </div>
+         ) : (
+            activePanes.map(pane => {
+               const isGlobal = pane.id === 'global';
+               const target = pane.target;
+               const paneMessages = messages.filter(m => isGlobal ? (!m.receiver_id && !m.parent_id) : (!m.parent_id && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id))));
+
+               return (
+                  <div key={pane.id} className="w-[350px] md:w-[400px] shrink-0 border-r border-white/5 flex flex-col h-full relative animate-in slide-in-from-right-8">
+                     
+                     {/* Pane Header */}
+                     <div className="px-5 py-4 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
+                        <div className="flex items-center gap-3">
+                           {isGlobal ? (
+                              <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
+                           ) : (
+                              <UserAvatar fullName={target.full_name} avatarUrl={target.avatar_url} size={32} />
+                           )}
+                           <div>
+                              <h4 className="text-[13px] font-bold text-white truncate max-w-[180px]">{isGlobal ? 'Campus Board' : target.full_name}</h4>
+                              <span className="text-[9px] font-medium text-slate-400 tracking-wide">{isGlobal ? 'Public Broadcast' : target.role}</span>
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           {!isGlobal && (
+                              <button onClick={() => { onClose(); onViewProctor(target); }} className="text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-600 p-2 rounded-full transition-all border border-blue-500/20" title="View Dashboard"><LayoutDashboard size={12} strokeWidth={2.5}/></button>
+                           )}
+                           <button onClick={() => closePane(pane.id)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-rose-500 p-2 rounded-full transition-all"><X size={12} strokeWidth={2.5}/></button>
+                        </div>
+                     </div>
+
+                     {/* Message Area */}
+                     <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
+                        {paneMessages.length === 0 && <div className="text-center mt-10 text-slate-500 text-[10px] font-bold uppercase tracking-widest">No messages yet.</div>}
+                        
+                        {paneMessages.map(m => {
+                           const isMe = m.sender_id === profile.id;
+                           return (
+                              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
+                                 {!isMe && isGlobal && (
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
+                                       <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}
+                                    </span>
+                                 )}
+                                 <div className="flex items-center gap-2 max-w-[85%]">
+                                    {isMe && (
+                                      <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0 mr-2">
+                                        <button onClick={() => { setEditingId(m.id); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
+                                        <button onClick={async () => { if(window.confirm("Delete message?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
+                                      </div>
+                                    )}
+                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[13px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap ${
+                                       isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
+                                            : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
+                                    }`}>
+                                       {m.text}
+                                       {m.is_edited && <span className="text-[9px] italic opacity-60 block text-right mt-1">Edited</span>}
+                                    </div>
+                                 </div>
+                                 <span className="text-[8px] font-black text-slate-500 uppercase mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {formatRelativeTime(m.created_at)}
+                                 </span>
+                              </div>
+                           );
+                        })}
+                        <div ref={el => messagesEndRefs.current[pane.id] = el} />
+                     </div>
+
+                     {/* Premium Input */}
+                     <div className="p-4 bg-black/20 border-t border-white/5 shrink-0">
+                        {editingId && inputs[pane.id] && (
+                           <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                             <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
+                             <button onClick={() => { setEditingId(null); setInputs(prev => ({...prev, [pane.id]: ''})); }}><X size={12} className="text-amber-500 hover:text-amber-400"/></button>
+                           </div>
+                        )}
+                        <form onSubmit={(e) => handleSend(e, pane.id, target)} className="relative flex items-end">
+                           <input 
+                              type="text" 
+                              value={inputs[pane.id] || ''} 
+                              onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} 
+                              placeholder="Type a message..." 
+                              className="w-full bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl pl-4 pr-12 py-3 text-[13px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium"
+                           />
+                           <button type="submit" disabled={!inputs[pane.id]?.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 w-9 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95">
+                              <Send size={14} strokeWidth={2.5} className="ml-0.5" />
+                           </button>
+                        </form>
+                     </div>
+                  </div>
+               );
+            })
+         )}
+      </div>
     </div>
   );
 };
@@ -1902,10 +1832,16 @@ useEffect(() => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
          if (payload.new.sender_id !== profile?.id) {
            if (payload.new.receiver_id === profile?.id || !payload.new.receiver_id) {
-             setUnreadMessageCount(prev => prev + 1);
+             
+             // ONLY increment the badge if the Chat Panel is CLOSED
+             setUnreadMessageCount(prev => {
+                if (document.getElementById('accord-chat-panel')) return 0;
+                return prev + 1;
+             });
+
              setAppToast({ message: `New message from ${payload.new.sender_name}`, type: 'success' });
            }
          }
