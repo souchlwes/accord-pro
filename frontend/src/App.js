@@ -94,24 +94,23 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [addingToRoom, setAddingToRoom] = useState(null); 
   const [memberSearchQuery, setMemberSearchQuery] = useState(""); 
   
-  // Custom Modals & Inline Confirmations
-  const [createModal, setCreateModal] = useState(null); // 'group' | 'broadcast' | null
+  // Custom Modals, Inline Confirmations & Quoting
+  const [createModal, setCreateModal] = useState(null); 
   const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomParticipants, setNewRoomParticipants] = useState([]); // Array of selected users
-  const [modalSearchQuery, setModalSearchQuery] = useState(""); // Live search inside the modal
+  const [newRoomParticipants, setNewRoomParticipants] = useState([]); 
+  const [modalSearchQuery, setModalSearchQuery] = useState(""); 
   const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(null);
   const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
   const [chatError, setChatError] = useState("");
+  const [quotingMsg, setQuotingMsg] = useState({}); // Tracks which announcement is being replied to
 
   const messagesEndRefs = useRef({});
   const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
   
-  // Extract all unique departments for the Preset Chips
   const uniqueDepts = [...new Set(systemUsers.map(u => u.assigned_dept).filter(Boolean))];
 
-  // FETCH ALL DATA 
   useEffect(() => {
     const fetchChatData = async () => {
       const { data: pData } = await supabase.from('chat_participants').select('room_id').eq('user_id', profile.id);
@@ -201,7 +200,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
   const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  // Quick Add Presets Logic for Modal
   const addPresetToRoom = (type, deptCode = null) => {
       let usersToAdd = [];
       if (type === 'dept') usersToAdd = systemUsers.filter(u => u.assigned_dept === deptCode);
@@ -213,7 +211,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       setNewRoomParticipants(prev => [...prev, ...newUsers]);
   };
 
-  // Secure Custom Room Creation
   const submitCreateRoom = async () => {
      if (!newRoomName.trim()) return;
      
@@ -222,7 +219,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      }]).select().single();
 
      if (!error && roomData) {
-       // Profile.id is always added as the creator
        const finalIds = [...new Set([profile.id, ...newRoomParticipants.map(p => p.id)])];
        const participantPayload = finalIds.map(uid => ({ room_id: roomData.id, user_id: uid }));
        await supabase.from('chat_participants').insert(participantPayload);
@@ -231,7 +227,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
        setParticipants(prev => [...prev, ...participantPayload]);
        openPane(createModal, roomData);
        
-       // Notify added users
        const emailsToNotify = newRoomParticipants.filter(u => u.email).map(u => u.email);
        emailsToNotify.forEach(email => {
           fetch('/api/notify', {
@@ -262,6 +257,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     const text = inputs[paneId] || '';
     const editingId = editingIds[paneId];
     const activeThread = activeThreads[paneId];
+    const quote = quotingMsg[paneId];
     
     if (!text.trim() && !attachment) return;
 
@@ -269,9 +265,17 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
       setEditingIds(prev => ({ ...prev, [paneId]: null }));
     } else {
+      
+      // Formatting the private reply if they are quoting an announcement
+      let finalText = text;
+      if (quote && !activeThread) {
+          const snippet = quote.text.length > 50 ? quote.text.substring(0, 50) + '...' : quote.text;
+          finalText = `[Replying to Announcement]: "${snippet}"\n\n${text}`;
+      }
+
       const payload = {
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
-        text, receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
+        text: finalText, receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
         room_id: (type === 'group' || type === 'broadcast') ? target.id : null,
         attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
@@ -279,7 +283,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       const { error } = await supabase.from('messages').insert([payload]);
 
       if (!error && !activeThread) {
-          const displayMsg = text || "Sent an attachment";
+          const displayMsg = finalText || "Sent an attachment";
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
@@ -297,6 +301,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       }
     }
     setInputs(prev => ({ ...prev, [paneId]: '' }));
+    setQuotingMsg(prev => ({ ...prev, [paneId]: null }));
   };
 
   const handleFileUpload = async (e, paneId, type, target) => {
@@ -323,17 +328,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     }
   };
 
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div id="accord-chat-panel" className="fixed inset-0 md:inset-6 z-[200] bg-slate-900/80 backdrop-blur-3xl md:border border-white/10 md:rounded-[2.5rem] flex overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300 font-sans antialiased">
       
-      {/* GLOBAL ERROR TOAST */}
       {chatError && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-rose-500 text-white px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest shadow-2xl animate-in slide-in-from-top-4 flex items-center gap-2 border border-rose-400">
            <AlertCircle size={14} /> {chatError}
         </div>
       )}
 
-      {/* FULLSCREEN IMAGE OVERLAY */}
       {fullscreenImage && (
         <div className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenImage(null)}>
           <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-rose-500 transition-all"><X size={24}/></button>
@@ -341,16 +350,17 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         </div>
       )}
 
-      {/* CREATE ROOM MODAL (Upgraded with Live Search and Visual Member Arrays) */}
       {createModal && (
         <div className="absolute inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
            <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md max-h-[90vh] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] animate-in zoom-in-95">
-               <h3 className="text-white text-sm font-black uppercase tracking-widest mb-1">Create {createModal === 'group' ? 'Group Chat' : 'Announcement'}</h3>
+               <h3 className="text-white text-sm font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                 {createModal === 'group' ? <Hash size={16} className="text-indigo-400"/> : <BellRing size={16} className="text-amber-400"/>} 
+                 Create {createModal === 'group' ? 'Group Chat' : 'Announcement'}
+               </h3>
                <p className="text-[10px] text-slate-400 font-medium mb-4">Set up a new targeted communication channel.</p>
                
                <input autoFocus type="text" placeholder="Channel Name..." value={newRoomName} onChange={e => setNewRoomName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors mb-4 shrink-0" />
                
-               {/* PRESET CHIPS */}
                <div className="mb-4 shrink-0">
                   <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Quick Add Presets</label>
                   <div className="flex flex-wrap gap-2">
@@ -362,13 +372,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                   </div>
                </div>
 
-               {/* LIVE SEARCH TO ADD INDIVIDUALS */}
                <div className="relative mb-2 shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
                   <input type="text" placeholder="Search staff by name to add..." value={modalSearchQuery} onChange={e => setModalSearchQuery(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors" />
                </div>
 
-               {/* SEARCH RESULTS */}
                {modalSearchQuery && (
                  <div className="max-h-[120px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/10 rounded-xl mb-4 p-1 shrink-0">
                     {systemUsers.filter(u => u.full_name?.toLowerCase().includes(modalSearchQuery.toLowerCase()) && !newRoomParticipants.some(p => p.id === u.id)).map(u => (
@@ -381,13 +389,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover/add:bg-blue-500 group-hover/add:text-white transition-all"><Plus size={12} strokeWidth={3}/></div>
                       </button>
                     ))}
-                    {systemUsers.filter(u => u.full_name?.toLowerCase().includes(modalSearchQuery.toLowerCase()) && !newRoomParticipants.some(p => p.id === u.id)).length === 0 && (
-                      <p className="text-[9px] text-slate-500 text-center py-4 italic">No matching staff found.</p>
-                    )}
                  </div>
                )}
 
-               {/* SELECTED USERS LIST */}
                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block shrink-0">Selected Participants ({newRoomParticipants.length})</label>
                <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/5 border border-white/10 rounded-xl p-2 mb-4">
                   {newRoomParticipants.length === 0 ? (
@@ -408,7 +412,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                   )}
                </div>
 
-               {/* ACTIONS */}
                <div className="flex gap-2 shrink-0">
                    <button onClick={() => { setCreateModal(null); setNewRoomName(""); setNewRoomParticipants([]); setModalSearchQuery(""); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
                    <button onClick={submitCreateRoom} disabled={!newRoomName.trim() || newRoomParticipants.length === 0} className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-md">Create Channel</button>
@@ -417,10 +420,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         </div>
       )}
 
-      {/* MOBILE SWIPE CONTAINER */}
       <div id="chat-panes-container" className="flex-1 flex overflow-x-auto snap-x snap-mandatory custom-scrollbar scroll-smooth">
         
-        {/* LEFT SIDEBAR: DIRECTORY */}
+        {/* LEFT SIDEBAR */}
         <div className="w-full md:w-[320px] shrink-0 bg-black/40 flex flex-col border-r border-white/10 snap-center md:snap-start h-full">
           <div className="p-5 md:p-6 pb-4 border-b border-white/10 flex justify-between items-center bg-white/5 shrink-0">
             <div className="flex items-center gap-3">
@@ -486,9 +488,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 
             {sidebarTab === 'announcements' && (
               <>
-                {profile.role !== 'PROCTOR' && (
+                {['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role) && (
                   <button onClick={() => setCreateModal('broadcast')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
-                    <Hash size={14}/> New Targeted Announcement
+                    <BellRing size={14}/> New Targeted Announcement
                   </button>
                 )}
                 <button onClick={() => openPane('global', {id: 'global'})} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
@@ -497,7 +499,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                 </button>
                 {rooms.filter(r => r.type === 'broadcast' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
                   <button key={r.id} onClick={() => openPane('broadcast', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
-                    <div className="w-10 h-10 bg-rose-500/20 text-rose-400 border border-rose-400/30 rounded-full flex items-center justify-center shrink-0"><Hash size={16}/></div>
+                    <div className="w-10 h-10 bg-amber-500/20 text-amber-400 border border-amber-400/30 rounded-full flex items-center justify-center shrink-0"><BellRing size={16}/></div>
                     <div className="flex-1 overflow-hidden"><h4 className="text-xs font-bold text-slate-200 truncate">{r.name}</h4></div>
                   </button>
                 ))}
@@ -507,7 +509,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-widest uppercase text-slate-500 bg-slate-900/80 px-4 py-2 rounded-full backdrop-blur-md pointer-events-none">Swipe to chat →</div>
         </div>
 
-        {/* RIGHT AREA: HORIZONTAL MULTI-PANE VIEW */}
+        {/* RIGHT AREA: CHAT PANES */}
         {activePanes.length === 0 ? (
           <div className="hidden md:flex flex-1 flex-col items-center justify-center opacity-30 snap-center">
              <MessageSquare size={48} strokeWidth={1.5} className="mb-4 text-slate-400" />
@@ -516,11 +518,14 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         ) : (
           activePanes.map(pane => {
              const isGlobal = pane.id === 'global';
+             const isBroadcast = pane.type === 'broadcast' || isGlobal;
              const isRoom = pane.type === 'group' || pane.type === 'broadcast';
              const target = pane.target;
              const activeThread = activeThreads[pane.id];
              const detailsOpen = roomDetailsOpen[pane.id];
              
+             const canPost = !isBroadcast || (isRoom && target.created_by === profile.id) || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role);
+
              const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
                if (isGlobal) return !m.receiver_id && !m.room_id && !m.parent_id;
@@ -539,6 +544,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div className="flex items-center gap-3">
                            {isGlobal ? (
                               <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
+                           ) : pane.type === 'broadcast' ? (
+                              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><BellRing size={14} className="text-white"/></div>
                            ) : isRoom ? (
                               <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg"><Hash size={14} className="text-white"/></div>
                            ) : (
@@ -579,9 +586,70 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            const isMe = m.sender_id === profile.id;
                            const replyCount = messages.filter(r => r.parent_id === m.id).length;
 
+                           // --- ANNOUNCEMENT CARDS ---
+                           if (isBroadcast) {
+                               return (
+                                  <div key={m.id} className="w-full flex flex-col items-center mb-6 animate-in slide-in-from-bottom-2">
+                                     <div className="w-[95%] bg-gradient-to-b from-amber-500/10 to-black/40 border border-amber-500/20 rounded-2xl p-4 shadow-lg relative overflow-hidden">
+                                        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-500/10">
+                                           <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shrink-0"><BellRing size={10} className="text-white"/></div>
+                                           <div>
+                                              <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{m.sender_name}</p>
+                                              <p className="text-[8px] text-slate-500 uppercase">{m.sender_role} • {formatTime(m.created_at)}</p>
+                                           </div>
+                                           {isMe && (
+                                              <div className="ml-auto flex gap-1">
+                                                {confirmDeleteMsg === m.id ? (
+                                                  <div className="flex bg-rose-500/20 rounded-lg overflow-hidden border border-rose-500/30">
+                                                    <button onClick={() => setConfirmDeleteMsg(null)} className="p-1.5 text-slate-400 hover:text-white"><X size={12}/></button>
+                                                    <button onClick={async () => { await supabase.from('messages').delete().eq('id', m.id); setConfirmDeleteMsg(null); }} className="p-1.5 text-rose-400 hover:text-rose-300 bg-rose-500/20"><CheckCircle2 size={12}/></button>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                   <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-amber-400"><Edit2 size={12}/></button>
+                                                   <button onClick={() => setConfirmDeleteMsg(m.id)} className="p-1.5 text-slate-400 hover:text-rose-400"><Trash2 size={12}/></button>
+                                                  </>
+                                                )}
+                                              </div>
+                                           )}
+                                        </div>
+                                        {m.attachment_url && m.attachment_type === 'image' && (
+                                           <img src={m.attachment_url} alt="Attached" className="w-full rounded-lg mb-3 cursor-pointer hover:opacity-90 transition-opacity border border-white/10" onClick={() => setFullscreenImage(m.attachment_url)} />
+                                        )}
+                                        {m.attachment_url && m.attachment_type !== 'image' && (
+                                           <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-amber-500/10 text-amber-400 p-3 rounded-xl mb-3 hover:bg-amber-500/20 transition-colors border border-amber-500/20">
+                                              <FileText size={16} /> <span className="font-bold underline text-[10px] uppercase">Download Official Document</span>
+                                           </a>
+                                        )}
+                                        <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{m.text}</div>
+                                        {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
+                                        
+                                        {/* NEW: REPLY PRIVATELY BUTTON */}
+                                        {!isMe && (
+                                           <div className="w-full mt-4 pt-3 border-t border-amber-500/10 flex justify-end">
+                                              <button 
+                                                onClick={() => {
+                                                   const sender = systemUsers.find(u => u.id === m.sender_id);
+                                                   if (sender) {
+                                                      openPane('dm', sender);
+                                                      setQuotingMsg(prev => ({...prev, [sender.id]: m}));
+                                                   }
+                                                }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase text-amber-400 transition-colors"
+                                              >
+                                                 <Reply size={12}/> Reply Privately
+                                              </button>
+                                           </div>
+                                        )}
+                                     </div>
+                                  </div>
+                               )
+                           }
+
+                           // Standard Chat Bubbles (DMs & Groups)
                            return (
                               <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
-                                 {(!isMe && (isGlobal || isRoom)) && (
+                                 {(!isMe && isRoom) && (
                                     <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}</span>
                                  )}
                                  <div className="flex items-center gap-2 max-w-[85%]">
@@ -619,7 +687,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                     {!isMe && !activeThread && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>}
                                  </div>
                                  <div className="flex gap-2 items-center mt-1 px-1">
-                                   <span className="text-[8px] font-black text-slate-500 uppercase">{formatRelativeTime(m.created_at)}</span>
+                                   <span className="text-[8px] font-black text-slate-500 uppercase">{formatTime(m.created_at)}</span>
                                    {!activeThread && replyCount > 0 && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">{replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}</button>}
                                  </div>
                               </div>
@@ -628,20 +696,42 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
-                     {(!isRoom || pane.type !== 'broadcast' || profile.role !== 'PROCTOR') && (
+                     {/* DYNAMIC INPUT AREA (Read-Only logic for Broadcasts) */}
+                     {canPost ? (
                        <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
+                          
+                          {/* EDITING STATE UI */}
                           {editingIds[pane.id] && (
                              <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
                                <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
                                <button type="button" onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: null})); setInputs(prev => ({...prev, [pane.id]: ''})); }}><X size={12} className="text-amber-500 hover:text-amber-400"/></button>
                              </div>
                           )}
+
+                          {/* NEW: QUOTE PREVIEW UI (For Replying Privately) */}
+                          {quotingMsg[pane.id] && (
+                             <div className="flex justify-between items-start mb-2 px-3 py-2 bg-white/5 rounded-xl border border-white/10 relative">
+                               <div>
+                                  <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1 mb-1"><MessageSquare size={10}/> Replying to Announcement</span>
+                                  <p className="text-[10px] text-slate-300 italic truncate max-w-[200px]">"{quotingMsg[pane.id].text}"</p>
+                               </div>
+                               <button type="button" onClick={() => setQuotingMsg(prev => ({...prev, [pane.id]: null}))}><X size={12} className="text-slate-500 hover:text-white"/></button>
+                             </div>
+                          )}
+
                           <form onSubmit={(e) => handleSend(e, pane.id, pane.type, target)} className="relative flex items-center gap-2">
                              <button type="button" onClick={() => fileInputRefs.current[pane.id]?.click()} disabled={uploading[pane.id]} className={`p-3 rounded-full transition-all ${uploading[pane.id] ? 'bg-blue-600/50 animate-pulse text-white' : 'bg-white/10 hover:bg-white/20 text-slate-300'}`}><Paperclip size={14} /></button>
                              <input type="file" ref={el => fileInputRefs.current[pane.id] = el} className="hidden" onChange={(e) => handleFileUpload(e, pane.id, pane.type, target)} accept="image/*,.pdf,.doc,.docx" />
+                             
                              <input type="text" value={inputs[pane.id] || ''} onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} placeholder={uploading[pane.id] ? "Uploading..." : activeThread ? "Reply in thread..." : "Type a message..."} disabled={uploading[pane.id]} className="flex-1 bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl px-4 py-3 text-[12px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium" />
+                             
                              <button type="submit" disabled={!inputs[pane.id]?.trim() && !uploading[pane.id]} className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95"><Send size={14} strokeWidth={2.5} className="ml-0.5" /></button>
                           </form>
+                       </div>
+                     ) : (
+                       <div className="p-4 bg-black/40 border-t border-amber-500/20 shrink-0 flex items-center justify-center gap-2 text-amber-500/60">
+                          <Lock size={12} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Read-Only Broadcast Channel</span>
                        </div>
                      )}
                    </div>
