@@ -3329,6 +3329,7 @@ const executeAddDepartment = async (e) => {
 
                 {/* --- 2. GLOBAL RESOURCES & CONFLICTS (FROSTED BENTO) --- */}
                 <div className="grid grid-cols-1 gap-8">
+               <div id="tour-conflict-engine" className="grid grid-cols-1 gap-8"></div>
                   <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
                     <ConflictTable schedule={globalSchedule} />
                   </div>
@@ -3343,6 +3344,7 @@ const executeAddDepartment = async (e) => {
                 </div>
 
                 {/* --- 3. SMART WORKSPACE ROUTER --- */}
+               <div id="tour-workspaces"></div>
                 {visibleDepartments.length === 0 ? (
                   <div className="text-center py-32 bg-white/60 backdrop-blur-md rounded-[3rem] border-4 border-dashed border-slate-200 mt-8 shadow-sm animate-in fade-in duration-500">
                     <Layers size={64} className="mx-auto text-slate-300 mb-6" />
@@ -3438,7 +3440,9 @@ const executeAddDepartment = async (e) => {
                   </div>
                 )}                     
                        
+                
                 {/* --- 4. COLLAPSIBLE MASTER TIMELINE (GLASS BENTO) --- */}
+                <div id="tour-master-timeline" className="pt-8"></div>
                 <div className="pt-8">
                   <div 
                     onClick={() => setShowMasterTimeline(!showMasterTimeline)}
@@ -3484,7 +3488,7 @@ const executeAddDepartment = async (e) => {
                 </div>
               </div>
             ) : (
-             <div className="mt-6 md:mt-10">
+             <div className="mt-6 md:mt-10" id="tour-system-registry">
                 <UserRegistry
                   profiles={[
                     ...allProfiles, 
@@ -3875,9 +3879,13 @@ return (
     <>
       {renderScreens()}
 
-      {/* FIXED: Now it only runs if the user is fully logged in and NOT on the landing page */}
+      {/* Drops in right above GlobalAIAssistant */}
       {session && profile && !showLanding && (
-        <SystemTour forceRun={replayTour} onTourClose={() => setReplayTour(false)} />
+        <SystemTour 
+          forceRun={replayTour} 
+          onTourClose={() => setReplayTour(false)} 
+          role={safeRole} 
+        />
       )}
 
       {!showLanding && (
