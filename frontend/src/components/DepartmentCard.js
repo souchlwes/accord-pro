@@ -305,33 +305,39 @@ const DepartmentCard = ({
       externalSchedule = [...externalSchedule, ...externalOverrides];
     }
 
-    const combined = [...externalSchedule, ...newSchedule];
+   const combined = [...externalSchedule, ...newSchedule];
     const conflicts = [];
-    const conflictIds = new Set(); // Track conflicting rows to flag them visually
+    const conflictIds = new Set(); 
+    
+    // FIX: Group by date first to reduce loop checks from O(n^2) to O(n) per day
+    const groupedByDate = {};
+    combined.forEach(item => {
+       if (!groupedByDate[item.exam_date]) groupedByDate[item.exam_date] = [];
+       groupedByDate[item.exam_date].push(item);
+    });
 
-    for (let i = 0; i < combined.length; i++) {
-      for (let j = i + 1; j < combined.length; j++) {
-        const a = combined[i]; 
-        const b = combined[j];
+    Object.values(groupedByDate).forEach(dayItems => {
+       for (let i = 0; i < dayItems.length; i++) {
+         for (let j = i + 1; j < dayItems.length; j++) {
+           const a = dayItems[i]; 
+           const b = dayItems[j];
 
-        if (a.exam_date === b.exam_date && a.section !== b.section) {
-          const hasTimeOverlap = a.start_time < b.end_time && a.end_time > b.start_time;
-
-          if (hasTimeOverlap) {
-            if (a.proctor && b.proctor && a.proctor === b.proctor && a.proctor !== "TBA") {
-              conflicts.push(`Proctor ${a.proctor} double-booked: ${a.section} vs ${b.section}`);
-              conflictIds.add(a.id);
-              conflictIds.add(b.id);
-            }
-            if (a.room && b.room && a.room === b.room && a.room !== "TBA") {
-              conflicts.push(`Room ${a.room} double-booked: ${a.section} vs ${b.section}`);
-              conflictIds.add(a.id);
-              conflictIds.add(b.id);
-            }
-          }
-        }
-      }
-    }
+           if (a.section !== b.section) {
+             const hasTimeOverlap = a.start_time < b.end_time && a.end_time > b.start_time;
+             if (hasTimeOverlap) {
+               if (a.proctor && b.proctor && a.proctor === b.proctor && a.proctor !== "TBA") {
+                 conflicts.push(`Proctor ${a.proctor} double-booked: ${a.section} vs ${b.section}`);
+                 conflictIds.add(a.id); conflictIds.add(b.id);
+               }
+               if (a.room && b.room && a.room === b.room && a.room !== "TBA") {
+                 conflicts.push(`Room ${a.room} double-booked: ${a.section} vs ${b.section}`);
+                 conflictIds.add(a.id); conflictIds.add(b.id);
+               }
+             }
+           }
+         }
+       }
+    });
 
     if (conflicts.length > 0) {
       showToast(`Warning: Override applied but resulted in ${conflicts.length} conflict(s).`, 'error', true);
@@ -507,6 +513,7 @@ const DepartmentCard = ({
     let generationFailed = false; 
 
 for (let d = 0; d < examDays; d++) {
+  await new Promise(resolve => setTimeout(resolve, 0));
       if (generationFailed) break; 
 
       const dayDate = examDates[d];
@@ -2693,4 +2700,4 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
   );
 };
 
-export default DepartmentCard;
+export default React.memo(DepartmentCard);
