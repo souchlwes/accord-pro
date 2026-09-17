@@ -1751,16 +1751,26 @@ function App() {
     if (data) setNotifications(data);
   };
 
-  const fetchAllData = async (showSpinner = true, activeProfile = profile) => {
+ const fetchAllData = async (showSpinner = true, activeProfile = profile) => {
     if (showSpinner) { setLoading(true); setSyncError(null); }
     try {
       const uni = activeProfile?.university || 'UNKNOWN';
+      
+      // --- DATA HORIZON: Only fetch data from the last 30 days onward to save RAM ---
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const horizonString = thirtyDaysAgo.toISOString().split('T')[0];
+
       const fetchPromise = Promise.all([
         supabase.from('departments').select('*').eq('university', uni).order('name', { ascending: true }),
-        supabase.from('schedules').select('*').eq('university', uni),
-        supabase.from('proctor_availability').select('*').eq('university', uni),
+        
+        // Apply the horizon string filter using .gte() (Greater Than or Equal to)
+        supabase.from('schedules').select('*').eq('university', uni).gte('exam_date', horizonString),
+        supabase.from('proctor_availability').select('*').eq('university', uni).gte('exam_date', horizonString),
+        
         supabase.from('profiles').select('*').eq('university', uni)
       ]);
+      
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database took too long to respond.")), 10000));
       const [deptsRes, schedsRes, availRes, profilesRes] = await Promise.race([fetchPromise, timeoutPromise]);
 
