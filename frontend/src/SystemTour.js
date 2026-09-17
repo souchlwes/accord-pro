@@ -29,7 +29,7 @@ const CustomTooltip = ({ index, step, backProps, closeProps, primaryProps, toolt
           <span /> // Empty placeholder to keep the flex spacing aligned
         )}
         <button {...primaryProps} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">
-          {index === 3 ? 'Finish Tour' : 'Next Step'}
+          {step.isLast ? 'Finish Tour' : 'Next Step'}
         </button>
       </div>
       
@@ -37,7 +37,7 @@ const CustomTooltip = ({ index, step, backProps, closeProps, primaryProps, toolt
   );
 };
 
-export default function SystemTour({ forceRun, onTourClose }) {
+export default function SystemTour({ forceRun, onTourClose, role }) {
   const [run, setRun] = useState(false);
 
   useEffect(() => {
@@ -58,50 +58,121 @@ export default function SystemTour({ forceRun, onTourClose }) {
     }
   };
 
-  const steps = [
-    {
-      target: 'body',
-      content: 'Welcome to Accord Pro! Let’s take a quick 10-second tour to show you where everything is.',
-      placement: 'center',
-      disableBeacon: true,
-    },
-    {
-      target: '#tour-nav-dashboard',
-      content: 'This is your main command center. You will find all your schedules and master timelines here.',
-      placement: 'right',
-      disableBeacon: true,
-    },
-    {
-      target: '#tour-chat-btn',
-      content: 'Need to contact a proctor or broadcast an announcement? Your global communication hub is right here.',
-      placement: 'right',
-      disableBeacon: true,
-    },
-    {
-      target: '#tour-help-btn',
-      content: 'If you ever forget a rule or need to replay this tour, click the Smart Help center.',
-      placement: 'right',
-      disableBeacon: true,
+  // --- DYNAMIC ROLE-BASED LOGIC ---
+  const getSteps = () => {
+    if (role === 'PROCTOR') {
+      return [
+        {
+          target: 'body',
+          content: 'Welcome to your Proctor Dashboard. This is your personal hub for managing your schedule and accepting assignments.',
+          placement: 'center',
+          disableBeacon: true,
+        },
+        {
+          target: '#tour-itinerary',
+          content: 'Your confirmed daily itinerary. If you need to flag an emergency or review your room assignments, check here.',
+          placement: 'left',
+          disableBeacon: true,
+        },
+        {
+          target: '#availability-log-section',
+          content: 'The Availability Log Book. You MUST log your free time here manually or via Excel so the generator can assign you.',
+          placement: 'top',
+          disableBeacon: true,
+        },
+        {
+          target: '#tour-nav-dashboard',
+          content: 'Watch your notification bell here for instant Reliever Requests if an admin needs you to cover an emergency shift.',
+          placement: 'right',
+          disableBeacon: true,
+          isLast: true
+        }
+      ];
+    } 
+    
+    if (role === 'DEPT_ADMIN') {
+      return [
+        {
+          target: 'body',
+          content: 'Welcome to your Department Workspace. Manage your specific rooms, subjects, and proctor pool here.',
+          placement: 'center',
+          disableBeacon: true,
+        },
+        {
+          target: '#tour-workspaces',
+          content: 'Your isolated Department Hub. Configure your local rooms and subjects, and manage your internal proctors.',
+          placement: 'top',
+          disableBeacon: true,
+        },
+        {
+          target: '#tour-conflict-engine',
+          content: 'The Re-Validation Engine runs automatically when you generate a draft to prevent proctor overlaps and room double-bookings.',
+          placement: 'bottom',
+          disableBeacon: true,
+        },
+        {
+          target: '#tour-system-registry',
+          content: 'Your local registry. Approve new proctors who use your 6-character Invite Code here.',
+          placement: 'top',
+          disableBeacon: true,
+          isLast: true
+        }
+      ];
     }
-  ];
+
+    // Default to HEAD_ADMIN
+    return [
+      {
+        target: 'body',
+        content: 'Welcome to your University Master View. This dashboard grants you global oversight of all department workspaces, timelines, and staff registries.',
+        placement: 'center',
+        disableBeacon: true,
+      },
+      {
+        target: '#tour-conflict-engine',
+        content: 'The Re-Validation Engine lives here. It continuously runs conflict detection to instantly flag overlapping rooms or double-booked proctors across the entire campus.',
+        placement: 'bottom',
+        disableBeacon: true,
+      },
+      {
+        target: '#tour-workspaces',
+        content: 'These are your isolated Department Workspaces. Each uses a unique 6-character Invite Code to securely route new staff into the correct branch.',
+        placement: 'top',
+        disableBeacon: true,
+      },
+      {
+        target: '#tour-master-timeline',
+        content: 'Your Global Resource Monitor. This gives you a complete, read-only oversight of the live University Master Timeline.',
+        placement: 'top',
+        disableBeacon: true,
+      },
+      {
+        target: '#tour-system-registry',
+        content: 'Identity & Access Management (IAM). Maintain strict access control here. Unverified staff hit a PENDING wall until you approve them.',
+        placement: 'top',
+        disableBeacon: true,
+        isLast: true
+      }
+    ];
+  };
 
   return (
     <Joyride
-      steps={steps}
+      steps={getSteps()}
       run={run}
       continuous={true}
-      disableOverlayClose={true} // Forces them to click Next or the X
-      tooltipComponent={CustomTooltip} // INJECTS OUR CUSTOM TAILWIND UI
+      disableOverlayClose={true}
+      tooltipComponent={CustomTooltip}
       callback={handleJoyrideCallback}
       floaterProps={{
         styles: {
           floater: { filter: 'drop-shadow(0 20px 25px rgba(0,0,0,0.5))' },
-          arrow: { display: 'none' } // Hiding the arrow makes it look cleaner with heavy rounded borders
+          arrow: { display: 'none' }
         }
       }}
       styles={{
         options: {
-          overlayColor: 'rgba(15, 23, 42, 0.85)', // A dark slate overlay instead of pure black
+          overlayColor: 'rgba(15, 23, 42, 0.85)',
           zIndex: 10000,
         }
       }}
