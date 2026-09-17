@@ -1875,14 +1875,32 @@ useEffect(() => {
     }, 3000); 
   };
 
-  useEffect(() => {
+useEffect(() => {
     if (!session) return;
     const dbChannel = supabase.channel('system-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, triggerSmartSync)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, triggerSmartSync)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, triggerSmartSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchProfiles)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      
+      // Delta Updates: Mutate state directly instead of downloading the whole DB again
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
+         setGlobalSchedule(prev => {
+            if (payload.eventType === 'INSERT') return [...prev, payload.new];
+            if (payload.eventType === 'UPDATE') return prev.map(s => s.id === payload.new.id ? payload.new : s);
+            if (payload.eventType === 'DELETE') return prev.filter(s => s.id !== payload.old.id);
+            return prev;
+         });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'proctor_availability' }, (payload) => {
+         setGlobalAvailability(prev => {
+            if (payload.eventType === 'INSERT') return [...prev, payload.new];
+            if (payload.eventType === 'UPDATE') return prev.map(a => a.id === payload.new.id ? payload.new : a);
+            if (payload.eventType === 'DELETE') return prev.filter(a => a.id !== payload.old.id);
+            return prev;
+         });
+      })
+      
+      // Restored Messages Listener
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
          if (payload.new.sender_id !== profile?.id) {
            if (payload.new.receiver_id === profile?.id || !payload.new.receiver_id) {
              
@@ -1903,7 +1921,7 @@ useEffect(() => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [session, profile]);
-
+  
   // --- ADVANCED SYSTEM HEALTH METRICS ---
   const systemMetrics = useMemo(() => {
     // 1. Conflicts & Flags
