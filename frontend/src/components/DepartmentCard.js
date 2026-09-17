@@ -92,6 +92,7 @@ const DepartmentCard = ({
   highlightTarget
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
+  const [previewView, setPreviewView] = useState("upcoming");
   const [generationErrors, setGenerationErrors] = useState([]);
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -409,15 +410,23 @@ const DepartmentCard = ({
     })).sort((a, b) => new Date(a.date) - new Date(b.date) || a.section.localeCompare(b.section));
   }, [localSchedule, deptCode]);
 
+  // --- NEW: FILTERS PAST SESSIONS INTO HISTORY ---
+  const filteredPreview = useMemo(() => {
+    return consolidatedPreview.filter(item => {
+        const past = isPast(item.date, item.endTime);
+        return previewView === 'upcoming' ? !past : past;
+    });
+  }, [consolidatedPreview, previewView]);
+
   const tablesByYearAndDay = useMemo(() => {
     const data = {};
-    consolidatedPreview.forEach(item => {
+    filteredPreview.forEach(item => {
       if (!data[item.year]) data[item.year] = {};
       if (!data[item.year][item.date]) data[item.year][item.date] = [];
       data[item.year][item.date].push(item);
     });
     return data;
-  }, [consolidatedPreview]);
+  }, [filteredPreview]);
 
   // --- GENERATOR UI STATES ---
   const [examDays, setExamDays] = useState(0);
@@ -1715,8 +1724,12 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   Master <span className="text-blue-600">Draft</span>
                   {auditLog.length > 0 && <span className="text-[10px] bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2"><Edit3 size={12}/> {auditLog.length - 1} Manual Edits • 0 Conflicts</span>}
                 </h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Consolidated View for {deptCode}</p>
-              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Consolidated View for {deptCode}</p>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mt-4 w-max">
+                  <button onClick={() => setPreviewView('upcoming')} className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${previewView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Upcoming</button>
+                  <button onClick={() => setPreviewView('history')} className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${previewView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>History</button>
+                </div>
+                </div>
              <div className="flex gap-3">
                  <button onClick={() => setExportConfig({ isOpen: true, format: 'excel', type: 'ALL', targetValue: '' })} className="flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-emerald-100 transition-all active:scale-95 shadow-sm">
                     <Download size={16} /> Excel
@@ -1804,8 +1817,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               </div>
             ))}
 
-            <div className="grid grid-cols-1 gap-10 mt-16">
-              {consolidatedPreview.length > 0 ? consolidatedPreview.map((row, i) => (
+           <div className="grid grid-cols-1 gap-10 mt-16">
+              {filteredPreview.length > 0 ? filteredPreview.map((row, i) => (
                 <div key={i} className="bg-white border-2 border-slate-100 rounded-[3rem] overflow-hidden flex flex-col md:flex-row hover:border-blue-300 transition-all hover:shadow-2xl group relative">
                   <div className="absolute top-6 right-10 flex gap-4 z-20 items-center">
                     {renderStatusBadge(row.status)}
