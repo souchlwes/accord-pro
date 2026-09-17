@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones
+  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones, Paperclip, Image as ImageIcon, FileText, DownloadCloud, UserMinus, Hash, Info, MoreHorizontal, Folder
 } from 'lucide-react';
 
 
@@ -75,6 +75,7 @@ const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL (MULTI-PANE & MOBILE SWIPE EDITION) ---
 const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
+  // Original States
   const [messages, setMessages] = useState([]);
   const [activePanes, setActivePanes] = useState([{ type: 'global', id: 'global' }]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,21 +84,48 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [editingIds, setEditingIds] = useState({});
   const [activeThreads, setActiveThreads] = useState({}); 
   
+  // New States for Groups & Attachments
+  const [rooms, setRooms] = useState([]);
+  const [participants, setParticipants] = useState([]);
+  const [sidebarTab, setSidebarTab] = useState('dms'); // 'dms', 'groups', 'announcements'
+  const [roomDetailsOpen, setRoomDetailsOpen] = useState({}); 
+  const [uploading, setUploading] = useState({});
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+
   const messagesEndRefs = useRef({});
+  const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
 
+  // FETCH ALL DATA (Messages + Rooms + Participants)
   useEffect(() => {
     const fetchChatData = async () => {
-      const { data: msgData } = await supabase.from('messages')
-        .select('*')
-        .or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`)
-        .order('created_at', { ascending: true }); 
+      // 1. Fetch Rooms the user is part of
+      const { data: pData } = await supabase.from('chat_participants').select('room_id').eq('user_id', profile.id);
+      const roomIds = pData?.map(p => p.room_id) || [];
+      
+      if (roomIds.length > 0) {
+        const { data: rData } = await supabase.from('chat_rooms').select('*').in('id', roomIds);
+        setRooms(rData || []);
+        const { data: members } = await supabase.from('chat_participants').select('*').in('room_id', roomIds);
+        setParticipants(members || []);
+      }
+
+      // 2. Fetch Messages (Global + DMs + Joined Rooms)
+      let query = supabase.from('messages').select('*').order('created_at', { ascending: true });
+      if (roomIds.length > 0) {
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.in.(${roomIds.join(',')})`);
+      } else {
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`);
+      }
+      
+      const { data: msgData } = await query;
       
       if (msgData) {
         setMessages(msgData);
+        // Retain original unread logic for DMs
         const initialUnread = {};
         msgData.forEach(m => {
-          if (m.receiver_id === profile.id) {
+          if (m.receiver_id === profile.id && !m.room_id) {
              const lastRead = localStorage.getItem(`last_read_dm_${profile.id}_${m.sender_id}`) || '1970-01-01T00:00:00.000Z';
              if (new Date(m.created_at) > new Date(lastRead)) {
                 initialUnread[m.sender_id] = (initialUnread[m.sender_id] || 0) + 1;
@@ -109,14 +137,18 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     };
     fetchChatData();
 
+    // Original Real-time Listener (Upgraded to catch Room messages)
     const channel = supabase.channel('global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const m = payload.new;
-          if (!m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id) {
+          const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id || (m.room_id && rooms.some(r => r.id === m.room_id));
+          
+          if (isRelevant) {
             setMessages(prev => [...prev, m]); 
             
-            if (m.sender_id !== profile.id && m.receiver_id === profile.id) {
+            // Unread badge logic for DMs
+            if (m.sender_id !== profile.id && m.receiver_id === profile.id && !m.room_id) {
                  setUnreadDMs(prev => {
                     const isPaneOpen = activePanes.some(p => p.id === m.sender_id);
                     if (isPaneOpen) {
@@ -134,7 +166,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         }
       }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile?.id, activePanes]);
+  }, [profile?.id, activePanes, rooms]);
 
   useEffect(() => {
     Object.keys(messagesEndRefs.current).forEach(key => {
@@ -142,14 +174,17 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     });
   }, [messages, activePanes, activeThreads]);
 
-  const openPane = (user) => {
-     if (!activePanes.find(p => p.id === user.id)) {
-         setActivePanes(prev => [...prev, { type: 'dm', id: user.id, target: user }]);
+  const openPane = (type, target) => {
+     const paneId = target.id; 
+     if (!activePanes.find(p => p.id === paneId)) {
+         setActivePanes(prev => [...prev, { type, id: paneId, target }]);
      }
-     setUnreadDMs(prev => ({...prev, [user.id]: 0}));
-     localStorage.setItem(`last_read_dm_${profile.id}_${user.id}`, new Date().toISOString());
      
-     // Auto-scroll to the new pane on mobile
+     if (type === 'dm') {
+         setUnreadDMs(prev => ({...prev, [target.id]: 0}));
+         localStorage.setItem(`last_read_dm_${profile.id}_${target.id}`, new Date().toISOString());
+     }
+     
      setTimeout(() => {
          const container = document.getElementById('chat-panes-container');
          if (container) container.scrollLeft = container.scrollWidth;
@@ -157,51 +192,121 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   };
 
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
+  const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  const handleSend = async (e, paneId, target) => {
-    e.preventDefault();
-    const text = inputs[paneId];
+  // NEW: Create Group/Announcement Room
+  const createRoom = async (roomType) => {
+     const name = prompt(`Enter ${roomType === 'group' ? 'Group' : 'Announcement'} Name:`);
+     if (!name) return;
+     
+     const { data: roomData, error } = await supabase.from('chat_rooms').insert([{ 
+       name, type: roomType, created_by: profile.id 
+     }]).select().single();
+
+     if (!error && roomData) {
+       await supabase.from('chat_participants').insert([{ room_id: roomData.id, user_id: profile.id }]);
+       setRooms(prev => [...prev, roomData]);
+       openPane(roomType, roomData);
+     }
+  };
+
+  // Upgraded Handle Send (Supports Files & Targeted Room Emails)
+  const handleSend = async (e, paneId, type, target, attachment = null) => {
+    if (e) e.preventDefault();
+    const text = inputs[paneId] || '';
     const editingId = editingIds[paneId];
     const activeThread = activeThreads[paneId];
-    if (!text?.trim()) return;
+    
+    if (!text.trim() && !attachment) return;
 
     if (editingId) {
       await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
       setEditingIds(prev => ({ ...prev, [paneId]: null }));
     } else {
-      const { error } = await supabase.from('messages').insert([{
-        sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
-        text, receiver_id: paneId === 'global' ? null : target?.id, parent_id: activeThread ? activeThread.id : null
-      }]);
+      const payload = {
+        sender_id: profile.id, 
+        sender_name: profile.full_name, 
+        sender_role: profile.role,
+        text, 
+        receiver_id: type === 'dm' ? target.id : null, 
+        parent_id: activeThread ? activeThread.id : null,
+        room_id: (type === 'group' || type === 'announcement') ? target.id : null,
+        attachment_url: attachment?.url || null,
+        attachment_type: attachment?.type || null
+      };
 
-      if (!error && paneId === 'global' && !activeThread) {
-          const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
-          if (isAdmin) {
-              // RESTORED FIX: Loop through and send individually to prevent group messaging
+      const { error } = await supabase.from('messages').insert([payload]);
+
+      // --- EMAIL NOTIFICATION LOGIC (Preserved & Upgraded for targeted groups) ---
+      if (!error && !activeThread) {
+          const displayMsg = text || "Sent an attachment";
+          
+          if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
+              // Original Global 1-by-1 Loop
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
                  fetch('/api/notify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: text })
-                 }).catch(err => console.error("Chat API failed for " + singleEmail + ":", err));
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: displayMsg })
+                 }).catch(err => console.error(err));
+              });
+          } else if (type === 'dm' && target?.email) {
+              fetch('/api/notify', {
+                 method: 'POST', headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg })
+              }).catch(err => console.error(err));
+          } else if (type === 'group' || type === 'announcement') {
+              // NEW: Targeted Room Emails (Only sends to members of this specific chat)
+              const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
+              const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
+              
+              targetedEmails.forEach(singleEmail => {
+                 fetch('/api/notify', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails: singleEmail, title: `New message in ${target.name}`, message: displayMsg })
+                 }).catch(err => console.error(err));
               });
           }
-      } else if (!error && paneId !== 'global' && target?.email && !activeThread) {
-          fetch('/api/notify', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: text })
-          }).catch(err => console.error("Chat API failed:", err));
       }
     }
     setInputs(prev => ({ ...prev, [paneId]: '' }));
   };
 
+  const handleFileUpload = async (e, paneId, type, target) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(prev => ({ ...prev, [paneId]: true }));
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const isImage = file.type.startsWith('image/');
+      
+      const { error } = await supabase.storage.from('chat-attachments').upload(fileName, file);
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName);
+      await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'file' });
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploading(prev => ({ ...prev, [paneId]: false }));
+      e.target.value = null; 
+    }
+  };
+
   return (
     <div id="accord-chat-panel" className="fixed inset-0 md:inset-6 z-[200] bg-slate-900/80 backdrop-blur-3xl md:border border-white/10 md:rounded-[2.5rem] flex overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300 font-sans antialiased">
       
-      {/* MOBILE SWIPE CONTAINER (Snap Scrolling) */}
+      {/* Fullscreen Image Overlay */}
+      {fullscreenImage && (
+        <div className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenImage(null)}>
+          <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-rose-500 transition-all"><X size={24}/></button>
+          <img src={fullscreenImage} alt="Attachment" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"/>
+        </div>
+      )}
+
+      {/* MOBILE SWIPE CONTAINER */}
       <div id="chat-panes-container" className="flex-1 flex overflow-x-auto snap-x snap-mandatory custom-scrollbar scroll-smooth">
         
         {/* LEFT SIDEBAR: DIRECTORY */}
@@ -217,50 +322,83 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
             <button onClick={onClose} className="text-slate-400 hover:text-white bg-white/5 hover:bg-rose-500 p-2 rounded-full transition-all border border-transparent hover:border-rose-400"><X size={14} strokeWidth={2.5}/></button>
           </div>
 
+          <div className="flex bg-black/20 p-2 border-b border-white/5 shrink-0">
+            <button onClick={() => setSidebarTab('dms')} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${sidebarTab === 'dms' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Direct</button>
+            <button onClick={() => setSidebarTab('groups')} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${sidebarTab === 'groups' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Groups</button>
+            <button onClick={() => setSidebarTab('announcements')} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${sidebarTab === 'announcements' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Alerts</button>
+          </div>
+
           <div className="p-4 border-b border-white/5 shrink-0">
              <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                <input type="text" placeholder="Search staff..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-white/5 text-white placeholder:text-slate-500 p-3 pl-10 rounded-2xl text-[11px] font-medium border border-white/10 outline-none focus:border-blue-500 transition-all shadow-inner"/>
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-white/5 text-white placeholder:text-slate-500 p-3 pl-10 rounded-2xl text-[11px] font-medium border border-white/10 outline-none focus:border-blue-500 transition-all shadow-inner"/>
              </div>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1 pb-20 md:pb-3">
-            <button onClick={() => { if(!activePanes.find(p=>p.id==='global')) setActivePanes(prev=>[{type:'global', id:'global'}, ...prev]); else { document.getElementById('chat-panes-container').scrollLeft = 320; } }} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
-               <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
-               <div>
-                  <h4 className="text-xs font-bold text-slate-200">Global Campus</h4>
-                  <p className="text-[10px] text-slate-500 font-medium">Broadcast Announcements</p>
-               </div>
-            </button>
             
-            <div className="pt-4 pb-2 px-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Direct Messages</div>
-            
-            {[...systemUsers].sort((a, b) => {
-              const aMsgs = messages.filter(m => (m.sender_id === a.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === a.id));
-              const bMsgs = messages.filter(m => (m.sender_id === b.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === b.id));
-              const aLatest = aMsgs.length > 0 ? new Date(aMsgs[aMsgs.length - 1].created_at).getTime() : 0;
-              const bLatest = bMsgs.length > 0 ? new Date(bMsgs[bMsgs.length - 1].created_at).getTime() : 0;
-              return bLatest - aLatest || (a.full_name || "").localeCompare(b.full_name || "");
-            }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
-               <button key={u.id} onClick={() => openPane(u)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left relative group">
-                  <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={40} />
-                  <div className="flex-1 overflow-hidden">
-                     <h4 className="text-xs font-bold text-slate-200 truncate">{u.full_name}</h4>
-                     <p className="text-[10px] text-slate-500 font-medium truncate">{u.role}</p>
-                  </div>
-                  {unreadDMs[u.id] > 0 && (
-                     <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-pulse shrink-0">
-                       {unreadDMs[u.id]}
-                     </span>
-                  )}
-               </button>
-            ))}
+            {sidebarTab === 'dms' && (
+              <>
+                <div className="pt-2 pb-2 px-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Direct Messages</div>
+                {[...systemUsers].sort((a, b) => {
+                  const aMsgs = messages.filter(m => (m.sender_id === a.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === a.id));
+                  const bMsgs = messages.filter(m => (m.sender_id === b.id && m.receiver_id === profile.id) || (m.sender_id === profile.id && m.receiver_id === b.id));
+                  const aLatest = aMsgs.length > 0 ? new Date(aMsgs[aMsgs.length - 1].created_at).getTime() : 0;
+                  const bLatest = bMsgs.length > 0 ? new Date(bMsgs[bMsgs.length - 1].created_at).getTime() : 0;
+                  return bLatest - aLatest || (a.full_name || "").localeCompare(b.full_name || "");
+                }).filter(u => u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+                  <button key={u.id} onClick={() => openPane('dm', u)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left relative group">
+                      <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={40} />
+                      <div className="flex-1 overflow-hidden">
+                        <h4 className="text-xs font-bold text-slate-200 truncate">{u.full_name}</h4>
+                        <p className="text-[10px] text-slate-500 font-medium truncate">{u.role}</p>
+                      </div>
+                      {unreadDMs[u.id] > 0 && (
+                        <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-pulse shrink-0">
+                          {unreadDMs[u.id]}
+                        </span>
+                      )}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {sidebarTab === 'groups' && (
+              <>
+                <button onClick={() => createRoom('group')} className="w-full mb-2 p-3 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-blue-500/30 flex items-center justify-center gap-2">
+                  <UserPlus size={14}/> Create Group Chat
+                </button>
+                {rooms.filter(r => r.type === 'group' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
+                  <button key={r.id} onClick={() => openPane('group', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+                    <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 rounded-full flex items-center justify-center shrink-0"><Hash size={16}/></div>
+                    <div className="flex-1 overflow-hidden"><h4 className="text-xs font-bold text-slate-200 truncate">{r.name}</h4></div>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {sidebarTab === 'announcements' && (
+              <>
+                {profile.role !== 'PROCTOR' && (
+                  <button onClick={() => createRoom('announcement')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
+                    <Hash size={14}/> New Targeted Announcement
+                  </button>
+                )}
+                <button onClick={() => openPane('global', {id: 'global'})} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+                   <div className="w-10 h-10 bg-amber-500/20 text-amber-400 border border-amber-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
+                   <div><h4 className="text-xs font-bold text-slate-200">Global Campus</h4><p className="text-[10px] text-slate-500">All Staff Broadcasts</p></div>
+                </button>
+                {rooms.filter(r => r.type === 'announcement' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
+                  <button key={r.id} onClick={() => openPane('announcement', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+                    <div className="w-10 h-10 bg-rose-500/20 text-rose-400 border border-rose-400/30 rounded-full flex items-center justify-center shrink-0"><Hash size={16}/></div>
+                    <div className="flex-1 overflow-hidden"><h4 className="text-xs font-bold text-slate-200 truncate">{r.name}</h4></div>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
           
-          {/* Mobile Swipe Hint */}
-          <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-widest uppercase text-slate-500 bg-slate-900/80 px-4 py-2 rounded-full backdrop-blur-md pointer-events-none">
-            Swipe to chat →
-          </div>
+          <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-widest uppercase text-slate-500 bg-slate-900/80 px-4 py-2 rounded-full backdrop-blur-md pointer-events-none">Swipe to chat →</div>
         </div>
 
         {/* RIGHT AREA: HORIZONTAL MULTI-PANE VIEW */}
@@ -272,121 +410,247 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         ) : (
           activePanes.map(pane => {
              const isGlobal = pane.id === 'global';
+             const isRoom = pane.type === 'group' || pane.type === 'announcement';
              const target = pane.target;
              const activeThread = activeThreads[pane.id];
+             const detailsOpen = roomDetailsOpen[pane.id];
              
              const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
-               if (isGlobal) return !m.receiver_id && !m.parent_id;
-               return !m.parent_id && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id));
+               if (isGlobal) return !m.receiver_id && !m.room_id && !m.parent_id;
+               if (isRoom) return m.room_id === target.id && !m.parent_id;
+               return !m.room_id && !m.parent_id && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id));
              });
 
-             return (
-                <div key={pane.id} className="w-full md:w-[380px] shrink-0 border-r border-white/5 flex flex-col h-full relative snap-center md:snap-start animate-in slide-in-from-right-8 bg-slate-900/50">
-                   
-                   {/* Pane Header */}
-                   <div className="px-4 py-3.5 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
-                      <div className="flex items-center gap-3">
-                         {isGlobal ? (
-                            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
-                         ) : (
-                            <UserAvatar fullName={target.full_name} avatarUrl={target.avatar_url} size={32} />
-                         )}
-                         <div>
-                            <h4 className="text-[12px] font-bold text-white truncate max-w-[150px]">{isGlobal ? 'Campus Board' : target.full_name}</h4>
-                            <span className="text-[9px] font-medium text-slate-400 tracking-wide">{isGlobal ? 'Public Broadcast' : target.role}</span>
-                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                         {!isGlobal && (
-                            <button onClick={() => { onClose(); onViewProctor(target); }} className="text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-600 p-2 rounded-full transition-all border border-blue-500/20 hidden md:block" title="View Dashboard"><LayoutDashboard size={12} strokeWidth={2.5}/></button>
-                         )}
-                         <button onClick={() => closePane(pane.id)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-rose-500 p-2 rounded-full transition-all"><X size={12} strokeWidth={2.5}/></button>
-                      </div>
-                   </div>
+             const attachments = paneMessages.filter(m => m.attachment_url);
 
-                   {/* Message Area */}
-                   <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
-                      
-                      {activeThread && (
-                        <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
-                           <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max">
-                             <User size={12}/> {activeThread.sender_name}
-                           </button>
-                           <p className="text-[12px] text-white leading-relaxed whitespace-pre-wrap">{activeThread.text}</p>
-                           <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
-                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Original Post</span>
-                             <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: null}))} className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest">Close Thread</button>
+             return (
+                <div key={pane.id} className={`shrink-0 border-r border-white/5 flex h-full relative snap-center md:snap-start animate-in slide-in-from-right-8 bg-slate-900/50 transition-all duration-300 ${detailsOpen ? 'w-full md:w-[600px]' : 'w-full md:w-[380px]'}`}>
+                   
+                   {/* Main Chat Column */}
+                   <div className="flex-1 flex flex-col h-full overflow-hidden">
+                     {/* Pane Header */}
+                     <div className="px-4 py-3.5 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
+                        <div className="flex items-center gap-3">
+                           {isGlobal ? (
+                              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
+                           ) : isRoom ? (
+                              <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg"><Hash size={14} className="text-white"/></div>
+                           ) : (
+                              <UserAvatar fullName={target.full_name} avatarUrl={target.avatar_url} size={32} />
+                           )}
+                           <div>
+                              <h4 className="text-[12px] font-bold text-white truncate max-w-[150px]">{isGlobal ? 'Campus Board' : target.full_name || target.name}</h4>
+                              <span className="text-[9px] font-medium text-slate-400 tracking-wide">{isGlobal ? 'Public Broadcast' : isRoom ? `${participants.filter(p => p.room_id === target.id).length} Members` : target.role}</span>
                            </div>
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                           {(isRoom || attachments.length > 0) && (
+                             <button onClick={() => toggleDetails(pane.id)} className={`p-2 rounded-full transition-all hidden md:block ${detailsOpen ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white bg-white/5'}`} title="Room Info"><Info size={12} strokeWidth={2.5}/></button>
+                           )}
+                           {!isGlobal && !isRoom && (
+                              <button onClick={() => { onClose(); onViewProctor(target); }} className="text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-600 p-2 rounded-full transition-all border border-blue-500/20 hidden md:block" title="View Dashboard"><LayoutDashboard size={12} strokeWidth={2.5}/></button>
+                           )}
+                           <button onClick={() => closePane(pane.id)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-rose-500 p-2 rounded-full transition-all"><X size={12} strokeWidth={2.5}/></button>
+                        </div>
+                     </div>
 
-                      {paneMessages.length === 0 && <div className="text-center mt-10 text-slate-500 text-[10px] font-bold uppercase tracking-widest">No messages yet.</div>}
-                      
-                      {paneMessages.map(m => {
-                         const isMe = m.sender_id === profile.id;
-                         const replyCount = messages.filter(r => r.parent_id === m.id).length;
+                     {/* Message Area */}
+                     <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
+                        
+                        {/* Threading UI (Preserved) */}
+                        {activeThread && (
+                          <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
+                             <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max">
+                               <User size={12}/> {activeThread.sender_name}
+                             </button>
+                             
+                             {activeThread.attachment_url && activeThread.attachment_type === 'image' && <img src={activeThread.attachment_url} alt="Attached" className="w-20 rounded mb-2"/>}
+                             <p className="text-[12px] text-white leading-relaxed whitespace-pre-wrap">{activeThread.text}</p>
+                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Original Post</span>
+                               <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: null}))} className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest">Close Thread</button>
+                             </div>
+                          </div>
+                        )}
 
-                         return (
-                            <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
-                               {!isMe && isGlobal && (
-                                  <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
-                                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}
-                                  </span>
-                               )}
-                               <div className="flex items-center gap-2 max-w-[85%]">
-                                  {isMe && (
-                                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0 mr-1">
-                                      <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
-                                      <button onClick={async () => { if(window.confirm("Delete message?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
-                                    </div>
-                                  )}
-                                  <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap ${
-                                     isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
-                                          : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
-                                  }`}>
-                                     {m.text}
-                                     {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
-                                  </div>
-                                  {!isMe && !activeThread && (
-                                    <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1" title="Reply in Thread"><Reply size={14}/></button>
-                                  )}
-                               </div>
-                               <div className="flex gap-2 items-center mt-1 px-1">
-                                 <span className="text-[8px] font-black text-slate-500 uppercase">{formatRelativeTime(m.created_at)}</span>
-                                 {!activeThread && replyCount > 0 && (
-                                   <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">
-                                      {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
-                                   </button>
+                        {paneMessages.length === 0 && <div className="text-center mt-10 text-slate-500 text-[10px] font-bold uppercase tracking-widest">Start the conversation.</div>}
+                        
+                        {paneMessages.map(m => {
+                           const isMe = m.sender_id === profile.id;
+                           const replyCount = messages.filter(r => r.parent_id === m.id).length;
+
+                           return (
+                              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
+                                 {(!isMe && (isGlobal || isRoom)) && (
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
+                                       <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}
+                                    </span>
                                  )}
-                               </div>
-                            </div>
-                         );
-                      })}
-                      <div ref={el => messagesEndRefs.current[pane.id] = el} />
+                                 <div className="flex items-center gap-2 max-w-[85%]">
+                                    
+                                    {/* Preserved Edit/Delete Logic */}
+                                    {isMe && (
+                                      <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0 mr-1">
+                                        <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
+                                        <button onClick={async () => { if(window.confirm("Delete message?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
+                                      </div>
+                                    )}
+
+                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap ${
+                                       isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
+                                            : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
+                                    }`}>
+                                       {/* NEW: Attachment Rendering inside the bubble */}
+                                       {m.attachment_url && m.attachment_type === 'image' && (
+                                          <img src={m.attachment_url} alt="Attached" className="w-full max-w-[200px] md:max-w-[250px] rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-white/20" onClick={() => setFullscreenImage(m.attachment_url)} />
+                                       )}
+                                       {m.attachment_url && m.attachment_type !== 'image' && (
+                                          <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-black/20 p-2.5 rounded-xl mb-2 hover:bg-black/40 transition-colors border border-white/10">
+                                             <FileText size={16} /> <span className="font-bold underline text-[10px]">Download Attachment</span>
+                                          </a>
+                                       )}
+
+                                       {m.text && <span>{m.text}</span>}
+                                       {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
+                                    </div>
+
+                                    {!isMe && !activeThread && (
+                                      <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1" title="Reply in Thread"><Reply size={14}/></button>
+                                    )}
+                                 </div>
+                                 <div className="flex gap-2 items-center mt-1 px-1">
+                                   <span className="text-[8px] font-black text-slate-500 uppercase">{formatRelativeTime(m.created_at)}</span>
+                                   {!activeThread && replyCount > 0 && (
+                                     <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">
+                                        {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
+                                     </button>
+                                   )}
+                                 </div>
+                              </div>
+                           );
+                        })}
+                        <div ref={el => messagesEndRefs.current[pane.id] = el} />
+                     </div>
+
+                     {/* Premium Input & File Uploader */}
+                     {(!isRoom || pane.type !== 'announcement' || profile.role !== 'PROCTOR') && (
+                       <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
+                          {editingIds[pane.id] && (
+                             <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                               <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
+                               <button type="button" onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: null})); setInputs(prev => ({...prev, [pane.id]: ''})); }}><X size={12} className="text-amber-500 hover:text-amber-400"/></button>
+                             </div>
+                          )}
+                          <form onSubmit={(e) => handleSend(e, pane.id, pane.type, target)} className="relative flex items-center gap-2">
+                             
+                             <button type="button" onClick={() => fileInputRefs.current[pane.id]?.click()} disabled={uploading[pane.id]} className={`p-3 rounded-full transition-all ${uploading[pane.id] ? 'bg-blue-600/50 animate-pulse text-white' : 'bg-white/10 hover:bg-white/20 text-slate-300'}`}>
+                                <Paperclip size={14} />
+                             </button>
+                             <input type="file" ref={el => fileInputRefs.current[pane.id] = el} className="hidden" onChange={(e) => handleFileUpload(e, pane.id, pane.type, target)} accept="image/*,.pdf,.doc,.docx" />
+
+                             <input 
+                                type="text" 
+                                value={inputs[pane.id] || ''} 
+                                onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} 
+                                placeholder={uploading[pane.id] ? "Uploading..." : activeThread ? "Reply in thread..." : "Type a message..."} 
+                                disabled={uploading[pane.id]}
+                                className="flex-1 bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl px-4 py-3 text-[12px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium"
+                             />
+                             <button type="submit" disabled={!inputs[pane.id]?.trim() && !uploading[pane.id]} className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95">
+                                <Send size={14} strokeWidth={2.5} className="ml-0.5" />
+                             </button>
+                          </form>
+                       </div>
+                     )}
                    </div>
 
-                   {/* Premium Input */}
-                   <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
-                      {editingIds[pane.id] && (
-                         <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                           <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
-                           <button type="button" onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: null})); setInputs(prev => ({...prev, [pane.id]: ''})); }}><X size={12} className="text-amber-500 hover:text-amber-400"/></button>
+                   {/* RIGHT SIDEBAR: Room Details & Member Management */}
+                   {detailsOpen && (
+                     <div className="w-[220px] bg-black/40 border-l border-white/5 flex flex-col shrink-0 animate-in slide-in-from-right-8 hidden md:flex">
+                       <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
+                         <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-300">Room Details</h4>
+                         <button onClick={() => toggleDetails(pane.id)} className="text-slate-500 hover:text-white"><X size={12}/></button>
+                       </div>
+                       
+                       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+                         
+                         {isRoom && (
+                           <div>
+                             <div className="flex justify-between items-center mb-3">
+                               <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Participants ({participants.filter(p => p.room_id === target.id).length})</h5>
+                               {target.created_by === profile.id && (
+                                 <button onClick={async () => {
+                                    const email = prompt("Enter email of staff to add:");
+                                    const user = allProfiles.find(u => u.email === email);
+                                   
+                                   if(user) {
+  await supabase.from('chat_participants').insert([{room_id: target.id, user_id: user.id}]);
+  setParticipants(prev => [...prev, {room_id: target.id, user_id: user.id}]);
+  
+  // NEW: Instantly email the user that they were added to the group
+  fetch('/api/notify', {
+     method: 'POST', 
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ 
+       emails: user.email, 
+       title: `Added to Channel: ${target.name}`, 
+       message: `${profile.full_name} has added you to this communication channel. Open your Master Timeline dashboard to view the group.` 
+     })
+  }).catch(err => console.error(err));
+  
+} else {
+  alert("System account not found for that email.");
+}
+                                 }} className="text-blue-400 hover:text-blue-300 bg-blue-500/20 p-1.5 rounded-md"><UserPlus size={12}/></button>
+                               )}
+                             </div>
+                             <div className="space-y-2">
+                               {participants.filter(p => p.room_id === target.id).map(p => {
+                                 const user = allProfiles.find(u => u.id === p.user_id);
+                                 return user ? (
+                                   <div key={user.id} className="flex items-center gap-2">
+                                     <UserAvatar fullName={user.full_name} avatarUrl={user.avatar_url} size={20} />
+                                     <span className="text-[10px] font-bold text-slate-300 truncate flex-1">{user.full_name}</span>
+                                     {target.created_by === profile.id && user.id !== profile.id && (
+                                       <button onClick={async () => {
+                                          await supabase.from('chat_participants').delete().eq('room_id', target.id).eq('user_id', user.id);
+                                          setParticipants(prev => prev.filter(x => !(x.room_id === target.id && x.user_id === user.id)));
+                                       }} className="text-rose-500 hover:text-rose-400 p-1"><UserMinus size={10}/></button>
+                                     )}
+                                   </div>
+                                 ) : null;
+                               })}
+                             </div>
+                           </div>
+                         )}
+
+                         {/* Shared Media Grid */}
+                         <div>
+                           <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-3 flex items-center gap-1.5"><Folder size={10}/> Shared Files ({attachments.length})</h5>
+                           {attachments.length === 0 ? (
+                             <p className="text-[9px] text-slate-600 font-medium">No attachments yet.</p>
+                           ) : (
+                             <div className="grid grid-cols-2 gap-2">
+                               {attachments.map(m => (
+                                 <div key={m.id} className="relative group aspect-square bg-white/5 rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+                                   {m.attachment_type === 'image' ? (
+                                     <img src={m.attachment_url} alt="media" className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform" onClick={() => setFullscreenImage(m.attachment_url)}/>
+                                   ) : (
+                                     <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white transition-colors flex flex-col items-center">
+                                       <FileText size={20} className="mb-1"/>
+                                       <span className="text-[7px] font-bold uppercase truncate max-w-[50px]">DOC</span>
+                                     </a>
+                                   )}
+                                 </div>
+                               ))}
+                             </div>
+                           )}
                          </div>
-                      )}
-                      <form onSubmit={(e) => handleSend(e, pane.id, target)} className="relative flex items-end">
-                         <input 
-                            type="text" 
-                            value={inputs[pane.id] || ''} 
-                            onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} 
-                            placeholder={activeThread ? "Reply in thread..." : "Type a message..."} 
-                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl pl-4 pr-12 py-3 text-[12px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium"
-                         />
-                         <button type="submit" disabled={!inputs[pane.id]?.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 w-9 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95">
-                            <Send size={14} strokeWidth={2.5} className="ml-0.5" />
-                         </button>
-                      </form>
-                   </div>
+
+                       </div>
+                     </div>
+                   )}
                 </div>
              );
           })
