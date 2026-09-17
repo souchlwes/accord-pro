@@ -9,7 +9,10 @@ import Groq from 'groq-sdk';
 import Tesseract from 'tesseract.js';
 import accordLogo from './accord.png';
 
+
 // Initialize Groq directly in the browser
+console.log("My API Key is:", process.env.REACT_APP_GROQ_API_KEY);
+
 const groq = new Groq({
   apiKey: process.env.REACT_APP_GROQ_API_KEY,
   dangerouslyAllowBrowser: true 
