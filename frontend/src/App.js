@@ -84,24 +84,32 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [editingIds, setEditingIds] = useState({});
   const [activeThreads, setActiveThreads] = useState({}); 
   
-  // New States for Groups, Attachments & Member Search
+  // States for Groups, Attachments & Member Search
   const [rooms, setRooms] = useState([]);
   const [participants, setParticipants] = useState([]);
-  const [sidebarTab, setSidebarTab] = useState('dms'); // 'dms', 'groups', 'announcements'
+  const [sidebarTab, setSidebarTab] = useState('dms'); 
   const [roomDetailsOpen, setRoomDetailsOpen] = useState({}); 
   const [uploading, setUploading] = useState({});
   const [fullscreenImage, setFullscreenImage] = useState(null);
-  const [addingToRoom, setAddingToRoom] = useState(null); // Tracks which room's search is open
-  const [memberSearchQuery, setMemberSearchQuery] = useState(""); // Live search text
+  const [addingToRoom, setAddingToRoom] = useState(null); 
+  const [memberSearchQuery, setMemberSearchQuery] = useState(""); 
+  
+  // NEW: Sleek Custom Modals & Inline Confirmations (No window.prompt/alert/confirm)
+  const [createModal, setCreateModal] = useState(null); // 'group' | 'announcement' | null
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomPreset, setNewRoomPreset] = useState("none"); // Presets filter
+  const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(null);
+  const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
+  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
+  const [chatError, setChatError] = useState(""); // Replaces alert()
 
   const messagesEndRefs = useRef({});
   const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
 
-  // FETCH ALL DATA (Messages + Rooms + Participants)
+  // FETCH ALL DATA 
   useEffect(() => {
     const fetchChatData = async () => {
-      // 1. Fetch Rooms the user is part of
       const { data: pData } = await supabase.from('chat_participants').select('room_id').eq('user_id', profile.id);
       const roomIds = pData?.map(p => p.room_id) || [];
       
@@ -112,7 +120,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         setParticipants(members || []);
       }
 
-      // 2. Fetch Messages (Global + DMs + Joined Rooms)
       let query = supabase.from('messages').select('*').order('created_at', { ascending: true });
       if (roomIds.length > 0) {
         query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.in.(${roomIds.join(',')})`);
@@ -124,7 +131,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       
       if (msgData) {
         setMessages(msgData);
-        // Retain original unread logic for DMs
         const initialUnread = {};
         msgData.forEach(m => {
           if (m.receiver_id === profile.id && !m.room_id) {
@@ -139,7 +145,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     };
     fetchChatData();
 
-    // Original Real-time Listener (Upgraded to catch Room messages)
     const channel = supabase.channel('global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         if (payload.eventType === 'INSERT') {
@@ -148,8 +153,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           
           if (isRelevant) {
             setMessages(prev => [...prev, m]); 
-            
-            // Unread badge logic for DMs
             if (m.sender_id !== profile.id && m.receiver_id === profile.id && !m.room_id) {
                  setUnreadDMs(prev => {
                     const isPaneOpen = activePanes.some(p => p.id === m.sender_id);
@@ -196,23 +199,61 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
   const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  // Create Group/Announcement Room
-  const createRoom = async (roomType) => {
-     const name = prompt(`Enter ${roomType === 'group' ? 'Group' : 'Announcement'} Name:`);
-     if (!name) return;
+  // NEW: Secure Custom Room Creation with Presets (Replaces prompt)
+  const submitCreateRoom = async () => {
+     if (!newRoomName.trim()) return;
      
      const { data: roomData, error } = await supabase.from('chat_rooms').insert([{ 
-       name, type: roomType, created_by: profile.id 
+       name: newRoomName, type: createModal, created_by: profile.id 
      }]).select().single();
 
      if (!error && roomData) {
-       await supabase.from('chat_participants').insert([{ room_id: roomData.id, user_id: profile.id }]);
+       let usersToAdd = [profile.id]; 
+       
+       // Handle Presets Targeting
+       if (newRoomPreset === 'my_dept') {
+           systemUsers.filter(u => u.assigned_dept === profile.assigned_dept).forEach(u => usersToAdd.push(u.id));
+       } else if (newRoomPreset === 'all_proctors') {
+           systemUsers.filter(u => u.role === 'PROCTOR').forEach(u => usersToAdd.push(u.id));
+       } else if (newRoomPreset === 'all_admins') {
+           systemUsers.filter(u => ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(u.role)).forEach(u => usersToAdd.push(u.id));
+       }
+       
+       usersToAdd = [...new Set(usersToAdd)]; // Remove duplicates
+       
+       const participantPayload = usersToAdd.map(uid => ({ room_id: roomData.id, user_id: uid }));
+       await supabase.from('chat_participants').insert(participantPayload);
+       
        setRooms(prev => [...prev, roomData]);
-       openPane(roomType, roomData);
+       setParticipants(prev => [...prev, ...participantPayload]);
+       openPane(createModal, roomData);
+       
+       // Notify added users via email loop
+       const emailsToNotify = systemUsers.filter(u => usersToAdd.includes(u.id) && u.email).map(u => u.email);
+       emailsToNotify.forEach(email => {
+          fetch('/api/notify', {
+             method: 'POST', headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ emails: email, title: `Added to Channel: ${newRoomName}`, message: `${profile.full_name} has added you to a new internal communication channel.` })
+          }).catch(err => console.error(err));
+       });
+     } else {
+       setChatError("Failed to create room.");
+       setTimeout(() => setChatError(""), 3000);
      }
+     
+     setCreateModal(null);
+     setNewRoomName("");
+     setNewRoomPreset("none");
   };
 
-  // Upgraded Handle Send (Supports Files & Targeted Room Emails)
+  // NEW: Secure Room Deletion
+  const deleteRoom = async (roomId) => {
+     await supabase.from('chat_rooms').delete().eq('id', roomId);
+     setRooms(prev => prev.filter(r => r.id !== roomId));
+     closePane(roomId);
+     setConfirmDeleteRoom(null);
+  };
+
   const handleSend = async (e, paneId, type, target, attachment = null) => {
     if (e) e.preventDefault();
     const text = inputs[paneId] || '';
@@ -226,46 +267,28 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       setEditingIds(prev => ({ ...prev, [paneId]: null }));
     } else {
       const payload = {
-        sender_id: profile.id, 
-        sender_name: profile.full_name, 
-        sender_role: profile.role,
-        text, 
-        receiver_id: type === 'dm' ? target.id : null, 
-        parent_id: activeThread ? activeThread.id : null,
+        sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
+        text, receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
         room_id: (type === 'group' || type === 'announcement') ? target.id : null,
-        attachment_url: attachment?.url || null,
-        attachment_type: attachment?.type || null
+        attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
 
       const { error } = await supabase.from('messages').insert([payload]);
 
-      // --- EMAIL NOTIFICATION LOGIC ---
       if (!error && !activeThread) {
           const displayMsg = text || "Sent an attachment";
-          
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
-                 fetch('/api/notify', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: displayMsg })
-                 }).catch(err => console.error(err));
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: displayMsg }) }).catch(err => console.error(err));
               });
           } else if (type === 'dm' && target?.email) {
-              fetch('/api/notify', {
-                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg })
-              }).catch(err => console.error(err));
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg }) }).catch(err => console.error(err));
           } else if (type === 'group' || type === 'announcement') {
-              // Targeted Room Emails 
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
-              
               targetedEmails.forEach(singleEmail => {
-                 fetch('/api/notify', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emails: singleEmail, title: `New message in ${target.name}`, message: displayMsg })
-                 }).catch(err => console.error(err));
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `New message in ${target.name}`, message: displayMsg }) }).catch(err => console.error(err));
               });
           }
       }
@@ -289,7 +312,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName);
       await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'file' });
     } catch (err) {
-      alert("Upload failed: " + err.message);
+      setChatError("Upload failed. File might be too large.");
+      setTimeout(() => setChatError(""), 3000);
     } finally {
       setUploading(prev => ({ ...prev, [paneId]: false }));
       e.target.value = null; 
@@ -299,11 +323,43 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   return (
     <div id="accord-chat-panel" className="fixed inset-0 md:inset-6 z-[200] bg-slate-900/80 backdrop-blur-3xl md:border border-white/10 md:rounded-[2.5rem] flex overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300 font-sans antialiased">
       
-      {/* Fullscreen Image Overlay */}
+      {/* GLOBAL ERROR TOAST (No Alerts) */}
+      {chatError && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-rose-500 text-white px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest shadow-2xl animate-in slide-in-from-top-4 flex items-center gap-2 border border-rose-400">
+           <AlertCircle size={14} /> {chatError}
+        </div>
+      )}
+
+      {/* FULLSCREEN IMAGE OVERLAY */}
       {fullscreenImage && (
         <div className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenImage(null)}>
           <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-rose-500 transition-all"><X size={24}/></button>
           <img src={fullscreenImage} alt="Attachment" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"/>
+        </div>
+      )}
+
+      {/* CREATE ROOM MODAL (No Prompts) */}
+      {createModal && (
+        <div className="absolute inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-[0_0_60px_rgba(0,0,0,0.9)] animate-in zoom-in-95">
+               <h3 className="text-white text-sm font-black uppercase tracking-widest mb-1">Create {createModal === 'group' ? 'Group Chat' : 'Announcement'}</h3>
+               <p className="text-[10px] text-slate-400 font-medium mb-5">Set up a new communication channel.</p>
+               
+               <input autoFocus type="text" placeholder="Channel Name..." value={newRoomName} onChange={e => setNewRoomName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors mb-4" />
+               
+               <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Initial Participants (Presets)</label>
+               <select value={newRoomPreset} onChange={e => setNewRoomPreset(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-colors mb-6 appearance-none">
+                  <option value="none">Empty (I will add members manually)</option>
+                  <option value="my_dept">Target: Everyone in my Department</option>
+                  <option value="all_proctors">Target: All Proctors Campus-wide</option>
+                  {profile.role === 'HEAD_ADMIN' && <option value="all_admins">Target: All Department Heads</option>}
+               </select>
+
+               <div className="flex gap-2">
+                   <button onClick={() => { setCreateModal(null); setNewRoomName(""); setNewRoomPreset("none"); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
+                   <button onClick={submitCreateRoom} disabled={!newRoomName.trim()} className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 text-white text-[10px] font-black uppercase tracking-widest transition-all">Create Channel</button>
+               </div>
+           </div>
         </div>
       )}
 
@@ -354,11 +410,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <h4 className="text-xs font-bold text-slate-200 truncate">{u.full_name}</h4>
                         <p className="text-[10px] text-slate-500 font-medium truncate">{u.role}</p>
                       </div>
-                      {unreadDMs[u.id] > 0 && (
-                        <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-pulse shrink-0">
-                          {unreadDMs[u.id]}
-                        </span>
-                      )}
+                      {unreadDMs[u.id] > 0 && <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-pulse shrink-0">{unreadDMs[u.id]}</span>}
                   </button>
                 ))}
               </>
@@ -366,7 +418,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 
             {sidebarTab === 'groups' && (
               <>
-                <button onClick={() => createRoom('group')} className="w-full mb-2 p-3 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-blue-500/30 flex items-center justify-center gap-2">
+                <button onClick={() => setCreateModal('group')} className="w-full mb-2 p-3 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-blue-500/30 flex items-center justify-center gap-2">
                   <UserPlus size={14}/> Create Group Chat
                 </button>
                 {rooms.filter(r => r.type === 'group' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
@@ -381,7 +433,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
             {sidebarTab === 'announcements' && (
               <>
                 {profile.role !== 'PROCTOR' && (
-                  <button onClick={() => createRoom('announcement')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
+                  <button onClick={() => setCreateModal('announcement')} className="w-full mb-2 p-3 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-amber-500/30 flex items-center justify-center gap-2">
                     <Hash size={14}/> New Targeted Announcement
                   </button>
                 )}
@@ -398,7 +450,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               </>
             )}
           </div>
-          
           <div className="md:hidden absolute bottom-4 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-widest uppercase text-slate-500 bg-slate-900/80 px-4 py-2 rounded-full backdrop-blur-md pointer-events-none">Swipe to chat →</div>
         </div>
 
@@ -430,7 +481,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                    
                    {/* Main Chat Column */}
                    <div className="flex-1 flex flex-col h-full overflow-hidden">
-                     {/* Pane Header */}
                      <div className="px-4 py-3.5 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">
                            {isGlobal ? (
@@ -456,16 +506,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         </div>
                      </div>
 
-                     {/* Message Area */}
                      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
-                        
-                        {/* Threading UI (Preserved) */}
                         {activeThread && (
                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
-                             <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max">
-                               <User size={12}/> {activeThread.sender_name}
-                             </button>
-                             
+                             <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max"><User size={12}/> {activeThread.sender_name}</button>
                              {activeThread.attachment_url && activeThread.attachment_type === 'image' && <img src={activeThread.attachment_url} alt="Attached" className="w-20 rounded mb-2"/>}
                              <p className="text-[12px] text-white leading-relaxed whitespace-pre-wrap">{activeThread.text}</p>
                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
@@ -484,17 +528,24 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            return (
                               <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
                                  {(!isMe && (isGlobal || isRoom)) && (
-                                    <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
-                                       <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}
-                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}</span>
                                  )}
                                  <div className="flex items-center gap-2 max-w-[85%]">
                                     
-                                    {/* Preserved Edit/Delete Logic */}
+                                    {/* INLINE DELETE CONFIRMATION FOR MESSAGES */}
                                     {isMe && (
                                       <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0 mr-1">
-                                        <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
-                                        <button onClick={async () => { if(window.confirm("Delete message?")) await supabase.from('messages').delete().eq('id', m.id); }} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
+                                        {confirmDeleteMsg === m.id ? (
+                                           <div className="flex bg-rose-500/20 rounded-lg overflow-hidden border border-rose-500/30">
+                                              <button onClick={() => setConfirmDeleteMsg(null)} className="p-1.5 text-slate-400 hover:text-white transition-colors"><X size={12}/></button>
+                                              <button onClick={async () => { await supabase.from('messages').delete().eq('id', m.id); setConfirmDeleteMsg(null); }} className="p-1.5 text-rose-400 hover:text-rose-300 bg-rose-500/20 transition-colors"><CheckCircle2 size={12}/></button>
+                                           </div>
+                                        ) : (
+                                           <>
+                                             <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
+                                             <button onClick={() => setConfirmDeleteMsg(m.id)} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
+                                           </>
+                                        )}
                                       </div>
                                     )}
 
@@ -502,7 +553,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                        isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
                                             : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
                                     }`}>
-                                       {/* NEW: Attachment Rendering inside the bubble */}
                                        {m.attachment_url && m.attachment_type === 'image' && (
                                           <img src={m.attachment_url} alt="Attached" className="w-full max-w-[200px] md:max-w-[250px] rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-white/20" onClick={() => setFullscreenImage(m.attachment_url)} />
                                        )}
@@ -511,22 +561,17 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                              <FileText size={16} /> <span className="font-bold underline text-[10px]">Download Attachment</span>
                                           </a>
                                        )}
-
                                        {m.text && <span>{m.text}</span>}
                                        {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
                                     </div>
 
                                     {!isMe && !activeThread && (
-                                      <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1" title="Reply in Thread"><Reply size={14}/></button>
+                                      <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>
                                     )}
                                  </div>
                                  <div className="flex gap-2 items-center mt-1 px-1">
                                    <span className="text-[8px] font-black text-slate-500 uppercase">{formatRelativeTime(m.created_at)}</span>
-                                   {!activeThread && replyCount > 0 && (
-                                     <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">
-                                        {replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}
-                                     </button>
-                                   )}
+                                   {!activeThread && replyCount > 0 && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">{replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}</button>}
                                  </div>
                               </div>
                            );
@@ -534,7 +579,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
-                     {/* Premium Input & File Uploader */}
                      {(!isRoom || pane.type !== 'announcement' || profile.role !== 'PROCTOR') && (
                        <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
                           {editingIds[pane.id] && (
@@ -544,29 +588,16 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                              </div>
                           )}
                           <form onSubmit={(e) => handleSend(e, pane.id, pane.type, target)} className="relative flex items-center gap-2">
-                             
-                             <button type="button" onClick={() => fileInputRefs.current[pane.id]?.click()} disabled={uploading[pane.id]} className={`p-3 rounded-full transition-all ${uploading[pane.id] ? 'bg-blue-600/50 animate-pulse text-white' : 'bg-white/10 hover:bg-white/20 text-slate-300'}`}>
-                                <Paperclip size={14} />
-                             </button>
+                             <button type="button" onClick={() => fileInputRefs.current[pane.id]?.click()} disabled={uploading[pane.id]} className={`p-3 rounded-full transition-all ${uploading[pane.id] ? 'bg-blue-600/50 animate-pulse text-white' : 'bg-white/10 hover:bg-white/20 text-slate-300'}`}><Paperclip size={14} /></button>
                              <input type="file" ref={el => fileInputRefs.current[pane.id] = el} className="hidden" onChange={(e) => handleFileUpload(e, pane.id, pane.type, target)} accept="image/*,.pdf,.doc,.docx" />
-
-                             <input 
-                                type="text" 
-                                value={inputs[pane.id] || ''} 
-                                onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} 
-                                placeholder={uploading[pane.id] ? "Uploading..." : activeThread ? "Reply in thread..." : "Type a message..."} 
-                                disabled={uploading[pane.id]}
-                                className="flex-1 bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl px-4 py-3 text-[12px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium"
-                             />
-                             <button type="submit" disabled={!inputs[pane.id]?.trim() && !uploading[pane.id]} className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95">
-                                <Send size={14} strokeWidth={2.5} className="ml-0.5" />
-                             </button>
+                             <input type="text" value={inputs[pane.id] || ''} onChange={(e) => setInputs(prev => ({...prev, [pane.id]: e.target.value}))} placeholder={uploading[pane.id] ? "Uploading..." : activeThread ? "Reply in thread..." : "Type a message..."} disabled={uploading[pane.id]} className="flex-1 bg-black/40 border border-white/10 focus:border-blue-500/50 rounded-3xl px-4 py-3 text-[12px] tracking-wide text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner font-medium" />
+                             <button type="submit" disabled={!inputs[pane.id]?.trim() && !uploading[pane.id]} className="w-10 h-10 shrink-0 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95"><Send size={14} strokeWidth={2.5} className="ml-0.5" /></button>
                           </form>
                        </div>
                      )}
                    </div>
 
-                   {/* RIGHT SIDEBAR: Room Details & Member Management (WITH LIVE SEARCH) */}
+                   {/* RIGHT SIDEBAR: Room Details */}
                    {detailsOpen && (
                      <div className="w-[220px] bg-black/40 border-l border-white/5 flex flex-col shrink-0 animate-in slide-in-from-right-8 hidden md:flex">
                        <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
@@ -575,86 +606,43 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                        </div>
                        
                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
-                         
                          {isRoom && (
                            <div>
                              <div className="flex justify-between items-center mb-3">
                                <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Participants ({participants.filter(p => p.room_id === target.id).length})</h5>
                                {target.created_by === profile.id && (
-                                 <button 
-                                   onClick={() => {
-                                     setAddingToRoom(addingToRoom === target.id ? null : target.id);
-                                     setMemberSearchQuery("");
-                                   }} 
-                                   className={`p-1.5 rounded-md transition-all ${addingToRoom === target.id ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400 hover:text-blue-300'}`}
-                                 >
+                                 <button onClick={() => { setAddingToRoom(addingToRoom === target.id ? null : target.id); setMemberSearchQuery(""); }} className={`p-1.5 rounded-md transition-all ${addingToRoom === target.id ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400 hover:text-blue-300'}`}>
                                    {addingToRoom === target.id ? <X size={12}/> : <UserPlus size={12}/>}
                                  </button>
                                )}
                              </div>
 
-                             {/* LIVE SEARCH SUGGESTION DROPDOWN */}
                              {addingToRoom === target.id && (
                                <div className="mb-4 bg-black/40 p-2 rounded-xl border border-white/10 animate-in fade-in slide-in-from-top-2">
                                  <div className="relative mb-2">
                                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"/>
-                                   <input 
-                                     autoFocus
-                                     type="text" 
-                                     placeholder="Search name to add..." 
-                                     value={memberSearchQuery}
-                                     onChange={e => setMemberSearchQuery(e.target.value)}
-                                     className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-7 pr-3 text-[10px] text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors"
-                                   />
+                                   <input autoFocus type="text" placeholder="Search name to add..." value={memberSearchQuery} onChange={e => setMemberSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-7 pr-3 text-[10px] text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors" />
                                  </div>
-                                 
                                  <div className="max-h-[140px] overflow-y-auto custom-scrollbar space-y-1">
-                                   {systemUsers
-                                     .filter(u => 
-                                       u.full_name?.toLowerCase().includes(memberSearchQuery.toLowerCase()) && 
-                                       !participants.some(p => p.room_id === target.id && p.user_id === u.id)
-                                     )
-                                     .map(u => (
-                                       <button 
-                                         key={u.id}
-                                         onClick={async () => {
+                                   {systemUsers.filter(u => u.full_name?.toLowerCase().includes(memberSearchQuery.toLowerCase()) && !participants.some(p => p.room_id === target.id && p.user_id === u.id)).map(u => (
+                                       <button key={u.id} onClick={async () => {
                                            await supabase.from('chat_participants').insert([{room_id: target.id, user_id: u.id}]);
                                            setParticipants(prev => [...prev, {room_id: target.id, user_id: u.id}]);
-                                           
-                                           if(u.email) {
-                                             fetch('/api/notify', {
-                                               method: 'POST', 
-                                               headers: { 'Content-Type': 'application/json' },
-                                               body: JSON.stringify({ 
-                                                 emails: u.email, 
-                                                 title: `Added to Channel: ${target.name}`, 
-                                                 message: `${profile.full_name} has added you to this communication channel.` 
-                                               })
-                                             }).catch(err => console.error(err));
-                                           }
+                                           if(u.email) fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: u.email, title: `Added to Channel: ${target.name}`, message: `${profile.full_name} has added you to this communication channel.` }) }).catch(console.error);
                                            setMemberSearchQuery("");
-                                         }}
-                                         className="w-full flex items-center gap-2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-left group/add"
-                                       >
+                                         }} className="w-full flex items-center gap-2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-left group/add">
                                          <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={24} />
                                          <div className="flex-1 overflow-hidden">
                                            <p className="text-[10px] font-bold text-slate-200 truncate group-hover/add:text-white">{u.full_name}</p>
                                            <p className="text-[8px] text-slate-500 truncate uppercase">{u.role}</p>
                                          </div>
-                                         <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover/add:bg-blue-500 group-hover/add:text-white transition-all">
-                                           <Plus size={10} strokeWidth={3}/>
-                                         </div>
+                                         <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover/add:bg-blue-500 group-hover/add:text-white transition-all"><Plus size={10} strokeWidth={3}/></div>
                                        </button>
-                                     ))
-                                   }
-                                   {systemUsers.filter(u => u.full_name?.toLowerCase().includes(memberSearchQuery.toLowerCase()) && !participants.some(p => p.room_id === target.id && p.user_id === u.id)).length === 0 && (
-                                     <p className="text-[9px] text-slate-500 text-center py-3 italic">No matching staff available.</p>
-                                   )}
+                                   ))}
                                  </div>
                                </div>
                              )}
 
-                             {/* EXISTING PARTICIPANTS LIST */}
                              <div className="space-y-2">
                                {participants.filter(p => p.room_id === target.id).map(p => {
                                  const user = allProfiles.find(u => u.id === p.user_id);
@@ -662,13 +650,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                    <div key={user.id} className="flex items-center gap-2">
                                      <UserAvatar fullName={user.full_name} avatarUrl={user.avatar_url} size={20} />
                                      <span className="text-[10px] font-bold text-slate-300 truncate flex-1">{user.full_name}</span>
+                                     
+                                     {/* INLINE CONFIRM REMOVE USER */}
                                      {target.created_by === profile.id && user.id !== profile.id && (
-                                       <button onClick={async () => {
-                                          if(window.confirm(`Remove ${user.full_name} from this chat?`)) {
-                                            await supabase.from('chat_participants').delete().eq('room_id', target.id).eq('user_id', user.id);
-                                            setParticipants(prev => prev.filter(x => !(x.room_id === target.id && x.user_id === user.id)));
-                                          }
-                                       }} className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1 rounded transition-colors"><UserMinus size={10}/></button>
+                                       confirmRemoveUser === user.id ? (
+                                          <div className="flex items-center gap-1">
+                                             <button onClick={() => setConfirmRemoveUser(null)} className="text-slate-500 hover:text-white"><X size={10}/></button>
+                                             <button onClick={async () => {
+                                                await supabase.from('chat_participants').delete().eq('room_id', target.id).eq('user_id', user.id);
+                                                setParticipants(prev => prev.filter(x => !(x.room_id === target.id && x.user_id === user.id)));
+                                                setConfirmRemoveUser(null);
+                                             }} className="text-rose-400 hover:text-rose-300"><CheckCircle2 size={12}/></button>
+                                          </div>
+                                       ) : (
+                                         <button onClick={() => setConfirmRemoveUser(user.id)} className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1 rounded transition-colors"><UserMinus size={10}/></button>
+                                       )
                                      )}
                                    </div>
                                  ) : null;
@@ -677,28 +673,38 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            </div>
                          )}
 
-                         {/* Shared Media Grid */}
                          <div>
                            <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-3 flex items-center gap-1.5"><Folder size={10}/> Shared Files ({attachments.length})</h5>
-                           {attachments.length === 0 ? (
-                             <p className="text-[9px] text-slate-600 font-medium">No attachments yet.</p>
-                           ) : (
+                           {attachments.length === 0 ? <p className="text-[9px] text-slate-600 font-medium">No attachments yet.</p> : (
                              <div className="grid grid-cols-2 gap-2">
                                {attachments.map(m => (
                                  <div key={m.id} className="relative group aspect-square bg-white/5 rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
-                                   {m.attachment_type === 'image' ? (
-                                     <img src={m.attachment_url} alt="media" className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform" onClick={() => setFullscreenImage(m.attachment_url)}/>
-                                   ) : (
-                                     <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white transition-colors flex flex-col items-center">
-                                       <FileText size={20} className="mb-1"/>
-                                       <span className="text-[7px] font-bold uppercase truncate max-w-[50px]">DOC</span>
-                                     </a>
-                                   )}
+                                   {m.attachment_type === 'image' ? <img src={m.attachment_url} alt="media" className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform" onClick={() => setFullscreenImage(m.attachment_url)}/>
+                                   : <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white transition-colors flex flex-col items-center"><FileText size={20} className="mb-1"/><span className="text-[7px] font-bold uppercase truncate max-w-[50px]">DOC</span></a>}
                                  </div>
                                ))}
                              </div>
                            )}
                          </div>
+
+                         {/* NEW: DELETE ROOM BUTTON (Creators Only) */}
+                         {isRoom && target.created_by === profile.id && (
+                           <div className="pt-6 mt-6 border-t border-white/10">
+                              {confirmDeleteRoom === target.id ? (
+                                <div className="bg-rose-500/20 border border-rose-500/30 rounded-xl p-3 flex flex-col items-center gap-2 animate-in fade-in">
+                                  <span className="text-[9px] font-black uppercase text-rose-400 text-center tracking-widest">Are you sure?</span>
+                                  <div className="flex gap-2 w-full">
+                                    <button onClick={() => setConfirmDeleteRoom(null)} className="flex-1 py-1.5 text-[9px] font-bold text-slate-300 bg-white/5 hover:bg-white/10 rounded-md">Cancel</button>
+                                    <button onClick={() => deleteRoom(target.id)} className="flex-1 py-1.5 text-[9px] font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-md">Confirm</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button onClick={() => setConfirmDeleteRoom(target.id)} className="w-full py-2.5 rounded-xl border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                                  <Trash2 size={12} /> Delete Channel
+                                </button>
+                              )}
+                           </div>
+                         )}
 
                        </div>
                      </div>
