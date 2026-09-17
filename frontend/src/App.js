@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Bot
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headset
 } from 'lucide-react';
 
 
@@ -1255,7 +1255,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
 
 {/* AI ASSISTANT BUTTON */}
                 <button onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
-                  <Bot size={18} />
+                  <Headset size={18} />
                 </button>
 
                 <button onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
@@ -2807,7 +2807,7 @@ const executeAddDepartment = async (e) => {
             onClick={() => setIsAIOpen(true)} 
             className="fixed bottom-8 right-8 z-[100] bg-slate-900 text-white px-5 py-4 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 hover:bg-blue-600 transition-all border border-slate-700 hover:scale-105 group animate-in slide-in-from-bottom-10"
           >
-            <Bot size={20} className="text-blue-400 group-hover:text-white transition-colors" />
+            <Headsett size={20} className="text-blue-400 group-hover:text-white transition-colors" />
             <span className="text-[10px] font-black uppercase tracking-widest">Ask AI Support</span>
           </button>
         )}
@@ -3239,7 +3239,7 @@ const executeAddDepartment = async (e) => {
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${isAIOpen ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
           title="Accord AI Assistant"
         >
-          <Bot size={24} className="md:w-7 md:h-7" />
+          <Headset size={24} className="md:w-7 md:h-7" />
         </button>
 
         {/* GLOBAL CHAT ICON */}
