@@ -294,60 +294,60 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
         </div>
       </div>
 
-      {/* APPLE-STYLE DETAIL MODAL */}
+      {/* RESTORED PREMIUM DETAIL MODAL (MOBILE RESPONSIVE) */}
       {selectedExam && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-200">
-            <div className="bg-white/90 backdrop-blur-3xl w-full max-w-[90vw] md:max-w-md rounded-[2.5rem] shadow-[0_30px_80px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
+            <div className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 
-                <div className="px-6 pt-6 pb-5 md:px-8 md:pt-8 md:pb-6 relative">
-                    <button onClick={() => setSelectedExam(null)} className="absolute top-5 right-5 md:top-6 md:right-6 p-2 bg-slate-200/50 hover:bg-slate-300/50 rounded-full text-slate-500 transition-all">
-                        <X size={14} strokeWidth={3} className="md:w-4 md:h-4"/>
+                {/* Dark Header */}
+                <div className="p-8 md:p-10 text-white relative bg-slate-900">
+                    <button onClick={() => setSelectedExam(null)} className="absolute top-6 right-6 md:top-8 md:right-8 hover:rotate-90 transition-all text-slate-400 hover:text-white">
+                        <X size={24} />
                     </button>
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 mb-1 block">Event Details</span>
-                    <h3 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 leading-none mb-1">
+                    <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] opacity-60">Examination Record</span>
+                    <h3 className="text-3xl md:text-5xl font-black mt-3 md:mt-4 italic tracking-tighter leading-none">
                       {selectedExam.dept_code} {selectedExam.year_level}{selectedExam.section}
                     </h3>
-                    <p className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide truncate pr-8">{selectedExam.subject_name}</p>
+                    <p className="text-sm md:text-xl font-bold mt-2 md:mt-3 uppercase text-blue-400 truncate pr-6">{selectedExam.subject_name}</p>
                 </div>
                 
-                <div className="px-6 pb-6 md:px-8 md:pb-8 space-y-4 md:space-y-5">
-                    <div className="bg-slate-100/50 rounded-2xl p-1 divide-y divide-slate-200/50 border border-slate-200/50">
-                      
-                      <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4">
-                        <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><Clock size={12} className="md:w-3.5 md:h-3.5" strokeWidth={2.5}/></div>
+                {/* Solid White Body */}
+                <div className="p-8 md:p-10 space-y-6 md:space-y-8 bg-white">
+                    <div className="grid grid-cols-2 gap-6 md:gap-8">
                         <div>
-                          <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Time & Date</p>
-                          <p className="text-[11px] md:text-xs font-bold text-slate-800">{selectedExam.start_time} - {selectedExam.end_time} • {selectedExam.exam_date}</p>
+                            <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase block mb-1">Time Window</span>
+                            <p className="font-black text-xs md:text-sm text-slate-900"><Clock size={14} className="inline mr-1.5 md:mr-2 text-blue-500"/>{selectedExam.start_time} - {selectedExam.end_time}</p>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4">
-                        <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><MapPin size={12} className="md:w-3.5 md:h-3.5" strokeWidth={2.5}/></div>
                         <div>
-                          <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Location</p>
-                          <p className="text-[11px] md:text-xs font-bold text-slate-800">Room {selectedExam.room}</p>
+                            <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase block mb-1">Schedule Date</span>
+                            <p className="font-black text-xs md:text-sm text-slate-900"><CalendarIcon size={14} className="inline mr-1.5 md:mr-2 text-blue-500"/>{selectedExam.exam_date}</p>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4">
-                        <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><User size={12} className="md:w-3.5 md:h-3.5" strokeWidth={2.5}/></div>
                         <div>
-                          <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Invigilator</p>
-                          <p className="text-[11px] md:text-xs font-bold text-slate-800 uppercase truncate max-w-[200px]">{selectedExam.proctor}</p>
+                            <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase block mb-1">Assigned Room</span>
+                            <p className="font-black text-base md:text-xl text-slate-900"><MapPin size={14} className="inline mr-1.5 md:mr-2 text-emerald-500"/>{selectedExam.room}</p>
                         </div>
-                      </div>
-
+                        <div>
+                            <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase block mb-1">Assigned Proctor</span>
+                            <p className="font-black text-xs md:text-sm text-slate-900 uppercase truncate pr-2"><User size={14} className="inline mr-1.5 md:mr-2 text-amber-500"/>{selectedExam.proctor}</p>
+                        </div>
                     </div>
 
                     {selectedExam.hasConflict && (
-                        <div className="bg-rose-50 border border-rose-200 p-3 md:p-4 rounded-2xl flex items-start gap-3 md:gap-4 text-rose-700 shadow-sm">
-                            <ShieldAlert size={16} className="md:w-5 md:h-5 shrink-0 mt-0.5" />
+                        <div className="bg-rose-50 border-2 border-rose-100 p-4 md:p-6 rounded-2xl md:rounded-3xl flex items-center gap-4 md:gap-6 text-rose-700">
+                            <ShieldAlert size={28} className="md:w-8 md:h-8 shrink-0" />
                             <div>
-                                <p className="font-black uppercase text-[9px] md:text-[10px] tracking-wide mb-0.5">Double-Booking Detected</p>
-                                <p className="text-[10px] md:text-[11px] font-medium leading-relaxed">Resource clash detected with {selectedExam.conflictWith || "another schedule in the timeline"}.</p>
+                                <p className="font-black uppercase text-[10px] md:text-xs">Conflict Alert</p>
+                                <p className="text-[9px] md:text-[11px] italic mt-1 leading-relaxed">Resource clash detected with {selectedExam.conflictWith || "Global Schedule"}</p>
                             </div>
                         </div>
                     )}
+
+                    <button 
+                        onClick={() => setSelectedExam(null)}
+                        className="w-full bg-slate-950 text-white py-4 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-blue-600 transition-all active:scale-95"
+                    >
+                        Close Details
+                    </button>
                 </div>
             </div>
         </div>
