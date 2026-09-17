@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones
+  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones
 } from 'lucide-react';
 
 
@@ -2880,7 +2880,8 @@ const executeAddDepartment = async (e) => {
           onCloseView={() => setViewingProctor(null)}
           onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
           highlightTarget={targetHighlight}
-        />
+          onShowAI={() => setIsAIOpen(true)}
+       />
         
       {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
@@ -2995,6 +2996,7 @@ const executeAddDepartment = async (e) => {
           highlightTarget={targetHighlight}
           onShowPassword={() => setShowPasswordModal(true)} 
           onLogout={handleHardReset}
+          onShowAI={() => setIsAIOpen(true)}
         />
 
         
