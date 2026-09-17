@@ -84,13 +84,15 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [editingIds, setEditingIds] = useState({});
   const [activeThreads, setActiveThreads] = useState({}); 
   
-  // New States for Groups & Attachments
+  // New States for Groups, Attachments & Member Search
   const [rooms, setRooms] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [sidebarTab, setSidebarTab] = useState('dms'); // 'dms', 'groups', 'announcements'
   const [roomDetailsOpen, setRoomDetailsOpen] = useState({}); 
   const [uploading, setUploading] = useState({});
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [addingToRoom, setAddingToRoom] = useState(null); // Tracks which room's search is open
+  const [memberSearchQuery, setMemberSearchQuery] = useState(""); // Live search text
 
   const messagesEndRefs = useRef({});
   const fileInputRefs = useRef({});
@@ -194,7 +196,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
   const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  // NEW: Create Group/Announcement Room
+  // Create Group/Announcement Room
   const createRoom = async (roomType) => {
      const name = prompt(`Enter ${roomType === 'group' ? 'Group' : 'Announcement'} Name:`);
      if (!name) return;
@@ -237,12 +239,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 
       const { error } = await supabase.from('messages').insert([payload]);
 
-      // --- EMAIL NOTIFICATION LOGIC (Preserved & Upgraded for targeted groups) ---
+      // --- EMAIL NOTIFICATION LOGIC ---
       if (!error && !activeThread) {
           const displayMsg = text || "Sent an attachment";
           
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
-              // Original Global 1-by-1 Loop
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
                  fetch('/api/notify', {
@@ -256,7 +257,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                  body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg })
               }).catch(err => console.error(err));
           } else if (type === 'group' || type === 'announcement') {
-              // NEW: Targeted Room Emails (Only sends to members of this specific chat)
+              // Targeted Room Emails 
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               
@@ -565,7 +566,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                      )}
                    </div>
 
-                   {/* RIGHT SIDEBAR: Room Details & Member Management */}
+                   {/* RIGHT SIDEBAR: Room Details & Member Management (WITH LIVE SEARCH) */}
                    {detailsOpen && (
                      <div className="w-[220px] bg-black/40 border-l border-white/5 flex flex-col shrink-0 animate-in slide-in-from-right-8 hidden md:flex">
                        <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
@@ -580,31 +581,80 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                              <div className="flex justify-between items-center mb-3">
                                <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Participants ({participants.filter(p => p.room_id === target.id).length})</h5>
                                {target.created_by === profile.id && (
-                                 <button onClick={async () => {
-                                    const email = prompt("Enter email of staff to add:");
-                                    const user = allProfiles.find(u => u.email === email);
-                                   
-                                   if(user) {
-  await supabase.from('chat_participants').insert([{room_id: target.id, user_id: user.id}]);
-  setParticipants(prev => [...prev, {room_id: target.id, user_id: user.id}]);
-  
-  // NEW: Instantly email the user that they were added to the group
-  fetch('/api/notify', {
-     method: 'POST', 
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ 
-       emails: user.email, 
-       title: `Added to Channel: ${target.name}`, 
-       message: `${profile.full_name} has added you to this communication channel. Open your Master Timeline dashboard to view the group.` 
-     })
-  }).catch(err => console.error(err));
-  
-} else {
-  alert("System account not found for that email.");
-}
-                                 }} className="text-blue-400 hover:text-blue-300 bg-blue-500/20 p-1.5 rounded-md"><UserPlus size={12}/></button>
+                                 <button 
+                                   onClick={() => {
+                                     setAddingToRoom(addingToRoom === target.id ? null : target.id);
+                                     setMemberSearchQuery("");
+                                   }} 
+                                   className={`p-1.5 rounded-md transition-all ${addingToRoom === target.id ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400 hover:text-blue-300'}`}
+                                 >
+                                   {addingToRoom === target.id ? <X size={12}/> : <UserPlus size={12}/>}
+                                 </button>
                                )}
                              </div>
+
+                             {/* LIVE SEARCH SUGGESTION DROPDOWN */}
+                             {addingToRoom === target.id && (
+                               <div className="mb-4 bg-black/40 p-2 rounded-xl border border-white/10 animate-in fade-in slide-in-from-top-2">
+                                 <div className="relative mb-2">
+                                   <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"/>
+                                   <input 
+                                     autoFocus
+                                     type="text" 
+                                     placeholder="Search name to add..." 
+                                     value={memberSearchQuery}
+                                     onChange={e => setMemberSearchQuery(e.target.value)}
+                                     className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-7 pr-3 text-[10px] text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors"
+                                   />
+                                 </div>
+                                 
+                                 <div className="max-h-[140px] overflow-y-auto custom-scrollbar space-y-1">
+                                   {systemUsers
+                                     .filter(u => 
+                                       u.full_name?.toLowerCase().includes(memberSearchQuery.toLowerCase()) && 
+                                       !participants.some(p => p.room_id === target.id && p.user_id === u.id)
+                                     )
+                                     .map(u => (
+                                       <button 
+                                         key={u.id}
+                                         onClick={async () => {
+                                           await supabase.from('chat_participants').insert([{room_id: target.id, user_id: u.id}]);
+                                           setParticipants(prev => [...prev, {room_id: target.id, user_id: u.id}]);
+                                           
+                                           if(u.email) {
+                                             fetch('/api/notify', {
+                                               method: 'POST', 
+                                               headers: { 'Content-Type': 'application/json' },
+                                               body: JSON.stringify({ 
+                                                 emails: u.email, 
+                                                 title: `Added to Channel: ${target.name}`, 
+                                                 message: `${profile.full_name} has added you to this communication channel.` 
+                                               })
+                                             }).catch(err => console.error(err));
+                                           }
+                                           setMemberSearchQuery("");
+                                         }}
+                                         className="w-full flex items-center gap-2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-left group/add"
+                                       >
+                                         <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={24} />
+                                         <div className="flex-1 overflow-hidden">
+                                           <p className="text-[10px] font-bold text-slate-200 truncate group-hover/add:text-white">{u.full_name}</p>
+                                           <p className="text-[8px] text-slate-500 truncate uppercase">{u.role}</p>
+                                         </div>
+                                         <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover/add:bg-blue-500 group-hover/add:text-white transition-all">
+                                           <Plus size={10} strokeWidth={3}/>
+                                         </div>
+                                       </button>
+                                     ))
+                                   }
+                                   {systemUsers.filter(u => u.full_name?.toLowerCase().includes(memberSearchQuery.toLowerCase()) && !participants.some(p => p.room_id === target.id && p.user_id === u.id)).length === 0 && (
+                                     <p className="text-[9px] text-slate-500 text-center py-3 italic">No matching staff available.</p>
+                                   )}
+                                 </div>
+                               </div>
+                             )}
+
+                             {/* EXISTING PARTICIPANTS LIST */}
                              <div className="space-y-2">
                                {participants.filter(p => p.room_id === target.id).map(p => {
                                  const user = allProfiles.find(u => u.id === p.user_id);
@@ -614,9 +664,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                      <span className="text-[10px] font-bold text-slate-300 truncate flex-1">{user.full_name}</span>
                                      {target.created_by === profile.id && user.id !== profile.id && (
                                        <button onClick={async () => {
-                                          await supabase.from('chat_participants').delete().eq('room_id', target.id).eq('user_id', user.id);
-                                          setParticipants(prev => prev.filter(x => !(x.room_id === target.id && x.user_id === user.id)));
-                                       }} className="text-rose-500 hover:text-rose-400 p-1"><UserMinus size={10}/></button>
+                                          if(window.confirm(`Remove ${user.full_name} from this chat?`)) {
+                                            await supabase.from('chat_participants').delete().eq('room_id', target.id).eq('user_id', user.id);
+                                            setParticipants(prev => prev.filter(x => !(x.room_id === target.id && x.user_id === user.id)));
+                                          }
+                                       }} className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1 rounded transition-colors"><UserMinus size={10}/></button>
                                      )}
                                    </div>
                                  ) : null;
