@@ -8,8 +8,7 @@ const groq = new Groq({
   dangerouslyAllowBrowser: true 
 });
 
-export default function GlobalAIAssistant({ session, profile, authMode, activeTab }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function GlobalAIAssistant({ session, profile, authMode, activeTab, isOpen, onClose }) {
   const [chatInput, setChatInput] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [extractedText, setExtractedText] = useState('');
@@ -129,18 +128,6 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
 
   return (
     <>
-      {!isOpen && (
-        <div className="fixed top-0 right-10 md:right-24 z-[9999] animate-in slide-in-from-top-6 duration-500">
-          <button 
-            onClick={() => setIsOpen(true)}
-            className="bg-slate-900/40 hover:bg-slate-900/80 text-slate-500 hover:text-blue-400 px-5 py-1.5 rounded-b-xl flex items-center gap-2 transition-all backdrop-blur-md shadow-sm"
-          >
-            <MessageCircle size={14} className="opacity-70" strokeWidth={2} />
-            <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-80">Need Help?</span>
-          </button>
-        </div>
-      )}
-
       {isOpen && (
         <div className="fixed top-10 right-4 md:right-16 w-[calc(100vw-2rem)] md:w-96 h-[32rem] max-h-[80vh] bg-slate-900/95 backdrop-blur-2xl rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden z-[9998] animate-in slide-in-from-top-6 fade-in duration-300">
           <div className="bg-gradient-to-r from-blue-900/40 to-slate-900/60 px-5 py-4 flex items-center justify-between">
@@ -151,7 +138,7 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
                 <p className="text-[10px] text-emerald-400 font-mono tracking-widest">System Online</p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-xl transition-all">
+            <button onClick={onClose} className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-xl transition-all">
               <X size={16} />
             </button>
           </div>
