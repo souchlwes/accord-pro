@@ -1483,13 +1483,18 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
               Live Campus <span className="text-blue-600 italic">Timeline</span>
             </h2>
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-              University Master View
-            </span>
+           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+              <button onClick={() => setMasterTimelineView('upcoming')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Upcoming</button>
+              <button onClick={() => setMasterTimelineView('history')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>History</button>
+            </div>
           </div>
           <div className="overflow-x-auto pb-2 custom-scrollbar">
             <div className="min-w-[800px]">
-              <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+<ScheduleCalendar 
+  scheduleData={globalSchedule.filter(s => masterTimelineView === 'upcoming' ? !isPastSession(s.exam_date, s.end_time) : isPastSession(s.exam_date, s.end_time))} 
+  examDates={allExamDates} 
+  readOnly={true} 
+/>
             </div>
           </div>
         </div>
@@ -1600,6 +1605,18 @@ function App() {
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
+  const [masterTimelineView, setMasterTimelineView] = useState("upcoming");
+
+  const isPastSession = (date, endTime) => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentTimeStr = now.toTimeString().substring(0, 5);
+    if (!date) return false;
+    if (date < todayStr) return true;
+    if (date === todayStr && endTime < currentTimeStr) return true;
+    return false;
+  };
+
   const [targetHighlight, setTargetHighlight] = useState("");
 
  const [showLanding, setShowLanding] = useState(true);
@@ -3634,7 +3651,10 @@ const executeAddDepartment = async (e) => {
                       <div className="bg-white/90 backdrop-blur-xl p-2 md:p-6 rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-200/80 overflow-x-auto custom-scrollbar">
                         {globalSchedule.length > 0 ? (
                           <div className="min-w-[800px] pr-4">
-                            <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} />
+<ScheduleCalendar 
+  scheduleData={globalSchedule.filter(s => masterTimelineView === 'upcoming' ? !isPastSession(s.exam_date, s.end_time) : isPastSession(s.exam_date, s.end_time))} 
+  examDates={allExamDates} 
+/>
                           </div>
                         ) : (
                           <div className="py-20 md:py-32 text-center text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">
