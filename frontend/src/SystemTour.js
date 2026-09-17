@@ -1,31 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import Joyride, { STATUS } from 'react-joyride';
-import { X } from 'lucide-react';
+import { X, Compass } from 'lucide-react';
 
 const CustomTooltip = ({ index, step, backProps, closeProps, primaryProps, tooltipProps }) => {
   return (
-    <div {...tooltipProps} className="bg-slate-900 text-white p-6 rounded-[2rem] w-[320px] md:w-[380px] shadow-2xl border-[3px] border-blue-600 font-sans">
+    <div {...tooltipProps} className="bg-slate-900/70 backdrop-blur-2xl text-white p-6 rounded-[2rem] w-[320px] md:w-[380px] shadow-[0_30px_80px_rgba(0,0,0,0.6)] border border-white/10 font-sans antialiased">
+      
       <div className="flex justify-between items-start mb-4">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-          Accord Tour • Step {index + 1}
-        </h4>
-        <button {...closeProps} className="text-slate-400 hover:text-rose-500 transition-colors bg-white/10 p-1.5 rounded-full" title="Skip Tour">
-          <X size={14} />
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-blue-500/20 rounded-xl border border-blue-400/20 text-blue-400 shadow-inner">
+            <Compass size={14} strokeWidth={2.5} />
+          </div>
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-200">
+            Accord Tour <span className="text-blue-500 opacity-50 mx-1">•</span> Step {index + 1}
+          </h4>
+        </div>
+        <button {...closeProps} className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-full transition-all border border-transparent hover:border-white/10" title="Skip Tour">
+          <X size={14} strokeWidth={2.5} />
         </button>
       </div>
-      <p className="text-sm font-bold leading-relaxed mb-8 text-slate-200">
+
+      <p className="text-[13px] font-medium leading-relaxed tracking-wide mb-8 text-slate-100">
         {step.content}
       </p>
+
       <div className="flex justify-between items-center pt-4 border-t border-white/10">
         {index > 0 ? (
-          <button {...backProps} className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors p-2">
+          <button {...backProps} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors p-2 active:scale-95">
             Back
           </button>
         ) : <span />}
-        <button {...primaryProps} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">
+        <button {...primaryProps} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95 border border-blue-500">
           {step.isLast ? 'Finish Tour' : 'Next Step'}
         </button>
       </div>
+      
     </div>
   );
 };
@@ -35,7 +44,6 @@ export default function SystemTour({ forceRun, onTourClose, role }) {
   const [tourKey, setTourKey] = useState(0); 
 
   useEffect(() => {
-    // Check local storage using the specific role so it doesn't conflict between test accounts
     const storageKey = `accord_tour_completed_${role}`;
     const hasSeenTour = localStorage.getItem(storageKey);
     
@@ -43,7 +51,6 @@ export default function SystemTour({ forceRun, onTourClose, role }) {
       setRun(true);
     }
     
-    // If the replay button was clicked in the Help tab, force remount
     if (forceRun) {
       setTourKey(prev => prev + 1); 
       setRun(true);
@@ -55,7 +62,6 @@ export default function SystemTour({ forceRun, onTourClose, role }) {
     const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED];
     const storageKey = `accord_tour_completed_${role}`;
     
-    // FIXED: Now checks if you explicitly clicked the 'close' action (the X button)
     if (finishedStatuses.includes(status) || action === 'close') {
       localStorage.setItem(storageKey, 'true');
       setRun(false);
