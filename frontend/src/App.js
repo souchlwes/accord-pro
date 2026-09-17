@@ -94,18 +94,22 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [addingToRoom, setAddingToRoom] = useState(null); 
   const [memberSearchQuery, setMemberSearchQuery] = useState(""); 
   
-  // NEW: Sleek Custom Modals & Inline Confirmations (No window.prompt/alert/confirm)
+  // Custom Modals & Inline Confirmations
   const [createModal, setCreateModal] = useState(null); // 'group' | 'announcement' | null
   const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomPreset, setNewRoomPreset] = useState("none"); // Presets filter
+  const [newRoomParticipants, setNewRoomParticipants] = useState([]); // Array of selected users
+  const [modalSearchQuery, setModalSearchQuery] = useState(""); // Live search inside the modal
   const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(null);
   const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
-  const [chatError, setChatError] = useState(""); // Replaces alert()
+  const [chatError, setChatError] = useState("");
 
   const messagesEndRefs = useRef({});
   const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
+  
+  // Extract all unique departments for the Preset Chips
+  const uniqueDepts = [...new Set(systemUsers.map(u => u.assigned_dept).filter(Boolean))];
 
   // FETCH ALL DATA 
   useEffect(() => {
@@ -184,12 +188,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      if (!activePanes.find(p => p.id === paneId)) {
          setActivePanes(prev => [...prev, { type, id: paneId, target }]);
      }
-     
      if (type === 'dm') {
          setUnreadDMs(prev => ({...prev, [target.id]: 0}));
          localStorage.setItem(`last_read_dm_${profile.id}_${target.id}`, new Date().toISOString());
      }
-     
      setTimeout(() => {
          const container = document.getElementById('chat-panes-container');
          if (container) container.scrollLeft = container.scrollWidth;
@@ -199,7 +201,19 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const closePane = (id) => setActivePanes(prev => prev.filter(p => p.id !== id));
   const toggleDetails = (id) => setRoomDetailsOpen(prev => ({...prev, [id]: !prev[id]}));
 
-  // NEW: Secure Custom Room Creation with Presets (Replaces prompt)
+  // NEW: Quick Add Presets Logic for Modal
+  const addPresetToRoom = (type, deptCode = null) => {
+      let usersToAdd = [];
+      if (type === 'dept') usersToAdd = systemUsers.filter(u => u.assigned_dept === deptCode);
+      if (type === 'proctors') usersToAdd = systemUsers.filter(u => u.role === 'PROCTOR');
+      if (type === 'admins') usersToAdd = systemUsers.filter(u => ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(u.role));
+      
+      const existingIds = newRoomParticipants.map(p => p.id);
+      const newUsers = usersToAdd.filter(u => !existingIds.includes(u.id));
+      setNewRoomParticipants(prev => [...prev, ...newUsers]);
+  };
+
+  // NEW: Secure Custom Room Creation
   const submitCreateRoom = async () => {
      if (!newRoomName.trim()) return;
      
@@ -208,28 +222,17 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      }]).select().single();
 
      if (!error && roomData) {
-       let usersToAdd = [profile.id]; 
-       
-       // Handle Presets Targeting
-       if (newRoomPreset === 'my_dept') {
-           systemUsers.filter(u => u.assigned_dept === profile.assigned_dept).forEach(u => usersToAdd.push(u.id));
-       } else if (newRoomPreset === 'all_proctors') {
-           systemUsers.filter(u => u.role === 'PROCTOR').forEach(u => usersToAdd.push(u.id));
-       } else if (newRoomPreset === 'all_admins') {
-           systemUsers.filter(u => ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(u.role)).forEach(u => usersToAdd.push(u.id));
-       }
-       
-       usersToAdd = [...new Set(usersToAdd)]; // Remove duplicates
-       
-       const participantPayload = usersToAdd.map(uid => ({ room_id: roomData.id, user_id: uid }));
+       // Profile.id is always added as the creator
+       const finalIds = [...new Set([profile.id, ...newRoomParticipants.map(p => p.id)])];
+       const participantPayload = finalIds.map(uid => ({ room_id: roomData.id, user_id: uid }));
        await supabase.from('chat_participants').insert(participantPayload);
        
        setRooms(prev => [...prev, roomData]);
        setParticipants(prev => [...prev, ...participantPayload]);
        openPane(createModal, roomData);
        
-       // Notify added users via email loop
-       const emailsToNotify = systemUsers.filter(u => usersToAdd.includes(u.id) && u.email).map(u => u.email);
+       // Notify added users
+       const emailsToNotify = newRoomParticipants.filter(u => u.email).map(u => u.email);
        emailsToNotify.forEach(email => {
           fetch('/api/notify', {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -243,10 +246,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      
      setCreateModal(null);
      setNewRoomName("");
-     setNewRoomPreset("none");
+     setNewRoomParticipants([]);
+     setModalSearchQuery("");
   };
 
-  // NEW: Secure Room Deletion
   const deleteRoom = async (roomId) => {
      await supabase.from('chat_rooms').delete().eq('id', roomId);
      setRooms(prev => prev.filter(r => r.id !== roomId));
@@ -323,7 +326,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   return (
     <div id="accord-chat-panel" className="fixed inset-0 md:inset-6 z-[200] bg-slate-900/80 backdrop-blur-3xl md:border border-white/10 md:rounded-[2.5rem] flex overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300 font-sans antialiased">
       
-      {/* GLOBAL ERROR TOAST (No Alerts) */}
+      {/* GLOBAL ERROR TOAST */}
       {chatError && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-rose-500 text-white px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest shadow-2xl animate-in slide-in-from-top-4 flex items-center gap-2 border border-rose-400">
            <AlertCircle size={14} /> {chatError}
@@ -338,26 +341,77 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
         </div>
       )}
 
-      {/* CREATE ROOM MODAL (No Prompts) */}
+      {/* CREATE ROOM MODAL (Upgraded with Live Search and Visual Member Arrays) */}
       {createModal && (
         <div className="absolute inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-[0_0_60px_rgba(0,0,0,0.9)] animate-in zoom-in-95">
+           <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md max-h-[90vh] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] animate-in zoom-in-95">
                <h3 className="text-white text-sm font-black uppercase tracking-widest mb-1">Create {createModal === 'group' ? 'Group Chat' : 'Announcement'}</h3>
-               <p className="text-[10px] text-slate-400 font-medium mb-5">Set up a new communication channel.</p>
+               <p className="text-[10px] text-slate-400 font-medium mb-4">Set up a new targeted communication channel.</p>
                
-               <input autoFocus type="text" placeholder="Channel Name..." value={newRoomName} onChange={e => setNewRoomName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors mb-4" />
+               <input autoFocus type="text" placeholder="Channel Name..." value={newRoomName} onChange={e => setNewRoomName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors mb-4 shrink-0" />
                
-               <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Initial Participants (Presets)</label>
-               <select value={newRoomPreset} onChange={e => setNewRoomPreset(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-colors mb-6 appearance-none">
-                  <option value="none">Empty (I will add members manually)</option>
-                  <option value="my_dept">Target: Everyone in my Department</option>
-                  <option value="all_proctors">Target: All Proctors Campus-wide</option>
-                  {profile.role === 'HEAD_ADMIN' && <option value="all_admins">Target: All Department Heads</option>}
-               </select>
+               {/* PRESET CHIPS */}
+               <div className="mb-4 shrink-0">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Quick Add Presets</label>
+                  <div className="flex flex-wrap gap-2">
+                     <button onClick={() => addPresetToRoom('proctors')} className="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1"><Plus size={10}/> All Proctors</button>
+                     {profile.role === 'HEAD_ADMIN' && <button onClick={() => addPresetToRoom('admins')} className="px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1"><Plus size={10}/> All Admins</button>}
+                     {uniqueDepts.map(dept => (
+                        <button key={dept} onClick={() => addPresetToRoom('dept', dept)} className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1"><Plus size={10}/> Dept: {dept}</button>
+                     ))}
+                  </div>
+               </div>
 
-               <div className="flex gap-2">
-                   <button onClick={() => { setCreateModal(null); setNewRoomName(""); setNewRoomPreset("none"); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
-                   <button onClick={submitCreateRoom} disabled={!newRoomName.trim()} className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 text-white text-[10px] font-black uppercase tracking-widest transition-all">Create Channel</button>
+               {/* LIVE SEARCH TO ADD INDIVIDUALS */}
+               <div className="relative mb-2 shrink-0">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+                  <input type="text" placeholder="Search staff by name to add..." value={modalSearchQuery} onChange={e => setModalSearchQuery(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors" />
+               </div>
+
+               {/* SEARCH RESULTS (Only shows when typing to save space) */}
+               {modalSearchQuery && (
+                 <div className="max-h-[120px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/10 rounded-xl mb-4 p-1 shrink-0">
+                    {systemUsers.filter(u => u.full_name?.toLowerCase().includes(modalSearchQuery.toLowerCase()) && !newRoomParticipants.some(p => p.id === u.id)).map(u => (
+                      <button key={u.id} onClick={() => { setNewRoomParticipants(prev => [...prev, u]); setModalSearchQuery(""); }} className="w-full flex items-center gap-2 p-2 hover:bg-white/10 rounded-lg transition-colors text-left group/add">
+                        <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={24} />
+                        <div className="flex-1 overflow-hidden">
+                           <p className="text-[10px] font-bold text-slate-200 truncate group-hover/add:text-white">{u.full_name}</p>
+                           <p className="text-[8px] text-slate-500 truncate uppercase">{u.role} {u.assigned_dept && `- ${u.assigned_dept}`}</p>
+                        </div>
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover/add:bg-blue-500 group-hover/add:text-white transition-all"><Plus size={12} strokeWidth={3}/></div>
+                      </button>
+                    ))}
+                    {systemUsers.filter(u => u.full_name?.toLowerCase().includes(modalSearchQuery.toLowerCase()) && !newRoomParticipants.some(p => p.id === u.id)).length === 0 && (
+                      <p className="text-[9px] text-slate-500 text-center py-4 italic">No matching staff found.</p>
+                    )}
+                 </div>
+               )}
+
+               {/* SELECTED USERS LIST */}
+               <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 block shrink-0">Selected Participants ({newRoomParticipants.length})</label>
+               <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/5 border border-white/10 rounded-xl p-2 mb-4">
+                  {newRoomParticipants.length === 0 ? (
+                     <p className="text-[10px] text-slate-500 text-center py-6 italic">No users added yet. Use presets or search above.</p>
+                  ) : (
+                     <div className="flex flex-col gap-1">
+                        {newRoomParticipants.map(u => (
+                           <div key={u.id} className="flex items-center gap-2 p-1.5 bg-black/40 rounded-lg border border-white/5">
+                              <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={20} />
+                              <div className="flex-1 overflow-hidden flex items-center gap-2">
+                                 <span className="text-[10px] font-bold text-slate-200 truncate">{u.full_name}</span>
+                                 <span className="text-[8px] text-slate-500 uppercase px-1.5 py-0.5 bg-white/5 rounded">{u.assigned_dept || u.role}</span>
+                              </div>
+                              <button onClick={() => setNewRoomParticipants(prev => prev.filter(p => p.id !== u.id))} className="text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-md transition-colors"><X size={12}/></button>
+                           </div>
+                        ))}
+                     </div>
+                  )}
+               </div>
+
+               {/* ACTIONS */}
+               <div className="flex gap-2 shrink-0">
+                   <button onClick={() => { setCreateModal(null); setNewRoomName(""); setNewRoomParticipants([]); setModalSearchQuery(""); }} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
+                   <button onClick={submitCreateRoom} disabled={!newRoomName.trim() || newRoomParticipants.length === 0} className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-600 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-md">Create Channel</button>
                </div>
            </div>
         </div>
@@ -531,8 +585,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                     <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}</span>
                                  )}
                                  <div className="flex items-center gap-2 max-w-[85%]">
-                                    
-                                    {/* INLINE DELETE CONFIRMATION FOR MESSAGES */}
                                     {isMe && (
                                       <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0 mr-1">
                                         {confirmDeleteMsg === m.id ? (
@@ -564,10 +616,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                        {m.text && <span>{m.text}</span>}
                                        {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
                                     </div>
-
-                                    {!isMe && !activeThread && (
-                                      <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>
-                                    )}
+                                    {!isMe && !activeThread && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>}
                                  </div>
                                  <div className="flex gap-2 items-center mt-1 px-1">
                                    <span className="text-[8px] font-black text-slate-500 uppercase">{formatRelativeTime(m.created_at)}</span>
@@ -651,7 +700,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                      <UserAvatar fullName={user.full_name} avatarUrl={user.avatar_url} size={20} />
                                      <span className="text-[10px] font-bold text-slate-300 truncate flex-1">{user.full_name}</span>
                                      
-                                     {/* INLINE CONFIRM REMOVE USER */}
                                      {target.created_by === profile.id && user.id !== profile.id && (
                                        confirmRemoveUser === user.id ? (
                                           <div className="flex items-center gap-1">
@@ -687,7 +735,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            )}
                          </div>
 
-                         {/* NEW: DELETE ROOM BUTTON (Creators Only) */}
                          {isRoom && target.created_by === profile.id && (
                            <div className="pt-6 mt-6 border-t border-white/10">
                               {confirmDeleteRoom === target.id ? (
