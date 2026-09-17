@@ -1477,24 +1477,19 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           </div>
         </div>
 
-        {/* Master Timeline Bottom Tile */}
+      {/* Master Timeline Bottom Tile */}
         <div className="bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 overflow-hidden">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
               Live Campus <span className="text-blue-600 italic">Timeline</span>
             </h2>
-           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => setMasterTimelineView('upcoming')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Upcoming</button>
-              <button onClick={() => setMasterTimelineView('history')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>History</button>
-            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+              University Master View
+            </span>
           </div>
           <div className="overflow-x-auto pb-2 custom-scrollbar">
             <div className="min-w-[800px]">
-<ScheduleCalendar 
-  scheduleData={globalSchedule.filter(s => masterTimelineView === 'upcoming' ? !isPastSession(s.exam_date, s.end_time) : isPastSession(s.exam_date, s.end_time))} 
-  examDates={allExamDates} 
-  readOnly={true} 
-/>
+              <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
             </div>
           </div>
         </div>
@@ -3634,9 +3629,16 @@ const executeAddDepartment = async (e) => {
                     </div>
                   </div>
 
-                  {showMasterTimeline && (
+                {showMasterTimeline && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 mt-6">
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 px-2 md:px-6 gap-4 md:gap-0">
+                        
+                        {/* --- NEW HISTORY TOGGLE --- */}
+                        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                          <button onClick={() => setMasterTimelineView('upcoming')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Upcoming</button>
+                          <button onClick={() => setMasterTimelineView('history')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${masterTimelineView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>History</button>
+                        </div>
+
                         <button onClick={exportGlobalPDF} className="w-full md:w-auto bg-slate-900 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 shadow-xl hover:bg-blue-600 active:scale-95 transition-all ml-auto border border-slate-700">
                           <Printer size={16} className="md:w-5 md:h-5" /> Export Global PDF
                         </button>
@@ -3651,10 +3653,11 @@ const executeAddDepartment = async (e) => {
                       <div className="bg-white/90 backdrop-blur-xl p-2 md:p-6 rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-200/80 overflow-x-auto custom-scrollbar">
                         {globalSchedule.length > 0 ? (
                           <div className="min-w-[800px] pr-4">
-<ScheduleCalendar 
-  scheduleData={globalSchedule.filter(s => masterTimelineView === 'upcoming' ? !isPastSession(s.exam_date, s.end_time) : isPastSession(s.exam_date, s.end_time))} 
-  examDates={allExamDates} 
-/>
+                            {/* --- THE FILTERED CALENDAR --- */}
+                            <ScheduleCalendar 
+                              scheduleData={globalSchedule.filter(s => masterTimelineView === 'upcoming' ? !isPastSession(s.exam_date, s.end_time) : isPastSession(s.exam_date, s.end_time))} 
+                              examDates={allExamDates} 
+                            />
                           </div>
                         ) : (
                           <div className="py-20 md:py-32 text-center text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">
@@ -3664,6 +3667,7 @@ const executeAddDepartment = async (e) => {
                       </div>
                     </div>
                   )}
+
                 </div>
               </div>
             ) : (
