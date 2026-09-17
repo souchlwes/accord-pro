@@ -1,3 +1,4 @@
+import SystemTour from './SystemTour';
 import GlobalAIAssistant from './GlobalAIAssistant';
 import accordLogo from './accord.png';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -14,6 +15,9 @@ import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
   RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings
 } from 'lucide-react';
+
+
+const [replayTour, setReplayTour] = useState(false);
 
 // --- SMART STICKY STATE HOOK (Survives Back Button & Refreshes) ---
 function useStickyState(defaultValue, key) {
@@ -410,7 +414,7 @@ const [messages, setMessages] = useState([]);
 };
 
 // --- SMART HELP CENTER (ROLE-AWARE FAQ) ---
-const HelpCenter = ({ role, onClose }) => {
+const HelpCenter = ({ role, onClose, onReplayTour }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const getFaqContent = () => {
@@ -483,12 +487,16 @@ const HelpCenter = ({ role, onClose }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 md:px-8 pb-8 space-y-4 custom-scrollbar bg-slate-50">
-        
-        {/* Hide the welcome banner if the user is actively searching */}
+      
+      {/* Hide the welcome banner if the user is actively searching */}
         {!searchQuery && (
           <div className="bg-emerald-50 text-emerald-800 p-6 rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
-            <p className="text-xs font-bold leading-relaxed">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
+            <p className="text-xs font-bold leading-relaxed mb-4">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
+            
+            <button onClick={onReplayTour} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+               <Play size={14}/> Replay Dashboard Tour
+            </button>
           </div>
         )}
 
@@ -2812,7 +2820,7 @@ const executeAddDepartment = async (e) => {
       <>
        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
-      {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+{showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
       {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
         <ProctorDashboard
    
@@ -2914,7 +2922,7 @@ const executeAddDepartment = async (e) => {
       <>
         {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
-        {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+{showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
         {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
      
       <ProctorDashboard
@@ -3153,17 +3161,17 @@ const executeAddDepartment = async (e) => {
       
     {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
-      {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} />}
+{showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
       {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
-      {/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
+{/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
         <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer">
-          {/* Removed the blue background, padding, and shadow. Made the logo slightly larger to compensate! */}
           <img src={accordLogo} alt="Accord Logo" className="w-12 h-12 object-contain brightness-0 invert opacity-90" />
         </div>
         
         <button 
+          id="tour-nav-dashboard"
           onClick={() => setActiveTab("dashboard")}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
@@ -3177,8 +3185,9 @@ const executeAddDepartment = async (e) => {
           <Users size={24} className="md:w-7 md:h-7" />
         </button>
 
-      {/* GLOBAL CHAT ICON */}
+        {/* GLOBAL CHAT ICON */}
         <button 
+          id="tour-chat-btn"
           onClick={handleOpenChat}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
@@ -3201,6 +3210,7 @@ const executeAddDepartment = async (e) => {
 
         {/* SMART HELP CENTER ICON */}
         <button 
+          id="tour-help-btn"
           onClick={() => setShowHelp(true)}
           className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showHelp ? 'bg-emerald-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
@@ -3850,6 +3860,10 @@ const executeAddDepartment = async (e) => {
 return (
     <>
       {renderScreens()}
+
+      {/* Drops in right above GlobalAIAssistant */}
+        <SystemTour forceRun={replayTour} onTourClose={() => setReplayTour(false)} />
+
       {!showLanding && (
         <GlobalAIAssistant 
           session={session} 
@@ -3859,6 +3873,8 @@ return (
         />
       )}
     </>
+
+  
   );
 }
 
