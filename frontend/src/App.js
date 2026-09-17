@@ -177,17 +177,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       if (!error && paneId === 'global' && !activeThread) {
           const isAdmin = profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN';
           if (isAdmin) {
-              fetch('/api/notify', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ emails: systemUsers.filter(u => u.email).map(u => u.email), title: `Campus Announcement`, message: text })
-              }).catch(err => console.error("Chat API failed:", err));
+              // RESTORED FIX: Loop through and send individually to prevent group messaging
+              const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
+              chatEmails.forEach(singleEmail => {
+                 fetch('/api/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: text })
+                 }).catch(err => console.error("Chat API failed for " + singleEmail + ":", err));
+              });
           }
       } else if (!error && paneId !== 'global' && target?.email && !activeThread) {
           fetch('/api/notify', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ emails: [target.email], title: `New Message from ${profile.full_name}`, message: text })
+             body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: text })
           }).catch(err => console.error("Chat API failed:", err));
       }
     }
@@ -1921,7 +1925,7 @@ useEffect(() => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [session, profile]);
-  
+
   // --- ADVANCED SYSTEM HEALTH METRICS ---
   const systemMetrics = useMemo(() => {
     // 1. Conflicts & Flags
