@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 
 
-const [replayTour, setReplayTour] = useState(false);
 
 // --- SMART STICKY STATE HOOK (Survives Back Button & Refreshes) ---
 function useStickyState(defaultValue, key) {
@@ -690,10 +689,14 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
           {paginatedProfiles.map(p => (
              <div key={p.id} className={`bg-slate-50 p-5 rounded-[2rem] border-2 border-slate-100 ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
-                      <p className="text-[8px] font-black text-slate-400 uppercase mt-1">Joined: {formatJoinDate(p.created_at)}</p>
+                    {/* --- ADDED USER AVATAR TO MOBILE VIEW --- */}
+                    <div className="flex items-center gap-3">
+                      <UserAvatar fullName={p.full_name || p.name} avatarUrl={p.avatar_url} size={40} />
+                      <div>
+                        <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1">Joined: {formatJoinDate(p.created_at)}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${p.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : p.status === 'PENDING' ? 'bg-amber-500 animate-bounce' : 'bg-rose-500'}`} />
@@ -739,11 +742,19 @@ const UserRegistry = ({ profiles, highlightTarget, onBlock, onDelete, onCreate, 
             <tbody>
               {paginatedProfiles.map(p => (
                 <tr key={p.id} className={`group transition-all ${p.status === 'ARCHIVED' || p.status === 'BLOCKED' ? 'opacity-40 grayscale' : ''}`}>
+                  
+                  {/* --- ADDED USER AVATAR TO DESKTOP VIEW --- */}
                   <td className="bg-slate-50 p-6 rounded-l-[2rem] border-y-2 border-l-2 border-slate-100">
-                    <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
-                    <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Joined: {formatJoinDate(p.created_at)}</p>
+                    <div className="flex items-center gap-4">
+                      <UserAvatar fullName={p.full_name || p.name} avatarUrl={p.avatar_url} size={40} />
+                      <div>
+                        <p className="font-black text-slate-900 uppercase text-sm">{p.full_name || p.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{p.email}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Joined: {formatJoinDate(p.created_at)}</p>
+                      </div>
+                    </div>
                   </td>
+                  
                   <td className="bg-slate-50 p-6 border-y-2 border-slate-100">
                     <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border-2 ${p.role?.trim().toUpperCase() === 'HEAD_ADMIN' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-900 border-slate-200'}`}>
                       {p.role}
@@ -1523,8 +1534,11 @@ function App() {
   const [profile, setProfile] = useState(null); 
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null); 
-const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
+  const [activeTab, setActiveTab] = useStickyState("dashboard", "accord_tab");
   const [allProfiles, setAllProfiles] = useState([]);
+  
+  // --- NEW TOUR STATE GOES HERE ---
+  const [replayTour, setReplayTour] = useState(false);
   
   // --- AUTH & REGISTRATION STATES ---
   const [email, setEmail] = useStickyState('', 'draft_email');
