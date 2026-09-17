@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings
+  RefreshCw, Globe, Calendar, List, Users, Shield, UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play
 } from 'lucide-react';
 
 
@@ -3875,8 +3875,10 @@ return (
     <>
       {renderScreens()}
 
-      {/* Drops in right above GlobalAIAssistant */}
+      {/* FIXED: Now it only runs if the user is fully logged in and NOT on the landing page */}
+      {session && profile && !showLanding && (
         <SystemTour forceRun={replayTour} onTourClose={() => setReplayTour(false)} />
+      )}
 
       {!showLanding && (
         <GlobalAIAssistant 
@@ -3887,8 +3889,6 @@ return (
         />
       )}
     </>
-
-  
   );
 }
 
