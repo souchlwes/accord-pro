@@ -92,6 +92,19 @@ const DepartmentCard = ({
   highlightTarget
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
+
+  const now = new Date();
+  const todayString = now.toISOString().split('T')[0];
+  const currentTimeStr = now.toTimeString().substring(0, 5);
+
+  const isPast = (d, eTime) => {
+    if (!d) return false;
+    if (d < todayString) return true;
+    if (d === todayString && eTime < currentTimeStr) return true;
+    return false;
+  };
+
+  
   const [previewView, setPreviewView] = useState("upcoming");
   const [generationErrors, setGenerationErrors] = useState([]);
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
@@ -449,16 +462,8 @@ const DepartmentCard = ({
   const [roomType, setRoomType] = useState("Department");
   const [roomCap, setRoomCap] = useState("");
   
-  const now = new Date();
-  const todayString = now.toISOString().split('T')[0];
-  const currentTimeStr = now.toTimeString().substring(0, 5);
+  
 
-  const isPast = (d, eTime) => {
-    if (!d) return false;
-    if (d < todayString) return true;
-    if (d === todayString && eTime < currentTimeStr) return true;
-    return false;
-  };
   const globalProctorPool = useMemo(() => allProfiles.filter(p => p.role?.toUpperCase() === 'PROCTOR'), [allProfiles]);
   const globalRoomPool = useMemo(() => allDepartments.flatMap(d => d.rooms), [allDepartments]);
 
