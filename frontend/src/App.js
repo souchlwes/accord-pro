@@ -2110,7 +2110,8 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-
+  const [logoModal, setLogoModal] = useState({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1 });
+ 
   const handleOpenChat = () => {
     setShowChat(true);
     setUnreadMessageCount(0);
@@ -3205,7 +3206,7 @@ const executeAddDepartment = async (e) => {
     }
   };
 
-  const deleteDepartment = async (deptId, deptCode) => {
+ const deleteDepartment = async (deptId, deptCode) => {
     setConfirmModal({
       isOpen: true,
       title: `Delete ${deptCode} Department?`,
@@ -3217,6 +3218,50 @@ const executeAddDepartment = async (e) => {
         setAppToast({ message: "Department permanently deleted.", type: "success" });
       }
     });
+  };
+
+  // --- NEW: CREST UPLOAD FUNCTION ---
+  const executeLogoUpload = async (e) => {
+    e.preventDefault();
+    const { type, targetId, newLogoBase64, newLogoType, currentLogo } = logoModal;
+    let finalUrl = currentLogo;
+
+    setLoading(true);
+
+    if (newLogoBase64) {
+      try {
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: newLogoBase64, mimeType: newLogoType, userId: `crest-${Date.now()}` })
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadRes.ok) finalUrl = uploadData.url;
+        else throw new Error(uploadData.error);
+      } catch (err) {
+        setAppToast({ message: "Image upload failed: " + err.message, type: "error" });
+        setLoading(false);
+        return;
+      }
+    } else if (!finalUrl) {
+        finalUrl = null; 
+    }
+
+    try {
+        if (type === 'university') {
+           const { error } = await supabase.from('departments').update({ university_logo_url: finalUrl }).eq('university', profile.university);
+           if (error) throw error;
+        } else {
+           const { error } = await supabase.from('departments').update({ logo_url: finalUrl }).eq('id', targetId);
+           if (error) throw error;
+        }
+        setAppToast({ message: "Crest successfully updated!", type: "success" });
+        setLogoModal({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1 });
+        await fetchAllData(false);
+    } catch (error) {
+        setAppToast({ message: "Database update failed: " + error.message, type: "error" });
+    }
+    setLoading(false);
   };
 
  const renderScreens = () => {
@@ -3790,43 +3835,44 @@ const executeAddDepartment = async (e) => {
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
       {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
 
-{/* RESPONSIVE SIDEBAR / BOTTOM NAV */}
-      <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 md:sticky md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100] md:z-50">
-        <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer">
-          <img src={accordLogo} alt="Accord Logo" className="w-12 h-12 object-contain brightness-0 invert opacity-90" />
+{/* FIXED SECURE NAVBAR */}
+      <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 left-0 md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100]">
+        <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer relative group">
+          <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-12 h-12 object-contain drop-shadow-lg opacity-90" />
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">University Home</span>
         </div>
         
         <button 
           id="tour-nav-dashboard"
           onClick={() => setActiveTab("dashboard")}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <LayoutDashboard size={24} className="md:w-7 md:h-7" />
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Dashboard</span>
         </button>
 
         <button 
           id="tour-nav-users"
           onClick={() => setActiveTab("users")}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'users' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${activeTab === 'users' ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <Users size={24} className="md:w-7 md:h-7" />
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Staff Registry</span>
         </button>
 
-        {/* SYSTEM AI ASSISTANT */}
         <button 
           id="tour-ai-btn"
           onClick={() => setIsAIOpen(true)}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${isAIOpen ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
-          title="Accord AI Assistant"
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${isAIOpen ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <Headphones size={24} className="md:w-7 md:h-7" />
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">AI Assistant</span>
         </button>
 
-        {/* GLOBAL CHAT ICON */}
         <button 
           id="tour-chat-btn"
           onClick={handleOpenChat}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showChat ? 'bg-indigo-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <MessageSquare size={24} className="md:w-7 md:h-7" />
           {unreadMessageCount > 0 && (
@@ -3834,50 +3880,50 @@ const executeAddDepartment = async (e) => {
               {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
             </span>
           )}
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Campus Chat</span>
         </button>
 
-        {/* ADMIN NOTIFICATION BELL */}
         <button 
           id="tour-notify-btn"
           onClick={() => setShowNotifications(true)}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 relative ${showNotifications ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showNotifications ? 'bg-white text-slate-900 shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <Bell size={24} className="md:w-7 md:h-7" />
           {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute top-2 right-2 md:top-4 md:right-4 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Notifications</span>
         </button>
 
-        {/* SMART HELP CENTER ICON */}
         <button 
           id="tour-help-btn"
           onClick={() => setShowHelp(true)}
-          className={`p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showHelp ? 'bg-emerald-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
+          className={`group relative p-3 md:p-5 md:mb-6 rounded-2xl transition-all active:scale-90 ${showHelp ? 'bg-emerald-500 text-white shadow-2xl' : 'text-slate-500 hover:bg-white/10'}`}
         >
           <HelpCircle size={24} className="md:w-7 md:h-7" />
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Help Center</span>
         </button>
         
         <div className="md:mt-auto flex flex-row md:flex-col gap-1 md:gap-4">
-          {/* SETTINGS / CHANGE PASSWORD */}
           <button 
             id="tour-settings-btn"
             onClick={() => setShowPasswordModal(true)} 
-            className="p-3 md:p-5 text-slate-500 hover:bg-white/10 hover:text-white rounded-2xl transition-all active:scale-90"
-            title="Change Password"
+            className="group relative p-3 md:p-5 text-slate-500 hover:bg-white/10 hover:text-white rounded-2xl transition-all active:scale-90"
           >
             <Settings size={24} className="md:w-7 md:h-7" />
+            <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Settings</span>
           </button>
 
-          {/* LOGOUT */}
           <button 
             id="tour-logout-btn" 
             onClick={handleHardReset} 
-            className="p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all active:scale-90"
+            className="group relative p-3 md:p-5 text-rose-500 hover:bg-rose-500/20 rounded-2xl transition-all active:scale-90"
           >
             <LogOut size={24} className="md:w-7 md:h-7" />
+            <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Logout</span>
           </button>
         </div>
       </aside>
 
-    <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative">
+    <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative md:ml-24">
         
        {/* TRUTH REVEALER BADGE */}
         <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0 text-left md:text-right">
@@ -3915,13 +3961,23 @@ const executeAddDepartment = async (e) => {
           <>
           {activeTab === "dashboard" ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10 space-y-8 md:space-y-12">
-                
-               {/* --- 1. EXECUTIVE METRICS HERO --- */}
-                <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                  <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
-                  
-                  <div className="relative z-10 flex items-center gap-6">
-                    <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={72} />
+              
+              {/* --- 1. EXECUTIVE METRICS HERO --- */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
+                    
+                    {/* NEW: University Crest Display */}
+                    <div className="absolute top-8 right-8 z-20 flex flex-col items-end hidden md:flex">
+                        <div className="relative group/crest cursor-pointer" onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}>
+                            <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-20 h-20 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105" />
+                            {isHeadAdmin && (
+                            <div className="absolute -bottom-2 right-0 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Crest</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="relative z-10 flex items-center gap-6">
+                      <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={72} />
                     <div>
                       <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-1">
                         {getGreeting()},
@@ -4088,15 +4144,30 @@ const executeAddDepartment = async (e) => {
                                 
                                 {/* Bottom Progress Bar */}
                                 <div className="absolute bottom-0 left-0 h-1.5 bg-slate-100 w-full">
-                                  <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
-                                </div>
-
-                                <div className="flex justify-between items-start mb-6">
-                                  <div>
-                                    <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                                    <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
                                   </div>
-                                  <div className="text-right z-10">
+
+                                  <div className="flex justify-between items-start mb-6">
+                                    
+                                    {/* NEW: DEPARTMENT CREST LOGO INJECTION */}
+                                    <div className="flex items-center gap-4">
+                                       <div className="relative group/deptcrest cursor-pointer" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
+                                           {dept.logo_url ? (
+                                               <img src={dept.logo_url} className="w-12 h-12 object-contain drop-shadow-md transition-transform group-hover/deptcrest:scale-105" />
+                                           ) : (
+                                               <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border border-slate-200"><Layers size={20} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
+                                           )}
+                                           {(isHeadAdmin || isDeptAdmin) && (
+                                             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap">Edit Crest</div>
+                                           )}
+                                       </div>
+                                       <div>
+                                         <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
+                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                                       </div>
+                                    </div>
+
+                                    <div className="text-right z-10">
                                     <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
                                     <button 
                                       onClick={(e) => {
@@ -4407,12 +4478,76 @@ const executeAddDepartment = async (e) => {
                   <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                   <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+             </form>
+                </div>
+              </div>
+            )}
 
-       {/* --- INJECTED EDIT STAFF MODAL --- */}
+            {/* --- NEW: CREST UPLOAD MODAL --- */}
+            {logoModal.isOpen && (
+              <div className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+                  <div className="flex items-center gap-4 text-blue-600 mb-6">
+                    <ImageIcon size={32} />
+                    <div>
+                      <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">
+                        {logoModal.type === 'university' ? 'Global University Crest' : 'Department Crest'}
+                      </h3>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Upload official branding</p>
+                    </div>
+                  </div>
+                  <form onSubmit={executeLogoUpload} className="space-y-4 mb-2">
+                    <div>
+                      <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
+                         {logoModal.newLogoBase64 ? (
+                           <div className="flex flex-col items-center w-full">
+                             <AvatarEditor
+                               image={logoModal.newLogoBase64}
+                               width={150} height={150} border={20} borderRadius={100}
+                               scale={logoModal.zoom}
+                               className="shadow-sm bg-white mb-3"
+                             />
+                             <input 
+                               type="range" min="1" max="3" step="0.1" 
+                               value={logoModal.zoom} 
+                               onChange={e => setLogoModal({...logoModal, zoom: parseFloat(e.target.value)})}
+                               className="w-full accent-blue-600"
+                             />
+                             <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Adjust Zoom</span>
+                           </div>
+                         ) : (
+                           <div className="flex flex-col items-center gap-4 py-4">
+                             <img src={logoModal.currentLogo || accordLogo} className="w-24 h-24 object-contain drop-shadow-md" />
+                             <span className="text-[9px] font-bold text-slate-400">Upload a new image to replace crest</span>
+                           </div>
+                         )}
+                         
+                         <input 
+                           type="file" accept="image/*" 
+                           onChange={e => {
+                             const file = e.target.files[0];
+                             if (file) {
+                               const reader = new FileReader();
+                               reader.onloadend = () => setLogoModal({...logoModal, newLogoBase64: reader.result, newLogoType: file.type, zoom: 1});
+                               reader.readAsDataURL(file);
+                             }
+                           }} 
+                           className="text-[10px] font-bold text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 transition-all outline-none w-full" 
+                         />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-4">
+                      <button type="button" onClick={() => setLogoModal({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1 })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => setLogoModal({...logoModal, currentLogo: null, newLogoBase64: null})} className="p-4 rounded-xl font-black text-[10px] uppercase text-rose-500 bg-rose-50 hover:bg-rose-100 transition-colors" title="Remove Crest"><Trash2 size={16}/></button>
+                      <button type="submit" disabled={loading} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Crest</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+           {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
             <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
