@@ -86,10 +86,11 @@ const DepartmentCard = ({
   allDepartments = [],
   allProfiles = [],
   globalAvailability = [], 
-  role,
+ role,
   onNotify,
   onEditProctor,
-  highlightTarget
+  highlightTarget,
+  onEditCrest
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
 
@@ -1271,20 +1272,36 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       )}
 
      {/* HEADER SECTION */}
-      <div className="bg-slate-900 p-10 text-white flex justify-between items-center relative overflow-hidden">
+      <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-6 md:gap-0">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-4">      
-            <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
-            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
-              <Edit3 size={20} />
-            </button>
-<button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
-  <Trash2 size={20} />
-</button>
+        
+        <div className="relative z-10 flex items-center gap-6">
+          {/* NEW: DEPARTMENT CREST LOGO */}
+          <div className="relative group/deptcrest cursor-pointer" onClick={() => onEditCrest && onEditCrest()}>
+              {dept.logo_url ? (
+                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105 bg-white/10 p-2 rounded-2xl border border-white/20" alt="Dept Crest" />
+              ) : (
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-700 transition-colors group-hover/deptcrest:border-blue-500">
+                      <Layers size={32} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
+                  </div>
+              )}
+              {(role === 'HEAD_ADMIN' || role === 'DEPT_ADMIN') && (
+                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-lg whitespace-nowrap z-50">Edit Crest</div>
+              )}
           </div>
-          
-          <div className="flex flex-wrap items-center gap-3 mt-3">
+
+          <div>
+            <div className="flex items-center gap-3 md:gap-4">      
+              <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
+              <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+                <Edit3 size={18} />
+              </button>
+              <button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
+                <Trash2 size={18} />
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 mt-3"></div>
             <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] flex items-center gap-2">
               <Settings2 size={12}/> Departmental Workspace Engine
             </p>
