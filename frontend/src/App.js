@@ -1766,20 +1766,21 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
           </div>
 
-         {/* OFFICIAL EMBEDDED CRESTS (WITH SMART BACKLIGHT GLOW FOR DARK LOGOS) */}
+         {/* OFFICIAL EMBEDDED CRESTS (SLEEK LIGHT PLAQUE FOR CONTRAST) */}
           {(universityLogo || departmentLogo) && (
             <>
               <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 bg-slate-50 px-3 py-1.5 md:py-2 rounded-[1.2rem] shadow-inner border border-slate-200">
                  {universityLogo && (
-                    <img src={universityLogo} className="w-8 h-8 md:w-10 md:h-10 aspect-square shrink-0 object-contain drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]" alt="Univ Crest" />
+                    <img src={universityLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain" alt="Univ Crest" />
                  )}
                  {departmentLogo && (
-                    <img src={departmentLogo} className="w-8 h-8 md:w-10 md:h-10 aspect-square shrink-0 object-contain drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]" alt="Dept Crest" />
+                    <img src={departmentLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain" alt="Dept Crest" />
                  )}
               </div>
             </>
           )}
+
         </div>
 
        <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
@@ -4258,13 +4259,13 @@ const executeAddDepartment = async (e) => {
                                     
                                    
                                   
-{/* NEW: BORDERLESS DEPARTMENT CREST LOGO INJECTION */}
-                                    <div className="flex items-center gap-4">
-                                       <div className="relative group/deptcrest cursor-pointer bg-transparent border-0" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
+                                  {/* BULLETPROOF BORDERLESS DEPARTMENT CREST LOGO INJECTION */}
+                                    <div className="flex items-center gap-4 flex-none">
+                                       <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-12 h-12 md:w-16 md:h-16 min-w-[3rem] min-h-[3rem] md:min-w-[4rem] md:min-h-[4rem]" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
                                            {dept.logo_url ? (
-                                               <img src={dept.logo_url} className="w-16 h-16 rounded-full object-cover overflow-hidden shadow-md ring-0 border-0 bg-transparent transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
+                                               <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
                                            ) : (
-                                               <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border-0 shadow-sm"><Layers size={24} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
+                                               <div className="w-full h-full bg-slate-50 rounded-2xl flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border-0 shadow-sm"><Layers size={24} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
                                            )}
                                            {(isHeadAdmin || isDeptAdmin) && (
                                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit Crest</div>
