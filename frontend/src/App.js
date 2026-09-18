@@ -3962,26 +3962,10 @@ const executeAddDepartment = async (e) => {
           {activeTab === "dashboard" ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10 space-y-8 md:space-y-12">
               
-             {/* --- 1. EXECUTIVE METRICS HERO (NOW WITH UNIVERSITY CREST) --- */}
+           {/* --- 1. EXECUTIVE METRICS HERO (NOW WITH UNIVERSITY CREST) --- */}
                   <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
                     
-                    {/* NEW: Flawless Clickable University Crest Display */}
-                    <div className="absolute top-6 right-8 z-[50] flex flex-col items-end hidden md:flex">
-                        <button 
-                            type="button"
-                            onClick={() => {
-                               if (isHeadAdmin) setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 });
-                            }}
-                            className="relative group/crest cursor-pointer focus:outline-none"
-                        >
-                            <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-24 h-24 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105" />
-                            {isHeadAdmin && (
-                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-xl whitespace-nowrap">Edit Crest</div>
-                            )}
-                        </button>
-                    </div>
-
                     <div className="relative z-10 flex items-center gap-6">
                       <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={72} />
                       <div>
@@ -3997,7 +3981,21 @@ const executeAddDepartment = async (e) => {
                       </div>
                     </div>
 
-                    <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-8 md:mt-0">
+                    <div className="relative z-[200] flex flex-col md:flex-row items-center gap-6 w-full md:w-auto mt-8 md:mt-0">
+                      {/* NEW: Flawless Clickable University Crest Moved Here */}
+                      <button 
+                          type="button"
+                          onClick={() => {
+                             if (isHeadAdmin) setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 });
+                          }}
+                          className="relative group/crest cursor-pointer focus:outline-none"
+                      >
+                          <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105 bg-white/10 p-2 rounded-2xl border border-white/20" />
+                          {isHeadAdmin && (
+                          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-xl whitespace-nowrap">Edit Crest</div>
+                          )}
+                      </button>
+
                       {isHeadAdmin && (
                         <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
                           <Plus size={16} /> Add Workspace
@@ -4219,6 +4217,7 @@ const executeAddDepartment = async (e) => {
                         onDeleteDept={deleteDepartment} globalAvailability={globalAvailability}
                         onEditDept={(id, name, code) => setEditDeptModal({ isOpen: true, id, name, code })}
                         onEditProctor={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '', currentAvatar: p.avatar_url })}
+                        onEditCrest={() => setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
                         onClearSchedule={(dCode, yLevel) => {
                           setConfirmModal({
                             isOpen: true,
