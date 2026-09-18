@@ -1820,39 +1820,42 @@ const [dashboardView, setDashboardView] = useState('upcoming');
       
        <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8 relative">
         
-    {/* EMBEDDED PROCTOR CRESTS (SPACED UNIFORMLY) */}
-        <div className="flex justify-end gap-2 mb-4 z-40 relative">
-            {universityLogo && (
-               <img src={universityLogo} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl z-10" alt="Univ Crest" />
-            )}
-            {departmentLogo && (
-               <img src={departmentLogo} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl z-20" alt="Dept Crest" />
-            )}
-        </div>
-
-        {/* TOP HERO BENTO: PERSONAL CONTEXT & METRICS */}
+   
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* Welcome Tile (Span 7) */}
           <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
             <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
             
-            <div className="flex items-center gap-4 z-10">
-              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1">
-                  {getGreeting()}
-                </span>
-                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white">
-                  {profile?.full_name?.split(' ')[0] || 'Proctor'}
-                </h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                  {profile?.assigned_dept ? `${profile.assigned_dept} Department Pool` : 'Global Reserve Proctor'}
-                </p>
+            <div className="flex justify-between items-start z-10 w-full gap-4">
+              <div className="flex items-center gap-4">
+                <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
+                <div className="min-w-0">
+                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1 truncate">
+                    {getGreeting()}
+                  </span>
+                  <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white truncate">
+                    {profile?.full_name?.split(' ')[0] || 'Proctor'}
+                  </h1>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">
+                    {profile?.assigned_dept ? `${profile.assigned_dept} Department` : 'Global Reserve'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* EMBEDDED CRESTS (FROSTED GLASS BADGE) */}
+              <div className="flex items-center gap-3 shrink-0 bg-white/5 p-2 md:p-3 rounded-2xl border border-white/10 shadow-inner">
+                  {universityLogo && (
+                     <img src={universityLogo} className="w-10 h-10 md:w-14 md:h-14 object-contain drop-shadow-xl transition-transform hover:scale-105" alt="Univ Crest" />
+                  )}
+                  {departmentLogo && (
+                     <img src={departmentLogo} className="w-10 h-10 md:w-14 md:h-14 object-contain drop-shadow-xl transition-transform hover:scale-105" alt="Dept Crest" />
+                  )}
               </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 z-10">
+            
               <div>
                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Immediate Assignment</span>
                 <p className="text-xs font-bold text-white mt-1">
