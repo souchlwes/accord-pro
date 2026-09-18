@@ -1277,14 +1277,15 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         
         <div className="relative z-10 flex items-center gap-6">
           {/* NEW: PERFECT BORDERLESS DEPARTMENT CREST LOGO */}
-          <div className="relative group/deptcrest cursor-pointer bg-transparent border-none" onClick={() => onEditCrest && onEditCrest()}>
+          <div className="relative group/deptcrest cursor-pointer bg-transparent border-0" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-contain bg-transparent border-none drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover overflow-hidden shadow-2xl ring-0 border-0 bg-transparent transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
               ) : (
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-full flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-none">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-full flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
                       <Layers size={32} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
                   </div>
               )}
+
               {(role === 'HEAD_ADMIN' || role === 'DEPT_ADMIN') && (
                   <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-lg whitespace-nowrap z-50">Edit Crest</div>
               )}
