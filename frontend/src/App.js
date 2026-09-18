@@ -1764,16 +1764,16 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
           </div>
 
-          {/* OFFICIAL EMBEDDED CRESTS */}
+         {/* OFFICIAL EMBEDDED CRESTS (WITH SMART BACKLIGHT GLOW FOR DARK LOGOS) */}
           {(universityLogo || departmentLogo) && (
             <>
               <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                  {universityLogo && (
-                    <img src={universityLogo} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md" alt="Univ Crest" />
+                    <img src={universityLogo} className="w-8 h-8 md:w-10 md:h-10 aspect-square shrink-0 object-contain drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]" alt="Univ Crest" />
                  )}
                  {departmentLogo && (
-                    <img src={departmentLogo} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md" alt="Dept Crest" />
+                    <img src={departmentLogo} className="w-8 h-8 md:w-10 md:h-10 aspect-square shrink-0 object-contain drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]" alt="Dept Crest" />
                  )}
               </div>
             </>
@@ -4027,18 +4027,18 @@ const executeAddDepartment = async (e) => {
                )}
              </div>
 
-            {/* EMBEDDED CRESTS (SPACED UNIFORMLY) */}
-             <div className="flex items-center gap-2 shrink-0">
+            {/* EMBEDDED CRESTS (PROPER SCALING & ASPECT RATIO) */}
+             <div className="flex items-center gap-3 shrink-0">
                 {/* University Crest */}
                 <button 
                   type="button"
                   onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
-                  className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all bg-transparent border-0"
+                  className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all bg-transparent border-0 shrink-0"
                 >
                     <img 
                       src={departments[0]?.university_logo_url || accordLogo} 
                       alt="University Crest" 
-                      className={`w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'brightness-0 opacity-20' : ''}`} 
+                      className={`w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'brightness-0 opacity-20' : ''}`} 
                     />
                     {isHeadAdmin && (
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Campus</div>
@@ -4050,12 +4050,12 @@ const executeAddDepartment = async (e) => {
                    <button 
                      type="button"
                      onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
-                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0"
+                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0 shrink-0"
                    >
                        <img 
                          src={departments.find(d => d.code === profile.assigned_dept)?.logo_url} 
                          alt="Dept Crest" 
-                         className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
+                         className="w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
                        />
                        {(isHeadAdmin || isDeptAdmin) && (
                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
