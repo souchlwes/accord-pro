@@ -99,14 +99,25 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(null);
   const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
-  const [confirmLeaveRoom, setConfirmLeaveRoom] = useState(null); // NEW: Leave Confirmation
+  const [confirmLeaveRoom, setConfirmLeaveRoom] = useState(null);
   const [chatError, setChatError] = useState("");
   const [quotingMsg, setQuotingMsg] = useState({}); 
 
-  const messagesEndRefs = useRef({});
+  // FIX: Using scroll containers directly to stop lag/fighting
+  const scrollContainers = useRef({});
   const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
   const uniqueDepts = [...new Set(systemUsers.map(u => u.assigned_dept).filter(Boolean))];
+
+  // FIX: Global Event Listener to open chat from outside notifications
+  useEffect(() => {
+    const handleOpenChat = (e) => {
+      const { type, target } = e.detail;
+      if (target) openPane(type, target);
+    };
+    window.addEventListener('open-chat-pane', handleOpenChat);
+    return () => window.removeEventListener('open-chat-pane', handleOpenChat);
+  }, [activePanes]);
 
   useEffect(() => {
     const fetchChatData = async () => {
@@ -173,11 +184,14 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     return () => { supabase.removeChannel(channel); };
   }, [profile?.id, activePanes, rooms]);
 
+  // FIX: Non-aggressive smooth scrolling (Only triggers on message count change)
   useEffect(() => {
-    Object.keys(messagesEndRefs.current).forEach(key => {
-       messagesEndRefs.current[key]?.scrollIntoView({ behavior: "smooth" });
+    Object.values(scrollContainers.current).forEach(container => {
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
     });
-  }, [messages, activePanes, activeThreads]);
+  }, [messages.length, activePanes.length]);
 
   const openPane = (type, target) => {
      const paneId = target.id; 
@@ -229,7 +243,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           fetch('/api/notify', {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ emails: email, title: `Added to Channel: ${newRoomName}`, message: `${profile.full_name} has added you to a new internal communication channel.` })
-          }).catch(console.error);
+          }).then(() => {}).catch(() => {}); // Safe catch
        });
 
        const notifyPayload = newRoomParticipants.map(u => ({
@@ -237,6 +251,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
            title: `🔔 Added to Channel`, 
            message: `${profile.full_name} added you to ${newRoomName}.`
        }));
+       
+       // FIX: Clean Insert. Removed .catch() completely.
        if (notifyPayload.length > 0) {
            await supabase.from('notifications').insert(notifyPayload);
        }
@@ -259,7 +275,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      setConfirmDeleteRoom(null);
   };
 
-  // NEW: Leave Room Logic
   const leaveRoom = async (roomId) => {
      await supabase.from('chat_participants').delete().eq('room_id', roomId).eq('user_id', profile.id);
      setRooms(prev => prev.filter(r => r.id !== roomId));
@@ -304,7 +319,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(console.error);
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
               });
               
               const notifyPayload = systemUsers.map(u => ({
@@ -313,7 +328,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               await supabase.from('notifications').insert(notifyPayload);
 
           } else if (type === 'dm' && target?.email) {
-              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(console.error);
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
               
               await supabase.from('notifications').insert([{
                   target_user_id: target.id, title: `💬 New Message`, message: `${profile.full_name} sent you a direct message.`
@@ -325,7 +340,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               targetedEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).catch(console.error);
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
               });
 
               const notifyPayload = roomMembers.map(rm => ({
@@ -357,7 +372,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName);
       await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'document' });
     } catch (err) {
-      setChatError("Upload failed. File might be too large or format unsupported.");
+      setChatError("Upload failed. Storage bucket missing or file too large.");
       setTimeout(() => setChatError(""), 3000);
     } finally {
       setUploading(prev => ({ ...prev, [paneId]: false }));
@@ -561,7 +576,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
              const activeThread = activeThreads[pane.id];
              const detailsOpen = roomDetailsOpen[pane.id];
              
-             // NEW: Delegation Logic. Admins can manage members alongside creators.
              const canManageMembers = isRoom && (target.created_by === profile.id || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role));
              const canPost = !isBroadcast || canManageMembers;
 
@@ -606,7 +620,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         </div>
                      </div>
 
-                     <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
+                     {/* NO LAG SCROLL CONTAINER */}
+                     <div ref={el => scrollContainers.current[pane.id] = el} className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
                         {activeThread && (
                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
                              <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max"><User size={12}/> {activeThread.sender_name}</button>
@@ -746,7 +761,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                               </div>
                            );
                         })}
-                        <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
                      {canPost ? (
@@ -817,7 +831,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                            await supabase.from('chat_participants').insert([{room_id: target.id, user_id: u.id}]);
                                            setParticipants(prev => [...prev, {room_id: target.id, user_id: u.id}]);
                                            
-                                           if(u.email) fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: u.email, title: `Added to Channel: ${target.name}`, message: `${profile.full_name} has added you to this communication channel.` }) }).catch(console.error);
+                                           if(u.email) fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: u.email, title: `Added to Channel: ${target.name}`, message: `${profile.full_name} has added you to this communication channel.` }) }).then(()=>{}).catch(()=>{});
                                            
                                            await supabase.from('notifications').insert([{
                                                target_user_id: u.id, title: `🔔 Added to Channel`, message: `${profile.full_name} added you to ${target.name}.`
@@ -898,7 +912,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            </div>
                          )}
 
-                         {/* NEW: LEAVE ROOM BUTTON (For Non-Creators) */}
                          {isRoom && target.created_by !== profile.id && (
                            <div className="pt-6 mt-6 border-t border-white/10">
                               {confirmLeaveRoom === target.id ? (
