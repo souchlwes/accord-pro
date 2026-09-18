@@ -1819,13 +1819,13 @@ const [dashboardView, setDashboardView] = useState('upcoming');
       
        <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8 relative">
         
-       {/* NEW: PROCTOR CRESTS (UNIFORM SIZE & MOBILE VISIBLE) */}
-        <div className="flex justify-end gap-0 mb-4 z-40 relative">
+      {/* EMBEDDED PROCTOR CRESTS (RAW BORDERLESS PNG) */}
+        <div className="flex justify-end gap-4 mb-4 z-40 relative">
             {universityLogo && (
-               <img src={universityLogo} className="w-16 h-16 rounded-full object-cover overflow-hidden shadow-xl ring-0 border-0 bg-transparent z-10" alt="Univ Crest" />
+               <img src={universityLogo} className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl z-10" alt="Univ Crest" />
             )}
             {departmentLogo && (
-               <img src={departmentLogo} className="w-16 h-16 rounded-full object-cover overflow-hidden shadow-xl ring-0 border-0 bg-transparent z-20 -ml-4" alt="Dept Crest" />
+               <img src={departmentLogo} className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl z-20" alt="Dept Crest" />
             )}
         </div>
 
@@ -3849,13 +3849,13 @@ const executeAddDepartment = async (e) => {
 
 {/* FIXED SECURE NAVBAR */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 left-0 md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100]">
-        <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer relative group bg-transparent border-none">
+        <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer relative group bg-transparent border-0">
           <img 
-            src={departments[0]?.university_logo_url || accordLogo} 
-            alt="University Crest" 
-            className={`w-12 h-12 object-contain drop-shadow-lg opacity-90 bg-transparent border-none ${!departments[0]?.university_logo_url ? 'brightness-0 invert' : ''}`} 
+            src={accordLogo} 
+            alt="Accord Pro Logo" 
+            className="w-12 h-12 object-contain brightness-0 invert drop-shadow-lg opacity-90 bg-transparent border-0" 
           />
-          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">University Home</span>
+          <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">Accord Home</span>
         </div>
         
         <button 
@@ -3959,8 +3959,8 @@ const executeAddDepartment = async (e) => {
                )}
              </div>
 
-             {/* FLOATING CIRCULAR CRESTS (STRICT UNIFORM SIZE) */}
-             <div className="flex items-center shrink-0">
+             {/* EMBEDDED CRESTS (RAW BORDERLESS PNG) */}
+             <div className="flex items-center gap-4 shrink-0">
                 {/* University Crest */}
                 <button 
                   type="button"
@@ -3970,7 +3970,7 @@ const executeAddDepartment = async (e) => {
                     <img 
                       src={departments[0]?.university_logo_url || accordLogo} 
                       alt="University Crest" 
-                      className={`w-16 h-16 rounded-full object-cover overflow-hidden shadow-xl ring-0 border-0 transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'bg-slate-900 p-2 object-contain' : 'bg-transparent'}`} 
+                      className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
                     />
                     {isHeadAdmin && (
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Campus</div>
@@ -3982,12 +3982,12 @@ const executeAddDepartment = async (e) => {
                    <button 
                      type="button"
                      onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
-                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0 -ml-4"
+                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0"
                    >
                        <img 
                          src={departments.find(d => d.code === profile.assigned_dept)?.logo_url} 
                          alt="Dept Crest" 
-                         className="w-16 h-16 rounded-full object-cover overflow-hidden shadow-xl ring-0 border-0 bg-transparent transition-transform group-hover/crest:scale-105" 
+                         className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
                        />
                        {(isHeadAdmin || isDeptAdmin) && (
                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
