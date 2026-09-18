@@ -576,8 +576,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
              const activeThread = activeThreads[pane.id];
              const detailsOpen = roomDetailsOpen[pane.id];
              
-             const canManageMembers = isRoom && (target.created_by === profile.id || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role));
-             const canPost = !isBroadcast || canManageMembers;
+            const canManageMembers = isRoom && (target.created_by === profile.id || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role));
+             
+             // Unlock the Global Campus for everyone, but keep targeted Broadcasts read-only
+             const canPost = isGlobal || (!isBroadcast || canManageMembers);
 
              const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
