@@ -44,26 +44,32 @@ export default function SystemTour({ forceRun, onTourClose, role }) {
   const [tourKey, setTourKey] = useState(0); 
 
   useEffect(() => {
+    // FIX: Wait until the user's role has actually loaded from the DB
+    if (!role) return; 
+
     const storageKey = `accord_tour_completed_${role}`;
     const hasSeenTour = localStorage.getItem(storageKey);
-    
-    if (!hasSeenTour) {
-      setRun(true);
-    }
     
     if (forceRun) {
       setTourKey(prev => prev + 1); 
       setRun(true);
+    } else if (!hasSeenTour) {
+      setRun(true);
+    } else {
+      // FIX: Explicitly shut it off if they have seen it
+      setRun(false); 
     }
   }, [forceRun, role]);
 
   const handleJoyrideCallback = (data) => {
     const { status, action } = data;
     const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED];
-    const storageKey = `accord_tour_completed_${role}`;
     
+    // FIX: Ensure clicking 'X' (close) or completing the tour strictly locks it in storage
     if (finishedStatuses.includes(status) || action === 'close') {
-      localStorage.setItem(storageKey, 'true');
+      if (role) {
+        localStorage.setItem(`accord_tour_completed_${role}`, 'true');
+      }
       setRun(false);
       if (onTourClose) onTourClose();
     }
