@@ -1569,7 +1569,8 @@ return (
 };
 
 // --- 3. PROCTOR DASHBOARD ---
-const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, onShowAI, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout }) => {
+// --- 3. PROCTOR DASHBOARD ---
+const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, onShowAI, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout, universityLogo, departmentLogo }) => {
 const [dashboardView, setDashboardView] = useState('upcoming');
 
   useEffect(() => {
@@ -3531,8 +3532,8 @@ const executeAddDepartment = async (e) => {
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
       {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
-        <ProctorDashboard
-   
+       
+       <ProctorDashboard
           profile={viewingProctor} 
           globalSchedule={globalSchedule} 
           allExamDates={allExamDates} 
@@ -3542,8 +3543,10 @@ const executeAddDepartment = async (e) => {
           onEditProfile={(p) => setEditStaffModal({ isOpen: true, id: p.id, name: p.full_name || p.name, role: p.role, dept: p.assigned_dept || '' })}
           highlightTarget={targetHighlight}
           onShowAI={() => setIsAIOpen(true)}
+          universityLogo={departments[0]?.university_logo_url}
+          departmentLogo={departments.find(d => d.code === viewingProctor.assigned_dept)?.logo_url}
        />
-        
+       
       {/* --- INJECTED EDIT STAFF MODAL --- */}
         {editStaffModal.isOpen && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
