@@ -99,6 +99,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(null);
   const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
+  const [confirmLeaveRoom, setConfirmLeaveRoom] = useState(null); // NEW: Leave Confirmation
   const [chatError, setChatError] = useState("");
   const [quotingMsg, setQuotingMsg] = useState({}); 
 
@@ -230,6 +231,16 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
              body: JSON.stringify({ emails: email, title: `Added to Channel: ${newRoomName}`, message: `${profile.full_name} has added you to a new internal communication channel.` })
           }).catch(console.error);
        });
+
+       const notifyPayload = newRoomParticipants.map(u => ({
+           target_user_id: u.id, 
+           title: `🔔 Added to Channel`, 
+           message: `${profile.full_name} added you to ${newRoomName}.`
+       }));
+       if (notifyPayload.length > 0) {
+           await supabase.from('notifications').insert(notifyPayload);
+       }
+       
      } else {
        setChatError("Failed to create room. Ensure the name is valid.");
        setTimeout(() => setChatError(""), 3000);
@@ -246,6 +257,15 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
      setRooms(prev => prev.filter(r => r.id !== roomId));
      closePane(roomId);
      setConfirmDeleteRoom(null);
+  };
+
+  // NEW: Leave Room Logic
+  const leaveRoom = async (roomId) => {
+     await supabase.from('chat_participants').delete().eq('room_id', roomId).eq('user_id', profile.id);
+     setRooms(prev => prev.filter(r => r.id !== roomId));
+     setParticipants(prev => prev.filter(p => !(p.room_id === roomId && p.user_id === profile.id)));
+     closePane(roomId);
+     setConfirmLeaveRoom(null);
   };
 
   const handleSend = async (e, paneId, type, target, attachment = null) => {
@@ -268,7 +288,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           finalText = `[Replying to Announcement]: "${snippet}"\n\n${text}`;
       }
 
-      // FIX: Ensure text is passed as null if empty to prevent 400 Bad Request
       const payload = {
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
         text: finalText.trim() ? finalText : null, 
@@ -282,32 +301,28 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       if (!error && !activeThread) {
           const displayMsg = finalText || "Sent an attachment";
           
-          // --- FIX: DISTINCT NOTIFICATIONS & EMAILS ---
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
-              
-              // 1. Email
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(console.error);
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(console.error);
               });
-
-              // 2. System DB Notification (Lights up the Bell Icon)
+              
               const notifyPayload = systemUsers.map(u => ({
                   target_user_id: u.id, title: `📢 Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`
               }));
-              await supabase.from('notifications').insert(notifyPayload).catch(console.error);
+              await supabase.from('notifications').insert(notifyPayload);
 
           } else if (type === 'dm' && target?.email) {
-              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(console.error);
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(console.error);
               
               await supabase.from('notifications').insert([{
                   target_user_id: target.id, title: `💬 New Message`, message: `${profile.full_name} sent you a direct message.`
-              }]).catch(console.error);
+              }]);
 
           } else if (type === 'group' || type === 'broadcast') {
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
-              
               const titlePrefix = type === 'broadcast' ? '📢 CHANNEL ALERT' : '👥 GROUP CHAT';
+              
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               targetedEmails.forEach(singleEmail => {
                  fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).catch(console.error);
@@ -316,7 +331,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               const notifyPayload = roomMembers.map(rm => ({
                   target_user_id: rm.user_id, title: `${titlePrefix}: ${target.name}`, message: `${profile.full_name} posted an update.`
               }));
-              await supabase.from('notifications').insert(notifyPayload).catch(console.error);
+              if (notifyPayload.length > 0) {
+                 await supabase.from('notifications').insert(notifyPayload);
+              }
           }
       }
     }
@@ -348,7 +365,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     }
   };
 
-  // FIX: Accurate Date + Time Formatter
   const formatDateTime = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -545,7 +561,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
              const activeThread = activeThreads[pane.id];
              const detailsOpen = roomDetailsOpen[pane.id];
              
-             const canPost = !isBroadcast || (isRoom && target.created_by === profile.id) || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role);
+             // NEW: Delegation Logic. Admins can manage members alongside creators.
+             const canManageMembers = isRoom && (target.created_by === profile.id || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role));
+             const canPost = !isBroadcast || canManageMembers;
 
              const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
@@ -588,7 +606,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         </div>
                      </div>
 
-                     {/* NO ANIMATIONS HERE FOR SMOOTH SCROLLING */}
                      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
                         {activeThread && (
                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
@@ -608,7 +625,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            const isMe = m.sender_id === profile.id;
                            const replyCount = messages.filter(r => r.parent_id === m.id).length;
 
-                           // --- FIX: QUOTE EXTRACTION FOR MESSAGES ---
                            let quoteSnippet = "";
                            let actualMsg = m.text || "";
                            if (actualMsg.startsWith('[Replying to Announcement]: "')) {
@@ -619,7 +635,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                }
                            }
 
-                           // --- ANNOUNCEMENT CARDS ---
                            if (isBroadcast) {
                                return (
                                   <div key={m.id} className="w-full flex flex-col items-center mb-6">
@@ -628,7 +643,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                            <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shrink-0"><BellRing size={10} className="text-white"/></div>
                                            <div>
                                               <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{m.sender_name}</p>
-                                              {/* FIX: SHOWS FULL DATE AND TIME */}
                                               <p className="text-[8px] text-slate-500 uppercase">{m.sender_role} • {formatDateTime(m.created_at)}</p>
                                            </div>
                                            {isMe && (
@@ -655,7 +669,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                               <FileText size={16} /> <span className="font-bold underline text-[10px] uppercase">Download Official Document</span>
                                            </a>
                                         )}
-                                        <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{actualMsg}</div>
+                                        {actualMsg && <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{actualMsg}</div>}
                                         {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
                                         
                                         {!isMe && (
@@ -665,7 +679,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                                    const sender = systemUsers.find(u => u.id === m.sender_id);
                                                    if (sender) {
                                                       openPane('dm', sender);
-                                                      setQuotingMsg(prev => ({...prev, [sender.id]: {text: actualMsg}}));
+                                                      setQuotingMsg(prev => ({...prev, [sender.id]: {text: actualMsg || "Attachment Only"}}));
                                                    }
                                                 }}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase text-amber-400 transition-colors"
@@ -679,7 +693,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                )
                            }
 
-                           // --- STANDARD CHAT BUBBLES ---
                            return (
                               <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
                                  {(!isMe && isRoom) && (
@@ -706,7 +719,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                        isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border-blue-400/30' 
                                             : 'bg-slate-800 border-white/5 text-slate-100 rounded-bl-sm'
                                     }`}>
-                                       {/* FIX: SLEEK QUOTE PREVIEW UI IN CHAT BUBBLE */}
                                        {quoteSnippet && (
                                           <div className={`mb-3 p-2.5 rounded-lg border-l-2 text-[10px] italic shadow-inner ${isMe ? 'bg-black/20 border-white/50 text-white' : 'bg-black/40 border-amber-500 text-slate-300'}`}>
                                              <div className={`font-black uppercase tracking-widest text-[8px] mb-1 flex items-center gap-1 ${isMe ? 'text-white/60' : 'text-amber-500/80'}`}><BellRing size={8}/> From Announcement</div>
@@ -737,10 +749,8 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
-                     {/* DYNAMIC INPUT AREA */}
                      {canPost ? (
                        <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
-                          
                           {editingIds[pane.id] && (
                              <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
                                <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
@@ -777,7 +787,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 
                    {/* RIGHT SIDEBAR: Room Details */}
                    {detailsOpen && (
-                     <div className="w-[220px] bg-black/40 border-l border-white/5 flex flex-col shrink-0 animate-in slide-in-from-right-8 hidden md:flex">
+                     <div className="w-[220px] bg-black/40 border-l border-white/5 flex flex-col shrink-0 hidden md:flex">
                        <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-300">Room Details</h4>
                          <button onClick={() => toggleDetails(pane.id)} className="text-slate-500 hover:text-white"><X size={12}/></button>
@@ -788,7 +798,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            <div>
                              <div className="flex justify-between items-center mb-3">
                                <h5 className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Participants ({participants.filter(p => p.room_id === target.id).length})</h5>
-                               {target.created_by === profile.id && (
+                               {canManageMembers && (
                                  <button onClick={() => { setAddingToRoom(addingToRoom === target.id ? null : target.id); setMemberSearchQuery(""); }} className={`p-1.5 rounded-md transition-all ${addingToRoom === target.id ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400 hover:text-blue-300'}`}>
                                    {addingToRoom === target.id ? <X size={12}/> : <UserPlus size={12}/>}
                                  </button>
@@ -796,7 +806,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                              </div>
 
                              {addingToRoom === target.id && (
-                               <div className="mb-4 bg-black/40 p-2 rounded-xl border border-white/10 animate-in fade-in slide-in-from-top-2">
+                               <div className="mb-4 bg-black/40 p-2 rounded-xl border border-white/10">
                                  <div className="relative mb-2">
                                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"/>
                                    <input autoFocus type="text" placeholder="Search name to add..." value={memberSearchQuery} onChange={e => setMemberSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-7 pr-3 text-[10px] text-white placeholder:text-slate-500 outline-none focus:border-blue-500 transition-colors" />
@@ -806,7 +816,13 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                        <button key={u.id} onClick={async () => {
                                            await supabase.from('chat_participants').insert([{room_id: target.id, user_id: u.id}]);
                                            setParticipants(prev => [...prev, {room_id: target.id, user_id: u.id}]);
+                                           
                                            if(u.email) fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: u.email, title: `Added to Channel: ${target.name}`, message: `${profile.full_name} has added you to this communication channel.` }) }).catch(console.error);
+                                           
+                                           await supabase.from('notifications').insert([{
+                                               target_user_id: u.id, title: `🔔 Added to Channel`, message: `${profile.full_name} added you to ${target.name}.`
+                                           }]);
+
                                            setMemberSearchQuery("");
                                          }} className="w-full flex items-center gap-2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-left group/add">
                                          <UserAvatar fullName={u.full_name} avatarUrl={u.avatar_url} size={24} />
@@ -829,7 +845,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                      <UserAvatar fullName={user.full_name} avatarUrl={user.avatar_url} size={20} />
                                      <span className="text-[10px] font-bold text-slate-300 truncate flex-1">{user.full_name}</span>
                                      
-                                     {target.created_by === profile.id && user.id !== profile.id && (
+                                     {canManageMembers && user.id !== profile.id && user.id !== target.created_by && (
                                        confirmRemoveUser === user.id ? (
                                           <div className="flex items-center gap-1">
                                              <button onClick={() => setConfirmRemoveUser(null)} className="text-slate-500 hover:text-white"><X size={10}/></button>
@@ -867,7 +883,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                          {isRoom && target.created_by === profile.id && (
                            <div className="pt-6 mt-6 border-t border-white/10">
                               {confirmDeleteRoom === target.id ? (
-                                <div className="bg-rose-500/20 border border-rose-500/30 rounded-xl p-3 flex flex-col items-center gap-2 animate-in fade-in">
+                                <div className="bg-rose-500/20 border border-rose-500/30 rounded-xl p-3 flex flex-col items-center gap-2">
                                   <span className="text-[9px] font-black uppercase text-rose-400 text-center tracking-widest">Are you sure?</span>
                                   <div className="flex gap-2 w-full">
                                     <button onClick={() => setConfirmDeleteRoom(null)} className="flex-1 py-1.5 text-[9px] font-bold text-slate-300 bg-white/5 hover:bg-white/10 rounded-md">Cancel</button>
@@ -877,6 +893,25 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                               ) : (
                                 <button onClick={() => setConfirmDeleteRoom(target.id)} className="w-full py-2.5 rounded-xl border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                                   <Trash2 size={12} /> Delete Channel
+                                </button>
+                              )}
+                           </div>
+                         )}
+
+                         {/* NEW: LEAVE ROOM BUTTON (For Non-Creators) */}
+                         {isRoom && target.created_by !== profile.id && (
+                           <div className="pt-6 mt-6 border-t border-white/10">
+                              {confirmLeaveRoom === target.id ? (
+                                <div className="bg-rose-500/20 border border-rose-500/30 rounded-xl p-3 flex flex-col items-center gap-2">
+                                  <span className="text-[9px] font-black uppercase text-rose-400 text-center tracking-widest">Leave Channel?</span>
+                                  <div className="flex gap-2 w-full">
+                                    <button onClick={() => setConfirmLeaveRoom(null)} className="flex-1 py-1.5 text-[9px] font-bold text-slate-300 bg-white/5 hover:bg-white/10 rounded-md">Stay</button>
+                                    <button onClick={() => leaveRoom(target.id)} className="flex-1 py-1.5 text-[9px] font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-md">Leave</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button onClick={() => setConfirmLeaveRoom(target.id)} className="w-full py-2.5 rounded-xl border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                                  <LogOut size={12} /> Leave {pane.type === 'broadcast' ? 'Announcement' : 'Group'}
                                 </button>
                               )}
                            </div>
