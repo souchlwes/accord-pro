@@ -1817,8 +1817,18 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       </nav>
       
-   <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8">
+        <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8 relative">
         
+        {/* NEW: PROCTOR FLOATING CRESTS */}
+        <div className="hidden md:flex absolute -top-8 right-6 z-40 items-center">
+            {universityLogo && (
+               <img src={universityLogo} className="w-16 h-16 rounded-full object-cover drop-shadow-xl z-10" alt="Univ Crest" />
+            )}
+            {departmentLogo && (
+               <img src={departmentLogo} className="w-16 h-16 rounded-full object-cover drop-shadow-xl z-20 -ml-4" alt="Dept Crest" />
+            )}
+        </div>
+
         {/* TOP HERO BENTO: PERSONAL CONTEXT & METRICS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
@@ -3618,6 +3628,8 @@ const executeAddDepartment = async (e) => {
           onShowPassword={() => setShowPasswordModal(true)} 
           onLogout={handleHardReset}
           onShowAI={() => setIsAIOpen(true)}
+          universityLogo={departments[0]?.university_logo_url}
+          departmentLogo={departments.find(d => d.code === profile.assigned_dept)?.logo_url}
         />
 
         
@@ -3923,22 +3935,53 @@ const executeAddDepartment = async (e) => {
         </div>
       </aside>
 
-    <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative md:ml-24">
-        
-       {/* TRUTH REVEALER BADGE */}
-        <div className="flex flex-col items-start md:items-end z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0 text-left md:text-right">
-           <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{session?.user?.email}</p>
-           <p className="text-sm font-black text-slate-900 uppercase">{profile?.full_name || 'Missing Profile Data'}</p>
-           {profile?.assigned_dept ? (
-             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
-               {profile.assigned_dept} DEPARTMENT
-             </p>
-           ) : (
-             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
-               {profile?.role === 'HEAD_ADMIN' ? 'GLOBAL HEAD ADMIN' : ''}
-             </p>
-           )}
-        </div>
+   <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative md:ml-24">
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between md:justify-end gap-6 z-40 relative md:absolute md:top-10 md:right-16 mb-6 md:mb-0">
+             
+             {/* FLOATING CIRCULAR CRESTS */}
+             <div className="flex items-center">
+                {/* University Crest */}
+                <button 
+                  type="button"
+                  onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
+                  className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all"
+                >
+                    <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover drop-shadow-xl transition-transform group-hover/crest:scale-105" />
+                    {isHeadAdmin && (
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Campus</div>
+                    )}
+                </button>
+
+                {/* Department Crest */}
+                {profile?.assigned_dept && departments.find(d => d.code === profile.assigned_dept)?.logo_url && (
+                   <button 
+                     type="button"
+                     onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
+                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all -ml-6"
+                   >
+                       <img src={departments.find(d => d.code === profile.assigned_dept)?.logo_url} alt="Dept Crest" className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover drop-shadow-xl transition-transform group-hover/crest:scale-105" />
+                       {(isHeadAdmin || isDeptAdmin) && (
+                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
+                       )}
+                   </button>
+                )}
+             </div>
+
+             <div className="flex flex-col items-start md:items-end text-left md:text-right">
+               <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{session?.user?.email}</p>
+               <p className="text-sm font-black text-slate-900 uppercase">{profile?.full_name || 'Missing Profile Data'}</p>
+               {profile?.assigned_dept ? (
+                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
+                   {profile.assigned_dept} DEPARTMENT
+                 </p>
+               ) : (
+                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
+                   {profile?.role === 'HEAD_ADMIN' ? 'GLOBAL HEAD ADMIN' : ''}
+                 </p>
+               )}
+             </div>
+          </div>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-40 md:py-60">
@@ -3981,27 +4024,14 @@ const executeAddDepartment = async (e) => {
                       </div>
                     </div>
 
-                    <div className="relative z-[200] flex flex-col md:flex-row items-center gap-6 w-full md:w-auto mt-8 md:mt-0">
-                      {/* NEW: Flawless Clickable University Crest Moved Here */}
-                      <button 
-                          type="button"
-                          onClick={() => {
-                             if (isHeadAdmin) setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 });
-                          }}
-                          className="relative group/crest cursor-pointer focus:outline-none"
-                      >
-                          <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105 bg-white/10 p-2 rounded-2xl border border-white/20" />
-                          {isHeadAdmin && (
-                          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-xl whitespace-nowrap">Edit Crest</div>
-                          )}
-                      </button>
-
+                    <div className="relative z-[200] flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-8 md:mt-0">
                       {isHeadAdmin && (
                         <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
                           <Plus size={16} /> Add Workspace
                         </button>
                       )}
                     </div>
+
                   </div>
 
                 {/* --- 1.5 SYSTEM HEALTH & ACTION DOCK --- */}
@@ -4141,18 +4171,19 @@ const executeAddDepartment = async (e) => {
 
                                   <div className="flex justify-between items-start mb-6">
                                     
-                                    {/* NEW: DEPARTMENT CREST LOGO INJECTION */}
+                                   {/* NEW: DEPARTMENT CREST LOGO INJECTION */}
                                     <div className="flex items-center gap-4">
                                        <div className="relative group/deptcrest cursor-pointer" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
                                            {dept.logo_url ? (
-                                               <img src={dept.logo_url} className="w-12 h-12 object-contain drop-shadow-md transition-transform group-hover/deptcrest:scale-105" />
+                                               <img src={dept.logo_url} className="w-14 h-14 rounded-full object-cover drop-shadow-md transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
                                            ) : (
-                                               <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border border-slate-200"><Layers size={20} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
+                                               <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border border-slate-200"><Layers size={20} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
                                            )}
                                            {(isHeadAdmin || isDeptAdmin) && (
                                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap">Edit Crest</div>
                                            )}
                                        </div>
+
                                        <div>
                                          <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
                                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
