@@ -75,7 +75,6 @@ const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL (MULTI-PANE & MOBILE SWIPE EDITION) ---
 const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
-  // Original States
   const [messages, setMessages] = useState([]);
   const [activePanes, setActivePanes] = useState([{ type: 'global', id: 'global' }]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,7 +83,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [editingIds, setEditingIds] = useState({});
   const [activeThreads, setActiveThreads] = useState({}); 
   
-  // States for Groups, Attachments & Member Search
   const [rooms, setRooms] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [sidebarTab, setSidebarTab] = useState('dms'); 
@@ -94,7 +92,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [addingToRoom, setAddingToRoom] = useState(null); 
   const [memberSearchQuery, setMemberSearchQuery] = useState(""); 
   
-  // Custom Modals, Inline Confirmations & Quoting
   const [createModal, setCreateModal] = useState(null); 
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomParticipants, setNewRoomParticipants] = useState([]); 
@@ -103,12 +100,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
   const [confirmRemoveUser, setConfirmRemoveUser] = useState(null);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
   const [chatError, setChatError] = useState("");
-  const [quotingMsg, setQuotingMsg] = useState({}); // Tracks which announcement is being replied to
+  const [quotingMsg, setQuotingMsg] = useState({}); 
 
   const messagesEndRefs = useRef({});
   const fileInputRefs = useRef({});
   const systemUsers = (allProfiles || []).filter(p => p.id !== profile?.id);
-  
   const uniqueDepts = [...new Set(systemUsers.map(u => u.assigned_dept).filter(Boolean))];
 
   useEffect(() => {
@@ -232,7 +228,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
           fetch('/api/notify', {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ emails: email, title: `Added to Channel: ${newRoomName}`, message: `${profile.full_name} has added you to a new internal communication channel.` })
-          }).catch(err => console.error(err));
+          }).catch(console.error);
        });
      } else {
        setChatError("Failed to create room. Ensure the name is valid.");
@@ -262,20 +258,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     if (!text.trim() && !attachment) return;
 
     if (editingId) {
-      await supabase.from('messages').update({ text, is_edited: true }).eq('id', editingId);
+      await supabase.from('messages').update({ text: text.trim() ? text : null, is_edited: true }).eq('id', editingId);
       setEditingIds(prev => ({ ...prev, [paneId]: null }));
     } else {
       
-      // Formatting the private reply if they are quoting an announcement
       let finalText = text;
       if (quote && !activeThread) {
-          const snippet = quote.text.length > 50 ? quote.text.substring(0, 50) + '...' : quote.text;
+          const snippet = quote.text.length > 60 ? quote.text.substring(0, 60) + '...' : quote.text;
           finalText = `[Replying to Announcement]: "${snippet}"\n\n${text}`;
       }
 
+      // FIX: Ensure text is passed as null if empty to prevent 400 Bad Request
       const payload = {
         sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
-        text: finalText, receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
+        text: finalText.trim() ? finalText : null, 
+        receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
         room_id: (type === 'group' || type === 'broadcast') ? target.id : null,
         attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
@@ -284,19 +281,42 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
 
       if (!error && !activeThread) {
           const displayMsg = finalText || "Sent an attachment";
+          
+          // --- FIX: DISTINCT NOTIFICATIONS & EMAILS ---
           if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
+              
+              // 1. Email
               const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
               chatEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `Campus Announcement`, message: displayMsg }) }).catch(err => console.error(err));
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(console.error);
               });
+
+              // 2. System DB Notification (Lights up the Bell Icon)
+              const notifyPayload = systemUsers.map(u => ({
+                  target_user_id: u.id, title: `📢 Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`
+              }));
+              await supabase.from('notifications').insert(notifyPayload).catch(console.error);
+
           } else if (type === 'dm' && target?.email) {
-              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `New Message from ${profile.full_name}`, message: displayMsg }) }).catch(err => console.error(err));
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(console.error);
+              
+              await supabase.from('notifications').insert([{
+                  target_user_id: target.id, title: `💬 New Message`, message: `${profile.full_name} sent you a direct message.`
+              }]).catch(console.error);
+
           } else if (type === 'group' || type === 'broadcast') {
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
+              
+              const titlePrefix = type === 'broadcast' ? '📢 CHANNEL ALERT' : '👥 GROUP CHAT';
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               targetedEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `New message in ${target.name}`, message: displayMsg }) }).catch(err => console.error(err));
+                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).catch(console.error);
               });
+
+              const notifyPayload = roomMembers.map(rm => ({
+                  target_user_id: rm.user_id, title: `${titlePrefix}: ${target.name}`, message: `${profile.full_name} posted an update.`
+              }));
+              await supabase.from('notifications').insert(notifyPayload).catch(console.error);
           }
       }
     }
@@ -320,7 +340,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
       const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName);
       await handleSend(null, paneId, type, target, { url: publicUrl, type: isImage ? 'image' : 'document' });
     } catch (err) {
-      setChatError("Upload failed. File might be too large.");
+      setChatError("Upload failed. File might be too large or format unsupported.");
       setTimeout(() => setChatError(""), 3000);
     } finally {
       setUploading(prev => ({ ...prev, [paneId]: false }));
@@ -328,10 +348,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
     }
   };
 
-  const formatTime = (isoString) => {
+  // FIX: Accurate Date + Time Formatter
+  const formatDateTime = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -536,7 +557,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
              const attachments = paneMessages.filter(m => m.attachment_url);
 
              return (
-                <div key={pane.id} className={`shrink-0 border-r border-white/5 flex h-full relative snap-center md:snap-start animate-in slide-in-from-right-8 bg-slate-900/50 transition-all duration-300 ${detailsOpen ? 'w-full md:w-[600px]' : 'w-full md:w-[380px]'}`}>
+                <div key={pane.id} className={`shrink-0 border-r border-white/5 flex h-full relative snap-center md:snap-start bg-slate-900/50 transition-all duration-300 ${detailsOpen ? 'w-full md:w-[600px]' : 'w-full md:w-[380px]'}`}>
                    
                    {/* Main Chat Column */}
                    <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -567,6 +588,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         </div>
                      </div>
 
+                     {/* NO ANIMATIONS HERE FOR SMOOTH SCROLLING */}
                      <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 custom-scrollbar bg-gradient-to-b from-transparent to-black/10">
                         {activeThread && (
                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
@@ -586,16 +608,28 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            const isMe = m.sender_id === profile.id;
                            const replyCount = messages.filter(r => r.parent_id === m.id).length;
 
+                           // --- FIX: QUOTE EXTRACTION FOR MESSAGES ---
+                           let quoteSnippet = "";
+                           let actualMsg = m.text || "";
+                           if (actualMsg.startsWith('[Replying to Announcement]: "')) {
+                               const endQuoteIdx = actualMsg.indexOf('"\n\n');
+                               if (endQuoteIdx !== -1) {
+                                   quoteSnippet = actualMsg.substring(29, endQuoteIdx);
+                                   actualMsg = actualMsg.substring(endQuoteIdx + 3);
+                               }
+                           }
+
                            // --- ANNOUNCEMENT CARDS ---
                            if (isBroadcast) {
                                return (
-                                  <div key={m.id} className="w-full flex flex-col items-center mb-6 animate-in slide-in-from-bottom-2">
+                                  <div key={m.id} className="w-full flex flex-col items-center mb-6">
                                      <div className="w-[95%] bg-gradient-to-b from-amber-500/10 to-black/40 border border-amber-500/20 rounded-2xl p-4 shadow-lg relative overflow-hidden">
                                         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-500/10">
                                            <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shrink-0"><BellRing size={10} className="text-white"/></div>
                                            <div>
                                               <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{m.sender_name}</p>
-                                              <p className="text-[8px] text-slate-500 uppercase">{m.sender_role} • {formatTime(m.created_at)}</p>
+                                              {/* FIX: SHOWS FULL DATE AND TIME */}
+                                              <p className="text-[8px] text-slate-500 uppercase">{m.sender_role} • {formatDateTime(m.created_at)}</p>
                                            </div>
                                            {isMe && (
                                               <div className="ml-auto flex gap-1">
@@ -606,7 +640,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                                   </div>
                                                 ) : (
                                                   <>
-                                                   <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-amber-400"><Edit2 size={12}/></button>
+                                                   <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: actualMsg})); }} className="p-1.5 text-slate-400 hover:text-amber-400"><Edit2 size={12}/></button>
                                                    <button onClick={() => setConfirmDeleteMsg(m.id)} className="p-1.5 text-slate-400 hover:text-rose-400"><Trash2 size={12}/></button>
                                                   </>
                                                 )}
@@ -621,10 +655,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                               <FileText size={16} /> <span className="font-bold underline text-[10px] uppercase">Download Official Document</span>
                                            </a>
                                         )}
-                                        <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{m.text}</div>
+                                        <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{actualMsg}</div>
                                         {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
                                         
-                                        {/* NEW: REPLY PRIVATELY BUTTON */}
                                         {!isMe && (
                                            <div className="w-full mt-4 pt-3 border-t border-amber-500/10 flex justify-end">
                                               <button 
@@ -632,7 +665,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                                    const sender = systemUsers.find(u => u.id === m.sender_id);
                                                    if (sender) {
                                                       openPane('dm', sender);
-                                                      setQuotingMsg(prev => ({...prev, [sender.id]: m}));
+                                                      setQuotingMsg(prev => ({...prev, [sender.id]: {text: actualMsg}}));
                                                    }
                                                 }}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase text-amber-400 transition-colors"
@@ -646,7 +679,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                )
                            }
 
-                           // Standard Chat Bubbles (DMs & Groups)
+                           // --- STANDARD CHAT BUBBLES ---
                            return (
                               <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
                                  {(!isMe && isRoom) && (
@@ -662,17 +695,25 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                            </div>
                                         ) : (
                                            <>
-                                             <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: m.text})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
+                                             <button onClick={() => { setEditingIds(prev => ({...prev, [pane.id]: m.id})); setInputs(prev => ({...prev, [pane.id]: actualMsg})); }} className="p-1.5 text-slate-400 hover:text-blue-400 bg-white/5 rounded-lg transition-colors"><Edit2 size={12}/></button>
                                              <button onClick={() => setConfirmDeleteMsg(m.id)} className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/5 rounded-lg transition-colors"><Trash2 size={12}/></button>
                                            </>
                                         )}
                                       </div>
                                     )}
 
-                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap ${
-                                       isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border border-blue-400/30' 
-                                            : 'bg-white/10 backdrop-blur-md text-slate-100 rounded-bl-sm border border-white/10'
+                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap border ${
+                                       isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border-blue-400/30' 
+                                            : 'bg-slate-800 border-white/5 text-slate-100 rounded-bl-sm'
                                     }`}>
+                                       {/* FIX: SLEEK QUOTE PREVIEW UI IN CHAT BUBBLE */}
+                                       {quoteSnippet && (
+                                          <div className={`mb-3 p-2.5 rounded-lg border-l-2 text-[10px] italic shadow-inner ${isMe ? 'bg-black/20 border-white/50 text-white' : 'bg-black/40 border-amber-500 text-slate-300'}`}>
+                                             <div className={`font-black uppercase tracking-widest text-[8px] mb-1 flex items-center gap-1 ${isMe ? 'text-white/60' : 'text-amber-500/80'}`}><BellRing size={8}/> From Announcement</div>
+                                             "{quoteSnippet}"
+                                          </div>
+                                       )}
+
                                        {m.attachment_url && m.attachment_type === 'image' && (
                                           <img src={m.attachment_url} alt="Attached" className="w-full max-w-[200px] md:max-w-[250px] rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-white/20" onClick={() => setFullscreenImage(m.attachment_url)} />
                                        )}
@@ -681,13 +722,13 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                              <FileText size={16} /> <span className="font-bold underline text-[10px]">Download Attachment</span>
                                           </a>
                                        )}
-                                       {m.text && <span>{m.text}</span>}
+                                       {actualMsg && <span>{actualMsg}</span>}
                                        {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
                                     </div>
                                     {!isMe && !activeThread && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>}
                                  </div>
                                  <div className="flex gap-2 items-center mt-1 px-1">
-                                   <span className="text-[8px] font-black text-slate-500 uppercase">{formatTime(m.created_at)}</span>
+                                   <span className="text-[8px] font-black text-slate-500 uppercase">{formatDateTime(m.created_at)}</span>
                                    {!activeThread && replyCount > 0 && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase cursor-pointer">{replyCount} {replyCount === 1 ? 'Reply' : 'Replies'}</button>}
                                  </div>
                               </div>
@@ -696,11 +737,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                         <div ref={el => messagesEndRefs.current[pane.id] = el} />
                      </div>
 
-                     {/* DYNAMIC INPUT AREA (Read-Only logic for Broadcasts) */}
+                     {/* DYNAMIC INPUT AREA */}
                      {canPost ? (
                        <div className="p-3 md:p-4 bg-black/30 border-t border-white/5 shrink-0">
                           
-                          {/* EDITING STATE UI */}
                           {editingIds[pane.id] && (
                              <div className="flex justify-between items-center mb-2 px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
                                <span className="text-[9px] font-black text-amber-500 uppercase italic">Editing Message...</span>
@@ -708,7 +748,6 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                              </div>
                           )}
 
-                          {/* NEW: QUOTE PREVIEW UI (For Replying Privately) */}
                           {quotingMsg[pane.id] && (
                              <div className="flex justify-between items-start mb-2 px-3 py-2 bg-white/5 rounded-xl border border-white/10 relative">
                                <div>
