@@ -1276,13 +1276,13 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         
         
-<div className="relative z-10 flex items-center gap-4 md:gap-6 shrink-0">
-          {/* EMBEDDED DEPARTMENT CREST (FIXED ASPECT RATIO) */}
-          <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 shrink-0" onClick={() => onEditCrest && onEditCrest()}>
+<div className="relative z-10 flex items-center gap-4 md:gap-6 flex-none">
+          {/* BULLETPROOF SQUARE LOCK FOR EMBEDDED CREST */}
+          <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-12 h-12 md:w-16 md:h-16 min-w-[3rem] min-h-[3rem] md:min-w-[4rem] md:min-h-[4rem]" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
               ) : (
-                  <div className="w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
+                  <div className="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
                       <Layers size={24} className="text-slate-500 group-hover/deptcrest:text-blue-500 md:w-8 md:h-8" />
                   </div>
               )}
