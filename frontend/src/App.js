@@ -1755,14 +1755,33 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       )}
 
-     <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
-        <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl w-full md:w-auto justify-center md:justify-start">
-          <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
-          ACCORD <span className="text-blue-500 italic">PROCTOR</span>
+    <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+        
+        {/* BRANDING CLUSTER (ACCORD + INSTITUTION CRESTS) */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
+          <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl shrink-0">
+            <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
+            <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
+          </div>
+
+          {/* OFFICIAL EMBEDDED CRESTS */}
+          {(universityLogo || departmentLogo) && (
+            <>
+              <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
+              <div className="flex items-center gap-3">
+                 {universityLogo && (
+                    <img src={universityLogo} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md" alt="Univ Crest" />
+                 )}
+                 {departmentLogo && (
+                    <img src={departmentLogo} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md" alt="Dept Crest" />
+                 )}
+              </div>
+            </>
+          )}
         </div>
 
        <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
-  
+
   {/* --- NEW: WRAPPED IN A FLEX ROW TO HOLD AVATAR AND TEXT TOGETHER --- */}
   <div className="flex items-center gap-3 md:gap-4 mr-auto md:mr-4">
     
@@ -1827,30 +1846,18 @@ const [dashboardView, setDashboardView] = useState('upcoming');
           <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
             <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
             
-            <div className="flex justify-between items-start z-10 w-full gap-4">
-              <div className="flex items-center gap-4">
-                <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
-                <div className="min-w-0">
-                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1 truncate">
-                    {getGreeting()}
-                  </span>
-                  <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white truncate">
-                    {profile?.full_name?.split(' ')[0] || 'Proctor'}
-                  </h1>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">
-                    {profile?.assigned_dept ? `${profile.assigned_dept} Department` : 'Global Reserve'}
-                  </p>
-                </div>
-              </div>
-              
-              {/* EMBEDDED CRESTS (FROSTED GLASS BADGE) */}
-              <div className="flex items-center gap-3 shrink-0 bg-white/5 p-2 md:p-3 rounded-2xl border border-white/10 shadow-inner">
-                  {universityLogo && (
-                     <img src={universityLogo} className="w-10 h-10 md:w-14 md:h-14 object-contain drop-shadow-xl transition-transform hover:scale-105" alt="Univ Crest" />
-                  )}
-                  {departmentLogo && (
-                     <img src={departmentLogo} className="w-10 h-10 md:w-14 md:h-14 object-contain drop-shadow-xl transition-transform hover:scale-105" alt="Dept Crest" />
-                  )}
+            <div className="flex items-center gap-4 z-10">
+              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1 truncate">
+                  {getGreeting()}
+                </span>
+                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white truncate">
+                  {profile?.full_name?.split(' ')[0] || 'Proctor'}
+                </h1>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">
+                  {profile?.assigned_dept ? `${profile.assigned_dept} Department Pool` : 'Global Reserve Proctor'}
+                </p>
               </div>
             </div>
 
@@ -3261,11 +3268,36 @@ const executeAddDepartment = async (e) => {
                  ctx.drawImage(img, 0, 0);
                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                  const data = imageData.data;
-                 // Scan every pixel: If it's pure white (or very close), set opacity to 0
-                 for (let i = 0; i < data.length; i += 4) {
-                     if (data[i] > 240 && data[i+1] > 240 && data[i+2] > 240) {
-                         data[i+3] = 0; 
-                     }
+                
+                 // SMART FLOOD-FILL: Only removes white touching the edges (Preserves white inside the logo)
+                 const getIdx = (x, y) => (y * canvas.width + x) * 4;
+                 const isWhiteEdge = (idx) => data[idx] > 230 && data[idx+1] > 230 && data[idx+2] > 230 && data[idx+3] > 0;
+
+                 const stack = [];
+                 // Seed the four borders of the image
+                 for (let x = 0; x < canvas.width; x++) {
+                    if (isWhiteEdge(getIdx(x, 0))) stack.push([x, 0]);
+                    if (isWhiteEdge(getIdx(x, canvas.height - 1))) stack.push([x, canvas.height - 1]);
+                 }
+                 for (let y = 0; y < canvas.height; y++) {
+                    if (isWhiteEdge(getIdx(0, y))) stack.push([0, y]);
+                    if (isWhiteEdge(getIdx(canvas.width - 1, y))) stack.push([canvas.width - 1, y]);
+                 }
+
+                 // Erase outwards-in
+                 while (stack.length > 0) {
+                    const [x, y] = stack.pop();
+                    const idx = getIdx(x, y);
+
+                    if (data[idx + 3] === 0) continue; // Already erased
+
+                    data[idx + 3] = 0; // Turn pixel transparent
+
+                    // Check neighbors
+                    if (x > 0 && isWhiteEdge(getIdx(x - 1, y))) stack.push([x - 1, y]);
+                    if (x < canvas.width - 1 && isWhiteEdge(getIdx(x + 1, y))) stack.push([x + 1, y]);
+                    if (y > 0 && isWhiteEdge(getIdx(x, y - 1))) stack.push([x, y - 1]);
+                    if (y < canvas.height - 1 && isWhiteEdge(getIdx(x, y + 1))) stack.push([x, y + 1]);
                  }
                  ctx.putImageData(imageData, 0, 0);
                  resolve(canvas.toDataURL('image/png'));
