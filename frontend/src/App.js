@@ -1819,13 +1819,13 @@ const [dashboardView, setDashboardView] = useState('upcoming');
       
        <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8 relative">
         
-      {/* EMBEDDED PROCTOR CRESTS (RAW BORDERLESS PNG) */}
-        <div className="flex justify-end gap-4 mb-4 z-40 relative">
+    {/* EMBEDDED PROCTOR CRESTS (SPACED UNIFORMLY) */}
+        <div className="flex justify-end gap-2 mb-4 z-40 relative">
             {universityLogo && (
-               <img src={universityLogo} className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl z-10" alt="Univ Crest" />
+               <img src={universityLogo} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl z-10" alt="Univ Crest" />
             )}
             {departmentLogo && (
-               <img src={departmentLogo} className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl z-20" alt="Dept Crest" />
+               <img src={departmentLogo} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl z-20" alt="Dept Crest" />
             )}
         </div>
 
@@ -2120,8 +2120,10 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [logoModal, setLogoModal] = useState({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1 });
- 
+
+  // --- NEW: CREST UPLOAD MODAL ---
+  const [logoModal, setLogoModal] = useState({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true });
+  
   const handleOpenChat = () => {
     setShowChat(true);
     setUnreadMessageCount(0);
@@ -3230,20 +3232,48 @@ const executeAddDepartment = async (e) => {
     });
   };
 
-  // --- NEW: CREST UPLOAD FUNCTION ---
+  // --- NEW: CREST UPLOAD FUNCTION (WITH AUTO-TRANSPARENCY) ---
   const executeLogoUpload = async (e) => {
     e.preventDefault();
-    const { type, targetId, newLogoBase64, newLogoType, currentLogo } = logoModal;
+    const { type, targetId, newLogoBase64, newLogoType, currentLogo, removeBg } = logoModal;
     let finalUrl = currentLogo;
 
     setLoading(true);
 
     if (newLogoBase64) {
       try {
+        let processedBase64 = newLogoBase64;
+        
+        // MAGIC TRICK: Auto-Remove White Background using Canvas Scanning
+        if (removeBg) {
+           processedBase64 = await new Promise((resolve) => {
+              const img = new Image();
+              img.src = newLogoBase64;
+              img.onload = () => {
+                 const canvas = document.createElement('canvas');
+                 canvas.width = img.width;
+                 canvas.height = img.height;
+                 const ctx = canvas.getContext('2d');
+                 ctx.drawImage(img, 0, 0);
+                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                 const data = imageData.data;
+                 // Scan every pixel: If it's pure white (or very close), set opacity to 0
+                 for (let i = 0; i < data.length; i += 4) {
+                     if (data[i] > 240 && data[i+1] > 240 && data[i+2] > 240) {
+                         data[i+3] = 0; 
+                     }
+                 }
+                 ctx.putImageData(imageData, 0, 0);
+                 resolve(canvas.toDataURL('image/png'));
+              };
+           });
+        }
+
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: newLogoBase64, mimeType: newLogoType, userId: `crest-${Date.now()}` })
+          // Force upload as PNG to preserve the new transparency
+          body: JSON.stringify({ imageBase64: processedBase64, mimeType: 'image/png', userId: `crest-${Date.now()}` })
         });
         const uploadData = await uploadRes.json();
         if (uploadRes.ok) finalUrl = uploadData.url;
@@ -3959,18 +3989,18 @@ const executeAddDepartment = async (e) => {
                )}
              </div>
 
-             {/* EMBEDDED CRESTS (RAW BORDERLESS PNG) */}
-             <div className="flex items-center gap-4 shrink-0">
+            {/* EMBEDDED CRESTS (SPACED UNIFORMLY) */}
+             <div className="flex items-center gap-2 shrink-0">
                 {/* University Crest */}
                 <button 
                   type="button"
-                  onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
+                  onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
                   className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all bg-transparent border-0"
                 >
                     <img 
                       src={departments[0]?.university_logo_url || accordLogo} 
                       alt="University Crest" 
-                      className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
+                      className={`w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'brightness-0 opacity-20' : ''}`} 
                     />
                     {isHeadAdmin && (
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Campus</div>
@@ -3981,13 +4011,13 @@ const executeAddDepartment = async (e) => {
                 {profile?.assigned_dept && departments.find(d => d.code === profile.assigned_dept)?.logo_url && (
                    <button 
                      type="button"
-                     onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}
+                     onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
                      className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0"
                    >
                        <img 
                          src={departments.find(d => d.code === profile.assigned_dept)?.logo_url} 
                          alt="Dept Crest" 
-                         className="w-16 h-16 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
+                         className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
                        />
                        {(isHeadAdmin || isDeptAdmin) && (
                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
@@ -3995,6 +4025,7 @@ const executeAddDepartment = async (e) => {
                    </button>
                 )}
              </div>
+             
           </div>
 
         {loading ? (
@@ -4548,13 +4579,16 @@ const executeAddDepartment = async (e) => {
                                className="shadow-sm bg-white mb-3"
                              />
                              <input 
-                               type="range" min="1" max="3" step="0.1" 
-                               value={logoModal.zoom} 
-                               onChange={e => setLogoModal({...logoModal, zoom: parseFloat(e.target.value)})}
-                               className="w-full accent-blue-600"
-                             />
-                             <span className="text-[8px] font-black uppercase text-slate-400 mt-1">Adjust Zoom</span>
-                           </div>
+                                   type="range" min="1" max="3" step="0.1" 
+                                   value={logoModal.zoom} 
+                                   onChange={e => setLogoModal({...logoModal, zoom: parseFloat(e.target.value)})}
+                                   className="w-full accent-blue-600 mb-2"
+                                 />
+                                 <label className="flex items-center gap-2 cursor-pointer mt-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
+                                   <input type="checkbox" checked={logoModal.removeBg} onChange={e => setLogoModal({...logoModal, removeBg: e.target.checked})} className="accent-blue-600 w-4 h-4" />
+                                   <span className="text-[9px] font-black uppercase text-blue-800 tracking-widest">Auto-Remove White Background</span>
+                                 </label>
+                               </div>
                          ) : (
                            <div className="flex flex-col items-center gap-4 py-4">
                              <img src={logoModal.currentLogo || accordLogo} className="w-24 h-24 object-contain drop-shadow-md" />
