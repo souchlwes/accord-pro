@@ -294,23 +294,27 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
         </div>
       </div>
 
-      {/* RESTORED PREMIUM DETAIL MODAL (FOOLPROOF CLICK FIX) */}
+     {/* RESTORED PREMIUM DETAIL MODAL (FOOLPROOF CLICK FIX) */}
       {selectedExam && (
         <div 
             className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md"
-            onClick={(e) => {
-              // Only close if they clicked the dark background, not the white box
+            onMouseDown={(e) => {
+              // Using onMouseDown instead of onClick prevents drag-clicking bugs
               if (e.target === e.currentTarget) setSelectedExam(null);
             }} 
         >
-            <div className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative pointer-events-auto">
                 
                 {/* Dark Header */}
                 <div className="p-8 md:p-10 text-white relative bg-slate-900">
                     <button 
                         type="button"
-                        onClick={() => setSelectedExam(null)} 
-                        className="absolute top-6 right-6 md:top-8 md:right-8 hover:rotate-90 transition-all text-slate-400 hover:text-white z-50 p-2 cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedExam(null);
+                        }} 
+                        className="absolute top-6 right-6 md:top-8 md:right-8 hover:rotate-90 transition-all text-slate-400 hover:text-white z-[100] p-2 cursor-pointer"
                     >
                         <X size={24} />
                     </button>
@@ -354,8 +358,12 @@ const ScheduleCalendar = ({ scheduleData = [], examDates = [] }) => {
 
                     <button 
                         type="button"
-                        onClick={() => setSelectedExam(null)}
-                        className="w-full bg-slate-950 text-white py-4 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-blue-600 transition-all active:scale-95 cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedExam(null);
+                        }}
+                        className="w-full bg-slate-950 text-white py-4 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-blue-600 transition-all active:scale-95 cursor-pointer z-50 relative"
                     >
                         Close Details
                     </button>
