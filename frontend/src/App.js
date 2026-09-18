@@ -3838,7 +3838,7 @@ const executeAddDepartment = async (e) => {
 {/* FIXED SECURE NAVBAR */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 left-0 md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100]">
         <div className="hidden md:flex justify-center items-center mb-12 hover:scale-105 transition-transform cursor-pointer relative group">
-          <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-12 h-12 object-contain drop-shadow-lg opacity-90" />
+          <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-12 h-12 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
           <span className="hidden md:block absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">University Home</span>
         </div>
         
@@ -3962,55 +3962,49 @@ const executeAddDepartment = async (e) => {
           {activeTab === "dashboard" ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 mt-6 md:mt-10 space-y-8 md:space-y-12">
               
-              {/* --- 1. EXECUTIVE METRICS HERO --- */}
+             {/* --- 1. EXECUTIVE METRICS HERO (NOW WITH UNIVERSITY CREST) --- */}
                   <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
                     
-                    {/* NEW: University Crest Display */}
-                    <div className="absolute top-8 right-8 z-20 flex flex-col items-end hidden md:flex">
-                        <div className="relative group/crest cursor-pointer" onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 })}>
-                            <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-20 h-20 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105" />
+                    {/* NEW: Flawless Clickable University Crest Display */}
+                    <div className="absolute top-6 right-8 z-[50] flex flex-col items-end hidden md:flex">
+                        <button 
+                            type="button"
+                            onClick={() => {
+                               if (isHeadAdmin) setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 });
+                            }}
+                            className="relative group/crest cursor-pointer focus:outline-none"
+                        >
+                            <img src={departments[0]?.university_logo_url || accordLogo} alt="University Crest" className="w-24 h-24 object-contain drop-shadow-2xl opacity-90 transition-transform group-hover/crest:scale-105" />
                             {isHeadAdmin && (
-                            <div className="absolute -bottom-2 right-0 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Crest</div>
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-xl whitespace-nowrap">Edit Crest</div>
                             )}
-                        </div>
+                        </button>
                     </div>
 
                     <div className="relative z-10 flex items-center gap-6">
                       <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={72} />
-                    <div>
-                      <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-1">
-                        {getGreeting()},
-                      </p>
-                      <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white">
-                        {profile?.full_name?.split(' ')[0] || 'User'}
-                      </h1>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                        {profile?.assigned_dept ? `${profile.assigned_dept} Workspace` : 'Global System Access'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-                    <div className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl flex items-center gap-4 w-full md:w-auto">
-                      <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
-                        <Calendar size={20} />
-                      </div>
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Current Date</p>
-                        <p className="text-sm font-bold text-white mt-0.5">
-                          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-1">
+                          {getGreeting()},
+                        </p>
+                        <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white">
+                          {profile?.full_name?.split(' ')[0] || 'User'}
+                        </h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
+                          {profile?.assigned_dept ? `${profile.assigned_dept} Workspace` : 'Global System Access'}
                         </p>
                       </div>
                     </div>
-                    
-                    {isHeadAdmin && (
-                      <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
-                        <Plus size={16} /> Add Workspace
-                      </button>
-                    )}
+
+                    <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-8 md:mt-0">
+                      {isHeadAdmin && (
+                        <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
+                          <Plus size={16} /> Add Workspace
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 {/* --- 1.5 SYSTEM HEALTH & ACTION DOCK --- */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-bottom-6 duration-700 delay-100">
