@@ -1271,17 +1271,17 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-     {/* HEADER SECTION */}
+{/* HEADER SECTION */}
       <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-6 md:gap-0">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         
         <div className="relative z-10 flex items-center gap-6">
-          {/* NEW: DEPARTMENT CREST LOGO */}
+          {/* NEW: CIRCULAR DEPARTMENT CREST LOGO */}
           <div className="relative group/deptcrest cursor-pointer" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105 bg-white/10 p-2 rounded-2xl border border-white/20" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
               ) : (
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-700 transition-colors group-hover/deptcrest:border-blue-500">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-full flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700">
                       <Layers size={32} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
                   </div>
               )}
