@@ -1275,22 +1275,22 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-6 md:gap-0">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         
-        <div className="relative z-10 flex items-center gap-6">
-          {/* NEW: PERFECT BORDERLESS DEPARTMENT CREST LOGO */}
+        
+<div className="relative z-10 flex items-center gap-6">
+          {/* EMBEDDED DEPARTMENT CREST (RAW BORDERLESS PNG) */}
           <div className="relative group/deptcrest cursor-pointer bg-transparent border-0" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover overflow-hidden shadow-2xl ring-0 border-0 bg-transparent transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-transparent border-none drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
               ) : (
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-full flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
                       <Layers size={32} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
                   </div>
               )}
-
               {(role === 'HEAD_ADMIN' || role === 'DEPT_ADMIN') && (
                   <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-lg whitespace-nowrap z-50">Edit Crest</div>
               )}
           </div>
-
+          
           <div>
             <div className="flex items-center gap-3 md:gap-4">      
               <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
