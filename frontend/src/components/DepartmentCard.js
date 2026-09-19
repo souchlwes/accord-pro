@@ -1271,17 +1271,18 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-{/* CLEAN, PREMIUM HEADER SECTION */}
-      <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-6 md:gap-0">
+{/* CLEAN, SYMMETRICAL HEADER SECTION */}
+      <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-8">
         
-        <div className="relative z-10 flex items-center gap-4 md:gap-6 flex-1 min-w-0 w-full md:w-auto">
-          {/* BULLETPROOF SQUARE LOCK FOR EMBEDDED CREST */}
-          <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-12 h-12 md:w-16 md:h-16 min-w-[3rem] min-h-[3rem] md:min-w-[4rem] md:min-h-[4rem]" onClick={() => onEditCrest && onEditCrest()}>
+        {/* LEFT: CREST & BRANDING */}
+        <div className="relative z-10 flex items-center gap-5 md:gap-6 flex-1 min-w-0 w-full md:w-auto">
+          {/* PURE WHITE EMBEDDED CREST */}
+          <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-14 h-14 md:w-16 md:h-16" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-2xl transition-transform group-hover/deptcrest:scale-105" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-full h-full block object-contain brightness-0 invert opacity-90 transition-transform group-hover/deptcrest:scale-105 drop-shadow-md" alt="Dept Crest" />
               ) : (
-                  <div className="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 border-0 shadow-lg">
-                      <Layers size={24} className="text-slate-500 group-hover/deptcrest:text-blue-500 md:w-8 md:h-8" />
+                  <div className="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 shadow-lg">
+                      <Layers size={24} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
                   </div>
               )}
               {(role === 'HEAD_ADMIN' || role === 'DEPT_ADMIN') && (
@@ -1289,37 +1290,42 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               )}
           </div>
           
+          {/* TITLE & BADGES */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 md:gap-4 w-full">      
-              <h2 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter leading-none truncate">{deptName}</h2>
-              <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm shrink-0" title="Edit Workspace">
-                <Edit3 size={18} />
-              </button>
-              <button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all shrink-0">
-                <Trash2 size={18} />
-              </button>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3 mt-3">
-              <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded-md">{deptCode}</span>
-              <div className="flex items-center gap-2 cursor-pointer group" onClick={() => {
-                navigator.clipboard.writeText(invite_code || '');
-              }} title="Copy Invite Code">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Invite Code:</span>
-                <span className="text-[10px] font-black text-amber-400 tracking-widest bg-amber-500/10 px-2 py-1 rounded-md group-hover:bg-amber-500 group-hover:text-white transition-colors">{invite_code || 'N/A'}</span>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black uppercase italic tracking-tighter leading-tight truncate w-full" title={deptName}>
+              {deptName}
+            </h2>
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20">{deptCode}</span>
+              <div className="flex items-center gap-2 cursor-pointer group bg-amber-500/10 hover:bg-amber-500 px-2.5 py-1 rounded-md border border-amber-500/20 transition-all shadow-sm" onClick={() => navigator.clipboard.writeText(invite_code || '')} title="Copy Invite Code">
+                <span className="text-[8px] font-black text-slate-400 group-hover:text-amber-100 uppercase tracking-widest transition-colors">Invite Code:</span>
+                <span className="text-[10px] font-black text-amber-400 group-hover:text-white tracking-widest transition-colors">{invite_code || 'N/A'}</span>
               </div>
             </div>
           </div>
         </div>
         
-        <div className="flex gap-4 relative z-10 shrink-0">
-          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
-            <span className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Proctors</span>
-            <span className="text-2xl font-black">{activeDeptProctors.length}</span>
+        {/* RIGHT: ACTIONS & STATS */}
+        <div className="flex items-center gap-4 relative z-10 shrink-0 self-end md:self-auto w-full md:w-auto justify-end">
+          
+          {/* ISOLATED ACTION BUTTONS */}
+          <div className="flex items-center gap-2 mr-2 md:mr-6 border-r border-slate-700 pr-4 md:pr-8">      
+            <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white p-3 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+              <Edit3 size={18} />
+            </button>
+            <button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-slate-800 hover:bg-rose-600 text-rose-500 hover:text-white p-3 rounded-xl transition-all shadow-sm" title="Delete Workspace">
+              <Trash2 size={18} />
+            </button>
           </div>
-          <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
-            <span className="block text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Rooms</span>
-            <span className="text-2xl font-black">{rooms.length}</span>
+
+          {/* STATS */}
+          <div className="bg-slate-800/50 backdrop-blur-md px-5 py-2.5 rounded-[1.2rem] border border-slate-700 text-center min-w-[70px]">
+            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Proctors</span>
+            <span className="text-xl font-black">{activeDeptProctors.length}</span>
+          </div>
+          <div className="bg-slate-800/50 backdrop-blur-md px-5 py-2.5 rounded-[1.2rem] border border-slate-700 text-center min-w-[70px]">
+            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Rooms</span>
+            <span className="text-xl font-black">{rooms.length}</span>
           </div>
         </div>
       </div>
