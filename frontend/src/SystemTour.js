@@ -1,54 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import Joyride, { STATUS } from 'react-joyride';
-import { X, Compass } from 'lucide-react';
-
-const CustomTooltip = ({ index, step, backProps, closeProps, primaryProps, tooltipProps }) => {
-  return (
-    <div {...tooltipProps} className="bg-slate-900/70 backdrop-blur-2xl text-white p-6 rounded-[2rem] w-[320px] md:w-[380px] shadow-[0_30px_80px_rgba(0,0,0,0.6)] border border-white/10 font-sans antialiased">
-      
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-blue-500/20 rounded-xl border border-blue-400/20 text-blue-400 shadow-inner">
-            <Compass size={14} strokeWidth={2.5} />
-          </div>
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-200">
-            Accord Tour <span className="text-blue-500 opacity-50 mx-1">•</span> Step {index + 1}
-          </h4>
-        </div>
-        <button {...closeProps} className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-full transition-all border border-transparent hover:border-white/10" title="Skip Tour">
-          <X size={14} strokeWidth={2.5} />
-        </button>
-      </div>
-
-      <p className="text-[13px] font-medium leading-relaxed tracking-wide mb-8 text-slate-100">
-        {step.content}
-      </p>
-
-      <div className="flex justify-between items-center pt-4 border-t border-white/10">
-        {index > 0 ? (
-          <button {...backProps} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors p-2 active:scale-95">
-            Back
-          </button>
-        ) : <span />}
-        <button {...primaryProps} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95 border border-blue-500">
-          {step.isLast ? 'Finish Tour' : 'Next Step'}
-        </button>
-      </div>
-      
-    </div>
-  );
-};
-
 export default function SystemTour({ forceRun, onTourClose, role }) {
   const [run, setRun] = useState(false);
   const [tourKey, setTourKey] = useState(0); 
 
   useEffect(() => {
-    // FIX: Wait until the user's role has actually loaded from the DB
+    // Wait until the user's role has actually loaded from the DB
     if (!role) return; 
 
     const storageKey = `accord_tour_completed_${role}`;
-    const hasSeenTour = localStorage.getItem(storageKey);
+    // Strict boolean evaluation to prevent truthy string bugs
+    const hasSeenTour = localStorage.getItem(storageKey) === 'true';
     
     if (forceRun) {
       setTourKey(prev => prev + 1); 
@@ -56,17 +16,16 @@ export default function SystemTour({ forceRun, onTourClose, role }) {
     } else if (!hasSeenTour) {
       setRun(true);
     } else {
-      // FIX: Explicitly shut it off if they have seen it
       setRun(false); 
     }
   }, [forceRun, role]);
 
   const handleJoyrideCallback = (data) => {
-    const { status, action } = data;
+    const { status, action, type } = data;
     const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED];
     
-    // FIX: Ensure clicking 'X' (close) or completing the tour strictly locks it in storage
-    if (finishedStatuses.includes(status) || action === 'close') {
+    // Bulletproof catch for 'X' clicks, 'Finish' clicks, and internal Joyride unmounts
+    if (finishedStatuses.includes(status) || action === 'close' || type === 'tour:end') {
       if (role) {
         localStorage.setItem(`accord_tour_completed_${role}`, 'true');
       }
