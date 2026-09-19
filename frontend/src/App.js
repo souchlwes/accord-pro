@@ -4278,8 +4278,25 @@ const executeAddDepartment = async (e) => {
 
                   {showGlobalResources && (
                     <div className="grid grid-cols-1 gap-8 mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                      
                       <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
-                        <ConflictTable schedule={globalSchedule} />
+                        <ConflictTable 
+                          schedule={globalSchedule} 
+                          allProfiles={allProfiles}
+                          globalAvailability={globalAvailability}
+                          onOpenChat={(targetUser) => {
+                            // Uses the global event listener we built to pop open the DM!
+                            window.dispatchEvent(new CustomEvent('open-chat-pane', { detail: { type: 'dm', target: targetUser } }));
+                            setShowChat(true);
+                          }}
+                          onGoToSchedule={(deptCode, scheduleId) => {
+                            const targetDept = departments.find(d => d.code === deptCode);
+                            if (targetDept) setActiveDeptId(targetDept.id);
+                            setTargetHighlight(`SWITCH-PROCTOR-${scheduleId}`);
+                            setActiveTab('dashboard'); // Ensures workspace tab is active
+                            setShowGlobalResources(false); // Collapses the monitor to reduce clutter
+                          }}
+                        />
                       </div>
                       <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
                         <GlobalResourceMonitor 
