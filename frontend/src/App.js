@@ -4280,12 +4280,11 @@ const executeAddDepartment = async (e) => {
                     <div className="grid grid-cols-1 gap-8 mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
                       
                       <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
-                        <ConflictTable 
+                      <ConflictTable 
                           schedule={globalSchedule} 
                           allProfiles={allProfiles}
                           globalAvailability={globalAvailability}
                           onOpenChat={(targetUser) => {
-                            // Uses the global event listener we built to pop open the DM!
                             window.dispatchEvent(new CustomEvent('open-chat-pane', { detail: { type: 'dm', target: targetUser } }));
                             setShowChat(true);
                           }}
@@ -4293,8 +4292,38 @@ const executeAddDepartment = async (e) => {
                             const targetDept = departments.find(d => d.code === deptCode);
                             if (targetDept) setActiveDeptId(targetDept.id);
                             setTargetHighlight(`SWITCH-PROCTOR-${scheduleId}`);
-                            setActiveTab('dashboard'); // Ensures workspace tab is active
-                            setShowGlobalResources(false); // Collapses the monitor to reduce clutter
+                            setActiveTab('dashboard'); 
+                            setShowGlobalResources(false); 
+                          }}
+                          onBatchNudge={async (profilesToNudge) => {
+                             // Fires Emails and System Notifications simultaneously
+                             profilesToNudge.forEach(async (p) => {
+                                await sendNotification(null, null, p.id, "Action Required", "You have pending unverified assignments. Please accept them or log your availability.", "urgent");
+                             });
+                             setAppToast({ message: `Sent reminders to ${profilesToNudge.length} proctors!`, type: "success" });
+                          }}
+                          onAutoResolve={async (scheduleId, newProctorName, deptCode, oldProctorName, section, subjectCode) => {
+                             await supabase.from('schedules').update({ proctor: newProctorName, original_proctor: newProctorName, isManualProctor: true, flagged: false, flagNote: '' }).eq('id', scheduleId);
+                             
+                             const newPUser = allProfiles.find(p => p.full_name === newProctorName || p.name === newProctorName);
+                             const oldPUser = oldProctorName && oldProctorName !== 'TBA' ? allProfiles.find(p => p.full_name === oldProctorName || p.name === oldProctorName) : null;
+
+                             // 1. Notify the NEW Proctor
+                             if (newPUser) {
+                                 await sendNotification(null, null, newPUser.id, 'New Assignment', `You were automatically assigned to Section ${section} (${subjectCode}) to resolve a system conflict.`, 'info');
+                             }
+
+                             // 2. Notify the OLD Proctor (if they existed)
+                             if (oldPUser) {
+                                 await sendNotification(null, null, oldPUser.id, 'Assignment Removed', `You were automatically unassigned from Section ${section} (${subjectCode}) due to a schedule conflict.`, 'warning');
+                             }
+
+                             // 3. Notify the Dept Admin WITH a Deep-Link tag so it's clickable!
+                             const adminMsg = `SWITCH-PROCTOR-${scheduleId} | AUTO-RESOLVED: Section ${section} (${subjectCode}) was automatically reassigned to ${newProctorName}. Click to verify.`;
+                             await sendNotification(deptCode, 'DEPT_ADMIN', null, 'System Auto-Resolved Conflict', adminMsg, 'success');
+                             
+                             fetchAllData(false);
+                             setAppToast({ message: "Conflict automatically resolved! Parties notified.", type: "success" });
                           }}
                         />
                       </div>
