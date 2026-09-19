@@ -332,41 +332,57 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
 
       const { error } = await supabase.from('messages').insert([payload]);
 
-      if (!error && !activeThread) {
+      if (!error) {
           const displayMsg = finalText || "Sent an attachment";
           
-          if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
-              const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
-              chatEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
-              });
+          // 1. If in a thread, check for an @Mention and notify that specific user!
+          const mentionedUser = systemUsers.find(u => displayMsg.includes(`@${u.full_name}`));
+          if (activeThread && mentionedUser) {
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: mentionedUser.email, title: `💬 New Reply from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
               
-              const notifyPayload = systemUsers.map(u => ({
-                  target_user_id: u.id, title: `Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`
-              }));
-              await supabase.from('notifications').insert(notifyPayload);
-
-          } else if (type === 'dm' && target?.email) {
-              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
-              
-              await supabase.from('notifications').insert([{
-                  target_user_id: target.id, title: `New Message`, message: `${profile.full_name} sent you a direct message.`
+              await supabase.from('notifications').insert([{ 
+                 target_user_id: mentionedUser.id, title: `Thread Reply`, message: `${profile.full_name} replied to you.`, 
+                 room_id: type === 'global' ? 'global' : target.id, message_id: activeThread.id 
               }]);
+          }
 
-          } else if (type === 'group' || type === 'broadcast') {
-              const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
-              const titlePrefix = type === 'broadcast' ? 'CHANNEL ALERT' : '👥 GROUP CHAT';
-              
-              const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
-              targetedEmails.forEach(singleEmail => {
-                 fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
-              });
+          // 2. Standard Broadcast, Group & DM Notifications
+          if (!activeThread) {
+              if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
+                  const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
+                  chatEmails.forEach(singleEmail => {
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(()=>{});
+                  });
+                  
+                  // FIX: Ensure 'room_id' is set to 'global' so deep-linking works properly when clicked!
+                  const notifyPayload = systemUsers.map(u => ({
+                      target_user_id: u.id, title: `Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`, room_id: 'global'
+                  }));
+                  await supabase.from('notifications').insert(notifyPayload);
 
-              const notifyPayload = roomMembers.map(rm => ({
-                  target_user_id: rm.user_id, title: `${titlePrefix}: ${target.name}`, message: `${profile.full_name} posted an update.`
-              }));
-              if (notifyPayload.length > 0) {
-                 await supabase.from('notifications').insert(notifyPayload);
+              } else if (type === 'dm' && target?.email) {
+                  fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
+                  
+                  await supabase.from('notifications').insert([{
+                      target_user_id: target.id, title: `New Message`, message: `${profile.full_name} sent you a direct message.`
+                  }]);
+
+              } else if (type === 'group' || type === 'broadcast') {
+                  const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
+                  const titlePrefix = type === 'broadcast' ? 'CHANNEL ALERT' : '👥 GROUP CHAT';
+                  
+                  const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
+                  targetedEmails.forEach(singleEmail => {
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${titlePrefix}: ${target.name}`, message: displayMsg }) }).catch(()=>{});
+                  });
+
+                  // FIX: Ensure room_id is attached to Groups/Broadcasts so they deep-link too!
+                  const notifyPayload = roomMembers.map(rm => ({
+                      target_user_id: rm.user_id, title: `${titlePrefix}: ${target.name}`, message: `${profile.full_name} posted an update.`, room_id: target.id
+                  }));
+                  if (notifyPayload.length > 0) {
+                     await supabase.from('notifications').insert(notifyPayload);
+                  }
               }
           }
       }
@@ -709,22 +725,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                                         {actualMsg && <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{actualMsg}</div>}
                                         {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
                                         
-                                        {!isMe && (
+                                       {!isMe && (
                                            <div className="w-full mt-4 pt-3 border-t border-amber-500/10 flex justify-end">
                                               <button 
                                                 onClick={() => {
-                                                   const sender = systemUsers.find(u => u.id === m.sender_id);
-                                                   if (sender) {
-                                                      openPane('dm', sender);
-                                                      setQuotingMsg(prev => ({...prev, [sender.id]: {text: actualMsg || "Attachment Only"}}));
-                                                   }
+                                                   // Switch to thread mode and auto-mention the author!
+                                                   setActiveThreads(prev => ({...prev, [pane.id]: m}));
+                                                   setInputs(prev => ({...prev, [pane.id]: `@${m.sender_name} `}));
                                                 }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase text-amber-400 transition-colors"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-blue-500/20 rounded-lg text-[9px] font-black uppercase text-blue-400 hover:text-blue-300 transition-colors"
                                               >
-                                                 <Reply size={12}/> Reply Privately
+                                                 <Reply size={12}/> Reply in Thread
                                               </button>
                                            </div>
                                         )}
+
                                      </div>
                                   </div>
                                )
@@ -775,7 +790,21 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                                        {actualMsg && <span>{actualMsg}</span>}
                                        {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-1">Edited</span>}
                                     </div>
-                                    {!isMe && !activeThread && <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"><Reply size={14}/></button>}
+{!isMe && (
+                                      <button 
+                                        onClick={() => {
+                                          if (!activeThread) {
+                                            setActiveThreads(prev => ({...prev, [pane.id]: m}));
+                                          }
+                                          // Auto-mention the user in the input box
+                                          setInputs(prev => ({...prev, [pane.id]: `@${m.sender_name} `}));
+                                        }} 
+                                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-white bg-white/5 rounded-full transition-all shrink-0 ml-1"
+                                        title="Reply / Mention"
+                                      >
+                                        <Reply size={14}/>
+                                      </button>
+                                    )}
                                  </div>
                                  <div className="flex gap-2 items-center mt-1 px-1">
                                    <span className="text-[8px] font-black text-slate-500 uppercase">{formatDateTime(m.created_at)}</span>
