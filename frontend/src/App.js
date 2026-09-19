@@ -4187,7 +4187,12 @@ const executeAddDepartment = async (e) => {
                   
                   {/* Card 1: Re-Validation Engine Status */}
                   <div 
-                    onClick={() => document.getElementById('tour-conflict-engine')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() => {
+                        // 1. Force the accordion to open
+                        setShowGlobalResources(true);
+                        // 2. Wait a split second for it to render, then smooth scroll to it
+                        setTimeout(() => document.getElementById('tour-conflict-engine')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                    }}
                     className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between group ${systemMetrics.activeConflicts > 0 ? 'bg-rose-50 border-rose-200 shadow-rose-500/10' : 'bg-emerald-50 border-emerald-200 shadow-emerald-500/10'}`}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -4385,45 +4390,45 @@ const executeAddDepartment = async (e) => {
                                     <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
                                   </div>
 
-                                  <div className="flex justify-between items-start mb-6">
+                                {/* CLEAN, RESPONSIVE CARD HEADER */}
+                                  <div className="flex justify-between items-start mb-6 gap-4">
                                     
-                                   
-                                  
-                                  {/* BULLETPROOF BORDERLESS DEPARTMENT CREST LOGO INJECTION */}
-                                    <div className="flex items-center gap-4 flex-none">
-                                       <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-12 h-12 md:w-16 md:h-16 min-w-[3rem] min-h-[3rem] md:min-w-[4rem] md:min-h-[4rem]" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
+                                    {/* LEFT: CREST & TITLES */}
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                       <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 shrink-0 w-12 h-12 md:w-14 md:h-14" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
                                            {dept.logo_url ? (
-                                               <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
+                                               <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-md transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
                                            ) : (
                                                <div className="w-full h-full bg-slate-50 rounded-2xl flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border-0 shadow-sm"><Layers size={24} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
                                            )}
                                            {(isHeadAdmin || isDeptAdmin) && (
-                                             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit Crest</div>
+                                             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit</div>
                                            )}
                                        </div>
 
-                                       <div>
-                                         <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors">{dept.code}</h3>
-                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dept.name}</p>
+                                       <div className="flex-1 min-w-0">
+                                         <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors truncate">{dept.code}</h3>
+                                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 line-clamp-2 leading-snug" title={dept.name}>{dept.name}</p>
                                        </div>
                                     </div>
 
-                                    <div className="text-right z-10">
-                                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation(); // Stops the card from opening the workspace!
-                                        navigator.clipboard.writeText(dept.invite_code || '');
-                                        setAppToast({ message: `Copied ${dept.invite_code} to clipboard!`, type: "success" });
-                                      }}
-                                      className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-black tracking-widest border border-slate-200 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300 transition-all shadow-sm active:scale-95"
-                                      title="Copy to clipboard"
-                                    >
-                                      {dept.invite_code || 'N/A'}
-                                    </button>
+                                    {/* RIGHT: INVITE CODE */}
+                                    <div className="text-right shrink-0">
+                                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation(); 
+                                          navigator.clipboard.writeText(dept.invite_code || '');
+                                          setAppToast({ message: `Copied ${dept.invite_code} to clipboard!`, type: "success" });
+                                        }}
+                                        className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-black tracking-widest border border-slate-200 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300 transition-all shadow-sm active:scale-95"
+                                        title="Copy to clipboard"
+                                      >
+                                        {dept.invite_code || 'N/A'}
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
-                                
+                                  
                                 <div className="flex gap-4 mt-auto mb-4">
                                   <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
                                     <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
