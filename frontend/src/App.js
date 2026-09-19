@@ -74,8 +74,27 @@ const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
 };
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL (MULTI-PANE & MOBILE SWIPE EDITION) ---
-const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
+const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget }) => {
   const [messages, setMessages] = useState([]);
+
+  // NEW: Auto-switch to the room and scroll to the highlighted message
+  useEffect(() => {
+    if (chatTarget?.roomId) {
+      const type = chatTarget.roomId === 'global' ? 'global' : 'broadcast'; 
+      openPane(type, { id: chatTarget.roomId, name: 'Linked Channel' });
+      
+      if (chatTarget.messageId) {
+        setTimeout(() => {
+          const targetEl = document.getElementById(`msg-${chatTarget.messageId}`);
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500); // 500ms delay ensures messages have painted to the screen first
+      }
+    }
+  }, [chatTarget]);
+  
+  
   const [activePanes, setActivePanes] = useState([{ type: 'global', id: 'global' }]);
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadDMs, setUnreadDMs] = useState({});
@@ -323,7 +342,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               });
               
               const notifyPayload = systemUsers.map(u => ({
-                  target_user_id: u.id, title: `📢 Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`
+                  target_user_id: u.id, title: `Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`
               }));
               await supabase.from('notifications').insert(notifyPayload);
 
@@ -331,12 +350,12 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
               fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).then(()=>{}).catch(()=>{});
               
               await supabase.from('notifications').insert([{
-                  target_user_id: target.id, title: `💬 New Message`, message: `${profile.full_name} sent you a direct message.`
+                  target_user_id: target.id, title: `New Message`, message: `${profile.full_name} sent you a direct message.`
               }]);
 
           } else if (type === 'group' || type === 'broadcast') {
               const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
-              const titlePrefix = type === 'broadcast' ? '📢 CHANNEL ALERT' : '👥 GROUP CHAT';
+              const titlePrefix = type === 'broadcast' ? 'CHANNEL ALERT' : '👥 GROUP CHAT';
               
               const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
               targetedEmails.forEach(singleEmail => {
@@ -652,10 +671,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                                }
                            }
 
-                           if (isBroadcast) {
+                          if (isBroadcast) {
                                return (
-                                  <div key={m.id} className="w-full flex flex-col items-center mb-6">
-                                     <div className="w-[95%] bg-gradient-to-b from-amber-500/10 to-black/40 border border-amber-500/20 rounded-2xl p-4 shadow-lg relative overflow-hidden">
+                                  <div key={m.id} id={`msg-${m.id}`} className={`w-full flex flex-col items-center mb-6 transition-all duration-1000 ${chatTarget?.messageId === m.id ? 'scale-[1.02] drop-shadow-[0_0_20px_rgba(245,158,11,0.4)]' : ''}`}>
+                                     <div className={`w-[95%] bg-gradient-to-b from-amber-500/10 to-black/40 border rounded-2xl p-4 shadow-lg relative overflow-hidden ${chatTarget?.messageId === m.id ? 'border-amber-400 ring-2 ring-amber-500' : 'border-amber-500/20'}`}>
+                                      
                                         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-500/10">
                                            <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shrink-0"><BellRing size={10} className="text-white"/></div>
                                            <div>
@@ -711,9 +731,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor }) => {
                            }
 
                            return (
-                              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}>
+                              <div key={m.id} id={`msg-${m.id}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative transition-all duration-1000 p-1 rounded-xl ${chatTarget?.messageId === m.id ? 'bg-blue-500/20 ring-2 ring-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : ''}`}>
                                  {(!isMe && isRoom) && (
-                                    <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}</span>
+                                 
+                                 <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>{m.sender_name}</span>
                                  )}
                                  <div className="flex items-center gap-2 max-w-[85%]">
                                     {isMe && (
@@ -1022,7 +1043,7 @@ const HelpCenter = ({ role, onClose, onReplayTour }) => {
       {/* Hide the welcome banner if the user is actively searching */}
         {!searchQuery && (
           <div className="bg-emerald-50 text-emerald-800 p-6 rounded-[2rem] border-2 border-emerald-100 mb-6 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-2">Accord Pro Guide</p>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2">ACCORD PRO Guide</p>
             <p className="text-xs font-bold leading-relaxed mb-4">Welcome to your personalized help center. These guides are dynamically tailored to your specific access level and database constraints.</p>
             
             <button onClick={onReplayTour} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
@@ -1766,16 +1787,16 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
           </div>
 
-         {/* OFFICIAL EMBEDDED CRESTS (SLEEK LIGHT PLAQUE FOR CONTRAST) */}
+         {/* OFFICIAL EMBEDDED CRESTS (PURE WHITE MONOTONE FOR DARK NAVBAR) */}
           {(universityLogo || departmentLogo) && (
             <>
               <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
-              <div className="flex items-center gap-3 shrink-0 bg-slate-50 px-3 py-1.5 md:py-2 rounded-[1.2rem] shadow-inner border border-slate-200">
+              <div className="flex items-center gap-3 shrink-0">
                  {universityLogo && (
-                    <img src={universityLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain" alt="Univ Crest" />
+                    <img src={universityLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Univ Crest" />
                  )}
                  {departmentLogo && (
-                    <img src={departmentLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain" alt="Dept Crest" />
+                    <img src={departmentLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Dept Crest" />
                  )}
               </div>
             </>
@@ -2135,6 +2156,9 @@ function App() {
   const [showChat, setShowChat] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
+  // --- NEW: CHAT TARGET STATE ---
+  const [chatTarget, setChatTarget] = useState({ roomId: null, messageId: null });
+
   // --- NEW: CREST UPLOAD MODAL ---
   const [logoModal, setLogoModal] = useState({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true });
   
@@ -2263,9 +2287,18 @@ function App() {
     const title = (notification.title || "").toLowerCase();
     const msg = notification.message || "";
 
-    if (title.includes('announcement')) { setShowChat(true); return; }
+    // NEW: Deep link for Announcements & Chat Messages
+    if (title.includes('announcement') || title.includes('alert') || title.includes('group') || title.includes('message')) { 
+       setChatTarget({ 
+           roomId: notification.room_id || notification.related_id || 'global', 
+           messageId: notification.message_id || notification.related_id 
+       });
+       setShowChat(true); 
+       return; 
+    }
 
     if (title.includes('availability')) {
+      
       const nameMatch = msg.match(/^(.*?)\s+(updated|uploaded)/i);
       if (nameMatch) {
         const proctorName = nameMatch[1].trim().toLowerCase();
@@ -2612,15 +2645,18 @@ useEffect(() => {
     setConfirmModal({
       isOpen: true,
       title: "Confirm Logout",
-      text: "Are you sure you want to securely sign out of Accord Pro?",
+      text: "Are you sure you want to securely sign out of ACCORD PRO?",
       action: async () => {
-        await supabase.auth.signOut();
-        localStorage.clear(); 
+        await supabase.auth.signOut(); // Supabase safely removes its own auth tokens here
+        
+        // Remove only specific active session data if needed, but preserve the tour memory
+        localStorage.removeItem('active_dept_id'); 
+        
         sessionStorage.clear(); 
         window.location.reload();
       }
     });
-  };
+  }
 
 const handleForgotSendOtp = async (e) => {
     e.preventDefault();
@@ -2668,7 +2704,7 @@ const handleForgotSendOtp = async (e) => {
         body: JSON.stringify({ 
           emails: email, 
           title: 'Security Alert: Password Recovered', 
-          message: `Your Accord Pro account password was successfully reset. If you did not authorize this, contact an Admin immediately.` 
+          message: `Your ACCORD PRO account password was successfully reset. If you did not authorize this, contact an Admin immediately.` 
         })
       }).catch(err => console.error("Notify error:", err));
 
@@ -2789,7 +2825,7 @@ const handleVerifyOtpAndUpdate = async (e) => {
         body: JSON.stringify({ 
           emails: oldEmail, 
           title: 'Security Alert: Email Address Changed', 
-          message: `Your Accord Pro account email was just changed to ${newEmail}. If you did not authorize this, contact an Admin immediately.` 
+          message: `Your ACCORD PRO account email was just changed to ${newEmail}. If you did not authorize this, contact an Admin immediately.` 
         })
       }).catch(err => console.error(err));
 
@@ -2800,7 +2836,7 @@ const handleVerifyOtpAndUpdate = async (e) => {
         body: JSON.stringify({ 
           emails: newEmail, 
           title: 'Email Update Successful', 
-          message: `You have successfully verified and linked this email address to your Accord Pro account.` 
+          message: `You have successfully verified and linked this email address to your ACCORD PRO account.` 
         })
       }).catch(err => console.error(err));
 
@@ -3569,8 +3605,8 @@ const executeAddDepartment = async (e) => {
        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-      {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
-       
+{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
+
        <ProctorDashboard
           profile={viewingProctor} 
           globalSchedule={globalSchedule} 
@@ -3674,8 +3710,8 @@ const executeAddDepartment = async (e) => {
         {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-        {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
-     
+     {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
+
       <ProctorDashboard
           profile={profile} 
           globalSchedule={globalSchedule} 
@@ -3916,7 +3952,7 @@ const executeAddDepartment = async (e) => {
     {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-      {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => setShowChat(false)} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} />}
+{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
 
 {/* FIXED SECURE NAVBAR */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 left-0 md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100]">
