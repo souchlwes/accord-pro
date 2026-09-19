@@ -1271,12 +1271,10 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         </div>
       )}
 
-{/* HEADER SECTION */}
+{/* CLEAN, PREMIUM HEADER SECTION */}
       <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-6 md:gap-0">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
         
-        
-<div className="relative z-10 flex items-center gap-4 md:gap-6 flex-none">
+        <div className="relative z-10 flex items-center gap-4 md:gap-6 flex-1 min-w-0 w-full md:w-auto">
           {/* BULLETPROOF SQUARE LOCK FOR EMBEDDED CREST */}
           <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-12 h-12 md:w-16 md:h-16 min-w-[3rem] min-h-[3rem] md:min-w-[4rem] md:min-h-[4rem]" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
@@ -1291,30 +1289,32 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               )}
           </div>
           
-          <div>
-            <div className="flex items-center gap-3 md:gap-4">      
-              <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter leading-none">{deptName}</h2>
-              <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm" title="Edit Workspace">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 md:gap-4 w-full">      
+              <h2 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter leading-none truncate">{deptName}</h2>
+              <button onClick={() => onEditDept(deptId, deptName, deptCode)} className="bg-white/10 hover:bg-blue-500 text-white p-2 rounded-xl transition-all shadow-sm shrink-0" title="Edit Workspace">
                 <Edit3 size={18} />
               </button>
-              <button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all">
+              <button onClick={() => onDeleteDept(deptId, deptCode)} className="bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl transition-all shrink-0">
                 <Trash2 size={18} />
               </button>
             </div>
             
-            <div className="flex flex-wrap items-center gap-3 mt-3"></div>
-            <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.4em] flex items-center gap-2">
-              <Settings2 size={12}/> Departmental Workspace Engine
-            </p>
-            <div className="bg-white/10 px-3 py-1 rounded-md border border-white/20 flex items-center gap-2 shadow-sm">
-              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Invite Code:</span>
-              <span className="text-xs font-black text-amber-400 tracking-widest">{invite_code || 'N/A'}</span>
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded-md">{deptCode}</span>
+              <div className="flex items-center gap-2 cursor-pointer group" onClick={() => {
+                navigator.clipboard.writeText(invite_code || '');
+              }} title="Copy Invite Code">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Invite Code:</span>
+                <span className="text-[10px] font-black text-amber-400 tracking-widest bg-amber-500/10 px-2 py-1 rounded-md group-hover:bg-amber-500 group-hover:text-white transition-colors">{invite_code || 'N/A'}</span>
+              </div>
             </div>
           </div>
         </div>
-        <div className="flex gap-4 relative z-10">
+        
+        <div className="flex gap-4 relative z-10 shrink-0">
           <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
-            <span className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Proctor</span>
+            <span className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Proctors</span>
             <span className="text-2xl font-black">{activeDeptProctors.length}</span>
           </div>
           <div className="bg-white/5 backdrop-blur-md px-6 py-3 rounded-[1.5rem] border border-white/10 text-center min-w-[80px]">
