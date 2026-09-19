@@ -1274,12 +1274,12 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 {/* CLEAN, SYMMETRICAL HEADER SECTION */}
       <div className="bg-slate-900 p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden gap-8">
         
-        {/* LEFT: CREST & BRANDING */}
+       {/* LEFT: CREST & BRANDING */}
         <div className="relative z-10 flex items-center gap-5 md:gap-6 flex-1 min-w-0 w-full md:w-auto">
-          {/* PURE WHITE EMBEDDED CREST */}
+          {/* SMART MONOCHROME EMBEDDED CREST */}
           <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 flex-none w-14 h-14 md:w-16 md:h-16" onClick={() => onEditCrest && onEditCrest()}>
               {dept.logo_url ? (
-                  <img src={dept.logo_url} className="w-full h-full block object-contain brightness-0 invert opacity-90 transition-transform group-hover/deptcrest:scale-105 drop-shadow-md" alt="Dept Crest" />
+                  <img src={dept.logo_url} className="w-full h-full block object-contain grayscale invert contrast-125 brightness-150 opacity-90 transition-transform group-hover/deptcrest:scale-105 drop-shadow-sm" alt="Dept Crest" />
               ) : (
                   <div className="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center transition-colors group-hover/deptcrest:bg-slate-700 shadow-lg">
                       <Layers size={24} className="text-slate-500 group-hover/deptcrest:text-blue-500" />
