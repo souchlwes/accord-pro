@@ -2211,6 +2211,7 @@ function App() {
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
   const [masterTimelineView, setMasterTimelineView] = useState("upcoming");
+  const [showGlobalResources, setShowGlobalResources] = useState(false);
 
   const isPastSession = (date, endTime) => {
     const now = new Date();
@@ -2592,12 +2593,7 @@ useEffect(() => {
     return departments.filter(d => d.code === profile?.assigned_dept);
   }, [departments, profile, isHeadAdmin]);
 
-  // --- NEW: Auto-route Department Heads straight to their workspace ---
-  useEffect(() => {
-    if (visibleDepartments.length === 1) {
-      setActiveDeptId(visibleDepartments[0].id);
-    }
-  }, [visibleDepartments]);
+  
   
   const handleAddAvailability = async (newAvail) => {
     const { error } = await supabase.from('proctor_availability').insert([newAvail]);
@@ -4075,8 +4071,9 @@ const executeAddDepartment = async (e) => {
         </div>
       </aside>
 
-   <main className="flex-1 p-3 md:p-16 pb-32 md:pb-16 max-w-[90rem] mx-auto w-full relative md:ml-24">
-          
+          {/* PERFECTLY CENTERED MAIN CONTAINER */}
+   <main className="flex-1 p-4 md:p-8 lg:p-12 pb-32 md:pb-16 w-full max-w-[100vw] md:max-w-[calc(100vw-6rem)] lg:max-w-[95rem] mx-auto relative md:ml-24 flex flex-col min-w-0">
+        
          {/* TOP METADATA & CRESTS (SIDE-BY-SIDE MOBILE FIX) */}
           <div className="flex flex-row justify-between items-center w-full mb-6 md:mb-8 gap-4 relative z-40">
              
@@ -4258,20 +4255,42 @@ const executeAddDepartment = async (e) => {
 
                 </div>
 
-                {/* --- 2. GLOBAL RESOURCES & CONFLICTS (FROSTED BENTO) --- */}
-                <div className="grid grid-cols-1 gap-8">
-               <div id="tour-conflict-engine" className="grid grid-cols-1 gap-8"></div>
-                  <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
-                    <ConflictTable schedule={globalSchedule} />
+                {/* --- 2. COLLAPSIBLE GLOBAL RESOURCES & CONFLICTS --- */}
+                <div id="tour-conflict-engine" className="pt-4">
+                  <div 
+                    onClick={() => setShowGlobalResources(!showGlobalResources)}
+                    className="bg-white/90 backdrop-blur-xl p-6 md:p-8 rounded-[2.5rem] border border-slate-200/80 hover:border-emerald-500 shadow-lg hover:shadow-2xl transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-600/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
+                    <div className="relative z-10 flex items-center gap-4 md:gap-6">
+                      <div className="bg-emerald-50 text-emerald-600 p-4 rounded-2xl shadow-sm border border-emerald-100 hidden md:block">
+                         <Globe size={32} />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Global <span className="text-emerald-600">Resources</span></h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click to {showGlobalResources ? 'collapse' : 'expand'} conflict table & system monitor</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors relative z-10 shadow-sm border border-slate-100">
+                      {showGlobalResources ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                    </div>
                   </div>
-                  <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
-                    <GlobalResourceMonitor 
-                      allDepartments={departments} 
-                      globalSchedule={globalSchedule} 
-                      allProfiles={allProfiles}
-                      onViewProctor={(p) => setViewingProctor(p)}
-                    />
-                  </div>
+
+                  {showGlobalResources && (
+                    <div className="grid grid-cols-1 gap-8 mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
+                        <ConflictTable schedule={globalSchedule} />
+                      </div>
+                      <div className="bg-white/80 backdrop-blur-xl p-4 md:p-8 rounded-[2.5rem] border border-slate-200/80 shadow-xl hover:shadow-2xl transition-all">
+                        <GlobalResourceMonitor 
+                          allDepartments={departments} 
+                          globalSchedule={globalSchedule} 
+                          allProfiles={allProfiles}
+                          onViewProctor={(p) => setViewingProctor(p)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* --- 3. SMART WORKSPACE ROUTER --- */}
