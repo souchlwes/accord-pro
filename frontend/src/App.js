@@ -1816,7 +1816,7 @@ const [dashboardView, setDashboardView] = useState('upcoming');
             <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
           </div>
 
-         {/* OFFICIAL EMBEDDED CRESTS (PURE WHITE MONOTONE FOR DARK NAVBAR) */}
+{/* OFFICIAL EMBEDDED CRESTS (PURE WHITE MONOTONE FOR DARK NAVBAR) */}
           {(universityLogo || departmentLogo) && (
             <>
               <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
@@ -4305,8 +4305,8 @@ const executeAddDepartment = async (e) => {
                          : "You are not assigned to any active department workspace. Please contact your Head Administrator."}
                     </p>
                   </div>
-               ) : !activeDeptId && visibleDepartments.length > 1 ? (
-                  <div className="space-y-12">
+               ) : !activeDeptId ? ( 
+                 <div className="space-y-12">
                     {Object.entries(
                       visibleDepartments.reduce((acc, dept) => {
                         const camp = dept.campus_location || 'Main';
@@ -4404,13 +4404,12 @@ const executeAddDepartment = async (e) => {
                       </div>
                     ))}
                   </div>
-                ) : (
+               
+               ) : (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-                    {visibleDepartments.length > 1 && (
-                      <button onClick={() => setActiveDeptId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-slate-200/80 w-max transition-all active:scale-95">
-                        <ArrowLeft size={14} /> Back to Department Grid
-                      </button>
-                    )}
+                    <button onClick={() => setActiveDeptId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-slate-200/80 w-max transition-all active:scale-95">
+                      <ArrowLeft size={14} /> Back to Department Grid
+                    </button>
                     
                     {visibleDepartments.filter(d => d.id === activeDeptId).map((dept) => (
                       <DepartmentCard
