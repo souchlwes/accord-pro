@@ -786,20 +786,25 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
                                         {actualMsg && <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words pl-1 font-medium">{actualMsg}</div>}
                                         {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
                                         
-                                       {!isMe && (
-                                           <div className="w-full mt-4 pt-3 border-t border-amber-500/10 flex justify-end">
-                                              <button 
-                                                onClick={() => {
-                                                   // Switch to thread mode and auto-mention the author!
-                                                   setActiveThreads(prev => ({...prev, [pane.id]: m}));
-                                                   setInputs(prev => ({...prev, [pane.id]: `@${m.sender_name} `}));
-                                                }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-blue-500/20 rounded-lg text-[9px] font-black uppercase text-blue-400 hover:text-blue-300 transition-colors"
-                                              >
-                                                 <Reply size={12}/> Reply in Thread
-                                              </button>
+                                       {/* THREAD REPLY INDICATOR & BUTTON */}
+                                        <div className="w-full mt-4 pt-3 border-t border-amber-500/10 flex items-center justify-between">
+                                           <div className="text-[9px] font-black text-amber-500/80 uppercase tracking-widest">
+                                              {!activeThread && replyCount > 0 && (
+                                                 <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: m}))} className="hover:text-amber-300 transition-colors flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 rounded-lg">
+                                                    <MessageSquare size={12} /> {replyCount} {replyCount === 1 ? 'Comment' : 'Comments'}
+                                                 </button>
+                                              )}
                                            </div>
-                                        )}
+                                           <button 
+                                             onClick={() => {
+                                                setActiveThreads(prev => ({...prev, [pane.id]: m}));
+                                                if (!isMe) setInputs(prev => ({...prev, [pane.id]: `@${m.sender_name} `}));
+                                             }}
+                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-blue-500/20 rounded-lg text-[9px] font-black uppercase text-blue-400 hover:text-blue-300 transition-colors shrink-0"
+                                           >
+                                              <Reply size={12}/> {isMe ? 'View Thread' : 'Reply in Thread'}
+                                           </button>
+                                        </div>
 
                                      </div>
                                   </div>
@@ -2267,7 +2272,33 @@ function App() {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', text: '', action: null });
   const [approvalModal, setApprovalModal] = useState({ isOpen: false, profile: null }); 
   const [editStaffModal, setEditStaffModal] = useState({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null, zoom: 1 });
+
   const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: '', name: '', code: '' });
+  const [editCampusModal, setEditCampusModal] = useState({ isOpen: false, oldName: '', newName: '' });
+
+  const executeEditCampus = async (e) => {
+    e.preventDefault();
+    const { oldName, newName } = editCampusModal;
+    const trimmedNewName = newName.trim();
+    if (!trimmedNewName || trimmedNewName === oldName) return;
+
+    // Check if new name already exists
+    const campusExists = departments.some(d => d.campus_location?.toLowerCase() === trimmedNewName.toLowerCase() && d.campus_location !== oldName);
+    if (campusExists) {
+       return setAppToast({ message: `Campus "${trimmedNewName}" already exists.`, type: "error" });
+    }
+
+    const { error } = await supabase.from('departments').update({ campus_location: trimmedNewName }).eq('campus_location', oldName).eq('university', profile.university);
+    
+    if (error) {
+       setAppToast({ message: error.message, type: "error" });
+    } else {
+       setAppToast({ message: "Campus renamed successfully.", type: "success" });
+       setEditCampusModal({ isOpen: false, oldName: '', newName: '' });
+       fetchAllData(false);
+    }
+  };
+
   const [activeDeptId, setActiveDeptId] = useState(null);
   const [showMasterTimeline, setShowMasterTimeline] = useState(false);
   const [masterTimelineView, setMasterTimelineView] = useState("upcoming");
@@ -4585,17 +4616,26 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                              </h3>
                            </div>
                            
-                           <div className="flex items-center gap-4 flex-1">
-                             <div className="h-1 flex-1 bg-slate-200 rounded-full ml-4 opacity-50"></div>
+                          <div className="flex items-center gap-2 md:gap-4 flex-1">
+                             <div className="h-1 flex-1 bg-slate-200 rounded-full ml-2 md:ml-4 opacity-50"></div>
                              {isHeadAdmin && campusName !== 'Main' && (
-                               <button 
-                                 onClick={() => handleDeleteCampus(campusName)} 
-                                 className="opacity-0 group-hover/campus:opacity-100 transition-opacity text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 shrink-0"
-                               >
-                                 Dissolve Campus
-                               </button>
+                               <>
+                                 <button 
+                                   onClick={() => setEditCampusModal({ isOpen: true, oldName: campusName, newName: campusName })} 
+                                   className="opacity-0 group-hover/campus:opacity-100 transition-opacity text-[9px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 shrink-0"
+                                 >
+                                   Rename
+                                 </button>
+                                 <button 
+                                   onClick={() => handleDeleteCampus(campusName)} 
+                                   className="opacity-0 group-hover/campus:opacity-100 transition-opacity text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 shrink-0 hidden md:block"
+                                 >
+                                   Dissolve
+                                 </button>
+                               </>
                              )}
                            </div>
+
                         </div>
 
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -5187,6 +5227,31 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
           </div>
         )}
 
+        {/* --- EDIT CAMPUS MODAL --- */}
+        {editCampusModal.isOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+              <div className="flex items-center gap-4 text-indigo-600 mb-6">
+                <Globe size={32} />
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">Rename Campus</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Update location identifier</p>
+                </div>
+              </div>
+              <form onSubmit={executeEditCampus} className="space-y-4 mb-2">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Campus Name</label>
+                  <input required type="text" value={editCampusModal.newName} onChange={e=>setEditCampusModal({...editCampusModal, newName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"/>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditCampusModal({ isOpen: false, oldName: '', newName: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg transition-colors">Save Name</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        
         {/* --- EDIT DEPARTMENT MODAL --- */}
         {editDeptModal.isOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
