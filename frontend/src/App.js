@@ -3310,6 +3310,20 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
     });
   };
 
+  const handleDeleteCampus = async (campusName) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Dissolve ${campusName} Campus?`,
+      text: `This will NOT delete the departments inside it. It will safely move all departments from ${campusName} back to the 'Main' campus.`,
+      action: async () => {
+        await supabase.from('departments').update({ campus_location: 'Main' }).eq('campus_location', campusName).eq('university', profile.university);
+        await sendNotification(null, 'HEAD_ADMIN', null, 'Campus Dissolved', `The ${campusName} campus was removed and its departments were reassigned.`, 'info');
+        await fetchAllData(false);
+        setAppToast({ message: "Campus dissolved safely.", type: "success" });
+      }
+    });
+  };
+
   // --- NEW: CREST UPLOAD FUNCTION (WITH AUTO-TRANSPARENCY) ---
   const executeLogoUpload = async (e) => {
     e.preventDefault();
@@ -3394,6 +3408,10 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
         if (type === 'university') {
            const { error } = await supabase.from('departments').update({ university_logo_url: finalUrl }).eq('university', profile.university);
            if (error) throw error;
+        } else if (type === 'campus') {
+           // targetId holds the Campus Name string in this mode
+           const { error } = await supabase.from('departments').update({ campus_logo_url: finalUrl }).eq('campus_location', targetId).eq('university', profile.university);
+           if (error) throw error;
         } else {
            const { error } = await supabase.from('departments').update({ logo_url: finalUrl }).eq('id', targetId);
            if (error) throw error;
@@ -3402,6 +3420,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
         setLogoModal({ isOpen: false, type: 'university', targetId: null, currentLogo: '', newLogoBase64: null, newLogoType: null, zoom: 1 });
         await fetchAllData(false);
     } catch (error) {
+
         setAppToast({ message: "Database update failed: " + error.message, type: "error" });
     }
     setLoading(false);
@@ -4384,10 +4403,42 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                     ).sort(([a], [b]) => a.localeCompare(b)).map(([campusName, depts]) => (
                       <div key={campusName} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                         
-                        <div className="flex items-center gap-3 mb-6">
-                           <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md"><Layers size={20}/></div>
-                           <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{campusName}</h3>
-                           <div className="h-1 flex-1 bg-slate-200 rounded-full ml-4 opacity-50"></div>
+                       <div className="flex items-center justify-between mb-6 group/campus">
+                           <div className="flex items-center gap-4">
+                             {/* CAMPUS CREST BUTTON */}
+                             <button 
+                               onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'campus', targetId: campusName, currentLogo: depts[0]?.campus_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
+                               className="relative cursor-pointer transition-all active:scale-95 group/crestbtn border-0 bg-transparent"
+                             >
+                                {depts[0]?.campus_logo_url ? (
+                                  <img src={depts[0]?.campus_logo_url} className="w-12 h-12 object-contain drop-shadow-md group-hover/crestbtn:scale-105 transition-transform" alt={`${campusName} Crest`} />
+                                ) : (
+                                  <div className="w-12 h-12 bg-blue-600 rounded-2xl text-white shadow-md flex items-center justify-center group-hover/crestbtn:bg-blue-500 transition-colors"><Layers size={24}/></div>
+                                )}
+                                {isHeadAdmin && (
+                                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/crestbtn:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit Crest</div>
+                                )}
+                             </button>
+
+                             <h3 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter">
+                               {campusName} 
+                               <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase align-middle ml-3">
+                                 {depts.length} Workspace{depts.length !== 1 ? 's' : ''}
+                               </span>
+                             </h3>
+                           </div>
+                           
+                           <div className="flex items-center gap-4 flex-1">
+                             <div className="h-1 flex-1 bg-slate-200 rounded-full ml-4 opacity-50"></div>
+                             {isHeadAdmin && campusName !== 'Main' && (
+                               <button 
+                                 onClick={() => handleDeleteCampus(campusName)} 
+                                 className="opacity-0 group-hover/campus:opacity-100 transition-opacity text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 shrink-0"
+                               >
+                                 Dissolve Campus
+                               </button>
+                             )}
+                           </div>
                         </div>
 
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -4839,7 +4890,9 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                     <ImageIcon size={32} />
                     <div>
                       <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">
-                        {logoModal.type === 'university' ? 'Global University Crest' : 'Department Crest'}
+                        {logoModal.type === 'university' ? 'Global University Crest' 
+                          : logoModal.type === 'campus' ? 'Campus Location Crest' 
+                          : 'Department Crest'}
                       </h3>
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Upload official branding</p>
                     </div>
