@@ -4721,39 +4721,89 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
               </div>
               
             {deptModal.step === 1 ? (
-                 <div className="space-y-4 mb-2">
-                    <div>
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
-                      <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
-                      <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                 <div className="space-y-6 mb-2">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                        <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                        <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                      </div>
                     </div>
                     
-                    <div>
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Select Campus Location</label>
-                      <select value={deptModal.campusSelect} onChange={e=>setDeptModal({...deptModal, campusSelect: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
-                         {[...new Set(departments.map(d => d.campus_location || 'Main'))].sort().map(c => (
-                            <option key={c} value={c}>{c}</option>
-                         ))}
-                         <option value="NEW_CAMPUS" className="font-black text-blue-600">+ Create New Campus Location</option>
-                      </select>
+                    <div className="pt-2 border-t-2 border-slate-50">
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-3 block">Campus Assignment</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                        
+                        {/* EXISTING CAMPUS CARDS */}
+                        {[...new Set(departments.map(d => d.campus_location || 'Main'))].sort().map(campus => (
+                          <button
+                            key={campus}
+                            type="button"
+                            onClick={() => setDeptModal({...deptModal, campusSelect: campus, customCampus: ''})}
+                            className={`p-4 rounded-2xl text-left transition-all border-2 flex items-center justify-between group active:scale-95 ${
+                              deptModal.campusSelect === campus 
+                                ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
+                                : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-blue-200 hover:bg-blue-50/30'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                               <div className={`p-2 rounded-xl shrink-0 transition-colors ${deptModal.campusSelect === campus ? 'bg-blue-500 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-400 group-hover:text-blue-500 group-hover:border-blue-200 shadow-sm'}`}>
+                                 <Layers size={14} />
+                               </div>
+                               <span className="text-[10px] font-black uppercase tracking-widest truncate">{campus}</span>
+                            </div>
+                            {deptModal.campusSelect === campus && <CheckCircle2 size={16} className="text-blue-500 shrink-0 ml-2" />}
+                          </button>
+                        ))}
+                        
+                        {/* NEW CAMPUS BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => setDeptModal({...deptModal, campusSelect: 'NEW_CAMPUS'})}
+                          className={`p-4 rounded-2xl text-left transition-all border-2 border-dashed flex items-center justify-between group active:scale-95 ${
+                            deptModal.campusSelect === 'NEW_CAMPUS' 
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' 
+                              : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-emerald-300 hover:bg-emerald-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                             <div className={`p-2 rounded-xl shrink-0 transition-colors ${deptModal.campusSelect === 'NEW_CAMPUS' ? 'bg-emerald-500 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-400 group-hover:text-emerald-500 shadow-sm'}`}>
+                               <Plus size={14} strokeWidth={3} />
+                             </div>
+                             <span className="text-[10px] font-black uppercase tracking-widest truncate">New Campus</span>
+                          </div>
+                          {deptModal.campusSelect === 'NEW_CAMPUS' && <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-2" />}
+                        </button>
+                      </div>
+
+                      {/* REVEAL NEW CAMPUS INPUT */}
+                      {deptModal.campusSelect === 'NEW_CAMPUS' && (
+                        <div className="animate-in fade-in slide-in-from-top-2 pt-2">
+                          <label className="text-[9px] font-black text-emerald-600 uppercase ml-2 mb-2 flex items-center gap-1.5">
+                            <Plus size={12} strokeWidth={3}/> Define New Campus Name
+                          </label>
+                          <input 
+                            required 
+                            autoFocus
+                            type="text" 
+                            value={deptModal.customCampus} 
+                            onChange={e=>setDeptModal({...deptModal, customCampus: e.target.value})} 
+                            placeholder="e.g. South Branch" 
+                            className="w-full bg-emerald-50/30 border-2 border-emerald-200 p-4 rounded-2xl text-xs font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-inner"
+                          />
+                        </div>
+                      )}
                     </div>
 
-                    {deptModal.campusSelect === 'NEW_CAMPUS' && (
-                      <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="text-[9px] font-black text-blue-500 uppercase ml-2 mb-1 block">New Campus Name</label>
-                        <input required type="text" value={deptModal.customCampus} onChange={e=>setDeptModal({...deptModal, customCampus: e.target.value})} placeholder="e.g. South Branch" className="w-full bg-blue-50 border-2 border-blue-200 p-4 rounded-2xl text-xs font-bold text-blue-900 outline-none focus:border-blue-500 transition-all"/>
-                      </div>
-                    )}
-
-                    <div className="flex gap-4 pt-4">
-                      <button type="button" onClick={() => setDeptModal({ isOpen: false, step: 1, name: '', code: '', campusSelect: 'Main', customCampus: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                    <div className="flex gap-4 pt-4 border-t-2 border-slate-50 mt-2">
+                      <button type="button" onClick={() => setDeptModal({ isOpen: false, step: 1, name: '', code: '', campusSelect: departments[0]?.campus_location || 'Main', customCampus: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
                       <button type="button" onClick={() => {
-                          if(!deptModal.name || !deptModal.code || (deptModal.campusSelect === 'NEW_CAMPUS' && !deptModal.customCampus)) return setAppToast({message: "Please fill all fields.", type:"error"});
+                          if(!deptModal.name || !deptModal.code || (deptModal.campusSelect === 'NEW_CAMPUS' && !deptModal.customCampus)) return setAppToast({message: "Please complete all fields.", type:"error"});
                           setDeptModal({...deptModal, step: 2});
-                      }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Review & Next</button>
+                      }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-all active:scale-95">Review & Next</button>
                     </div>
                  </div>
                 ) : (
@@ -4772,7 +4822,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                     )}
                     <div className="flex gap-4 pt-4">
                       <button type="button" onClick={() => setDeptModal({...deptModal, step: 1})} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
-                      <button type="button" onClick={executeAddDepartment} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Confirm & Initialize</button>
+                      <button type="button" onClick={executeAddDepartment} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-all active:scale-95">Confirm & Initialize</button>
                     </div>
                  </div>
                 )}
