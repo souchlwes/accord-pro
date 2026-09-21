@@ -74,8 +74,12 @@ const UserAvatar = ({ fullName, avatarUrl, size = 40 }) => {
 };
 
 // --- GLOBAL & DIRECT REAL-TIME CHAT PANEL (MULTI-PANE & MOBILE SWIPE EDITION) ---
-const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget }) => {
+const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProctor, chatTarget }) => {
   const [messages, setMessages] = useState([]);
+  
+  // Detect the user's campus dynamically
+  const myDept = departments.find(d => d.code === profile?.assigned_dept);
+  const myCampus = myDept?.campus_location || 'Main';
 
   // NEW: Auto-switch to the room and scroll to the highlighted message
   useEffect(() => {
@@ -152,9 +156,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
 
       let query = supabase.from('messages').select('*').order('created_at', { ascending: true });
       if (roomIds.length > 0) {
-        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.in.(${roomIds.join(',')})`);
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.eq.campus_${myCampus},room_id.in.(${roomIds.join(',')})`);
       } else {
-        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`);
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.eq.campus_${myCampus}`);
       }
       
       const { data: msgData } = await query;
@@ -177,9 +181,10 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
 
     const channel = supabase.channel('global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
+       
+       if (payload.eventType === 'INSERT') {
           const m = payload.new;
-          const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id || (m.room_id && rooms.some(r => r.id === m.room_id));
+          const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id || m.room_id === `campus_${myCampus}` || (m.room_id && rooms.some(r => r.id === m.room_id));
           
           if (isRelevant) {
             setMessages(prev => [...prev, m]); 
@@ -322,11 +327,14 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
           finalText = `[Replying to Announcement]: "${snippet}"\n\n${text}`;
       }
 
+      // Stamps the sender's Campus dynamically if they are using the University Board
+      const displayRole = type === 'global' ? `${profile.role} • ${myCampus} Campus` : profile.role;
+
       const payload = {
-        sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
+        sender_id: profile.id, sender_name: profile.full_name, sender_role: displayRole,
         text: finalText.trim() ? finalText : null, 
         receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
-        room_id: (type === 'group' || type === 'broadcast') ? target.id : null,
+        room_id: (type === 'group' || type === 'broadcast' || type === 'campus_global') ? target.id : null,
         attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
 
@@ -351,17 +359,33 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
               if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
                   const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
                   chatEmails.forEach(singleEmail => {
-                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL CAMPUS ALERT`, message: displayMsg }) }).catch(()=>{});
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL UNIVERSITY ALERT`, message: displayMsg }) }).catch(()=>{});
                   });
                   
-                  // FIX: Ensure 'room_id' is set to 'global' so deep-linking works properly when clicked!
                   const notifyPayload = systemUsers.map(u => ({
-                      target_user_id: u.id, title: `Global Announcement`, message: `${profile.full_name} posted a campus-wide alert.`, room_id: 'global'
+                      target_user_id: u.id, title: `University Announcement`, message: `${profile.full_name} posted a university-wide alert.`, room_id: 'global'
                   }));
                   await supabase.from('notifications').insert(notifyPayload);
 
+              } else if (type === 'campus_global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
+                  // Only notify users who belong to the same campus!
+                  const campusUsers = systemUsers.filter(u => {
+                      const uDept = departments.find(d => d.code === u.assigned_dept);
+                      return (uDept?.campus_location || 'Main') === myCampus;
+                  });
+                  
+                  const chatEmails = campusUsers.filter(u => u.email).map(u => u.email);
+                  chatEmails.forEach(singleEmail => {
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 ${myCampus.toUpperCase()} CAMPUS ALERT`, message: displayMsg }) }).catch(()=>{});
+                  });
+                  
+                  const notifyPayload = campusUsers.map(u => ({
+                      target_user_id: u.id, title: `${myCampus} Campus Announcement`, message: `${profile.full_name} posted a local campus alert.`, room_id: target.id
+                  }));
+                  if (notifyPayload.length > 0) await supabase.from('notifications').insert(notifyPayload);
+
               } else if (type === 'dm' && target?.email) {
-                  fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
+                fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
                   
                   await supabase.from('notifications').insert([{
                       target_user_id: target.id, title: `New Message`, message: `${profile.full_name} sent you a direct message.`
@@ -580,9 +604,13 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                     <BellRing size={14}/> New Targeted Announcement
                   </button>
                 )}
-                <button onClick={() => openPane('global', {id: 'global'})} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
-                   <div className="w-10 h-10 bg-amber-500/20 text-amber-400 border border-amber-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
-                   <div><h4 className="text-xs font-bold text-slate-200">Global Campus</h4><p className="text-[10px] text-slate-500">All Staff Broadcasts</p></div>
+                <button onClick={() => openPane('global', {id: 'global', name: 'University Board'})} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left mb-1">
+                   <div className="w-10 h-10 bg-rose-500/20 text-rose-400 border border-rose-400/30 rounded-full flex items-center justify-center shrink-0"><Globe size={16}/></div>
+                   <div><h4 className="text-xs font-bold text-slate-200">University Board</h4><p className="text-[10px] text-slate-500">All Campuses Broadcast</p></div>
+                </button>
+                <button onClick={() => openPane('campus_global', {id: `campus_${myCampus}`, name: `${myCampus} Campus`})} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
+                   <div className="w-10 h-10 bg-amber-500/20 text-amber-400 border border-amber-400/30 rounded-full flex items-center justify-center shrink-0"><Layers size={16}/></div>
+                   <div><h4 className="text-xs font-bold text-slate-200">{myCampus} Campus</h4><p className="text-[10px] text-slate-500">Local Broadcasts</p></div>
                 </button>
                 {rooms.filter(r => r.type === 'broadcast' && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
                   <button key={r.id} onClick={() => openPane('broadcast', r)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-white/10 transition-all text-left">
@@ -604,8 +632,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
           </div>
         ) : (
           activePanes.map(pane => {
-             const isGlobal = pane.id === 'global';
-             const isBroadcast = pane.type === 'broadcast' || isGlobal;
+            const isGlobal = pane.id === 'global';
+             const isCampusGlobal = pane.type === 'campus_global';
+             const isBroadcast = pane.type === 'broadcast' || isGlobal || isCampusGlobal;
              const isRoom = pane.type === 'group' || pane.type === 'broadcast';
              const target = pane.target;
              const activeThread = activeThreads[pane.id];
@@ -614,11 +643,12 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
             const canManageMembers = isRoom && (target.created_by === profile.id || ['HEAD_ADMIN', 'DEPT_ADMIN'].includes(profile.role));
              
              // Unlock the Global Campus for everyone, but keep targeted Broadcasts read-only
-             const canPost = isGlobal || (!isBroadcast || canManageMembers);
+             const canPost = isGlobal || isCampusGlobal || (!isBroadcast || canManageMembers);
 
              const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
                if (isGlobal) return !m.receiver_id && !m.room_id && !m.parent_id;
+               if (isCampusGlobal) return m.room_id === target.id && !m.parent_id;
                if (isRoom) return m.room_id === target.id && !m.parent_id;
                return !m.room_id && !m.parent_id && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id));
              });
@@ -633,7 +663,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                      <div className="px-4 py-3.5 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">
                            {isGlobal ? (
-                              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
+                              <div className="w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center shadow-lg"><Globe size={14} className="text-white"/></div>
+                           ) : isCampusGlobal ? (
+                              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><Layers size={14} className="text-white"/></div>
                            ) : pane.type === 'broadcast' ? (
                               <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"><BellRing size={14} className="text-white"/></div>
                            ) : isRoom ? (
@@ -642,10 +674,11 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                               <UserAvatar fullName={target.full_name} avatarUrl={target.avatar_url} size={32} />
                            )}
                            <div>
-                              <h4 className="text-[12px] font-bold text-white truncate max-w-[150px]">{isGlobal ? 'Campus Board' : target.full_name || target.name}</h4>
-                              <span className="text-[9px] font-medium text-slate-400 tracking-wide">{isGlobal ? 'Public Broadcast' : isRoom ? `${participants.filter(p => p.room_id === target.id).length} Members` : target.role}</span>
+                              <h4 className="text-[12px] font-bold text-white truncate max-w-[150px]">{isGlobal ? 'University Board' : isCampusGlobal ? `${myCampus} Campus` : target.full_name || target.name}</h4>
+                              <span className="text-[9px] font-medium text-slate-400 tracking-wide">{isGlobal ? 'University-Wide' : isCampusGlobal ? 'Local Campus Broadcast' : isRoom ? `${participants.filter(p => p.room_id === target.id).length} Members` : target.role}</span>
                            </div>
                         </div>
+
                         <div className="flex items-center gap-2">
                            {(isRoom || attachments.length > 0) && (
                              <button onClick={() => toggleDetails(pane.id)} className={`p-2 rounded-full transition-all hidden md:block ${detailsOpen ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white bg-white/5'}`} title="Room Info"><Info size={12} strokeWidth={2.5}/></button>
@@ -3728,7 +3761,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
        {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
+{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} departments={departments} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
 
        <ProctorDashboard
           profile={viewingProctor} 
@@ -3833,7 +3866,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
         {/* --- GLOBAL OVERLAYS RE-ATTACHED --- */}
         {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-     {showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
+{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} departments={departments} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
 
       <ProctorDashboard
           profile={profile} 
@@ -4075,7 +4108,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
     {/* GLOBAL OVERLAYS */}
       {showNotifications && <NotificationPanel notifications={notifications} onClose={() => setShowNotifications(false)} onNotificationClick={handleNotificationClick} />}
 {showHelp && <HelpCenter role={safeRole} onClose={() => setShowHelp(false)} onReplayTour={() => { setShowHelp(false); setReplayTour(true); }} />}
-{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
+{showChat && <ChatPanel profile={profile} allProfiles={allProfiles} departments={departments} onClose={() => { setShowChat(false); setChatTarget({ roomId: null, messageId: null }); }} onViewProctor={(p) => { setShowChat(false); setViewingProctor(p); }} chatTarget={chatTarget} />}
 
 {/* FIXED SECURE NAVBAR */}
       <aside className="w-full md:w-24 bg-slate-900 flex flex-row md:flex-col items-center justify-around md:justify-start py-2 md:py-10 fixed bottom-0 left-0 md:top-0 h-20 md:h-screen shadow-[0_-10px_40px_rgba(0,0,0,0.3)] md:shadow-2xl border-t-4 md:border-t-0 md:border-r-8 border-blue-600 z-[100]">
