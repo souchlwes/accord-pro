@@ -663,8 +663,9 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-[1.2rem] border border-white/10 shadow-lg mb-4 relative">
                              <button onClick={() => { const targetUser = systemUsers.find(u => u.id === activeThread.sender_id); if (targetUser) { onClose(); onViewProctor(targetUser); } }} className="text-[10px] font-bold text-blue-400 mb-2 flex items-center gap-1.5 hover:text-white transition-colors w-max"><User size={12}/> {activeThread.sender_name}</button>
                              {activeThread.attachment_url && activeThread.attachment_type === 'image' && <img src={activeThread.attachment_url} alt="Attached" className="w-20 rounded mb-2"/>}
-                             <p className="text-[12px] text-white leading-relaxed whitespace-pre-wrap">{activeThread.text}</p>
+                             <p className="text-[12px] text-white leading-relaxed whitespace-pre-wrap break-words">{activeThread.text}</p>
                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                              
                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Original Post</span>
                                <button onClick={() => setActiveThreads(prev => ({...prev, [pane.id]: null}))} className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest">Close Thread</button>
                              </div>
@@ -722,7 +723,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                                               <FileText size={16} /> <span className="font-bold underline text-[10px] uppercase">Download Official Document</span>
                                            </a>
                                         )}
-                                        {actualMsg && <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap pl-1 font-medium">{actualMsg}</div>}
+                                        {actualMsg && <div className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words pl-1 font-medium">{actualMsg}</div>}
                                         {m.is_edited && <span className="text-[8px] italic opacity-60 block text-right mt-2 text-amber-500/60">Edited</span>}
                                         
                                        {!isMe && (
@@ -768,7 +769,7 @@ const ChatPanel = ({ profile, allProfiles, onClose, onViewProctor, chatTarget })
                                       </div>
                                     )}
 
-                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap border ${
+                                    <div className={`px-4 py-3 rounded-[1.2rem] text-[12px] leading-relaxed tracking-wide shadow-md whitespace-pre-wrap break-words border ${
                                        isMe ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-br-sm border-blue-400/30' 
                                             : 'bg-slate-800 border-white/5 text-slate-100 rounded-bl-sm'
                                     }`}>
@@ -3510,11 +3511,19 @@ const executeAddDepartment = async (e) => {
                  {otpMode ? "Verify Your Email" : "Staff Registration"}
               </p>
               
-             {!otpMode ? (
+            {!otpMode ? (
                 <form onSubmit={(e) => { e.preventDefault(); executeRegistration(); }}>
                   <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                     <button type="button" onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'join' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Join Workspace</button>
-                    <button type="button" onClick={() => { setRegMode('new'); setRegRole('HEAD_ADMIN'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'new' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>New University</button>
+                    
+                    {/* LOCKED NEW UNIVERSITY BUTTON */}
+                    <button 
+                      type="button" 
+                      onClick={() => setAppToast({ message: "New University Registration is coming soon!", type: "error" })} 
+                      className="flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all text-slate-400 opacity-70 hover:opacity-100 flex items-center justify-center gap-1.5 cursor-not-allowed"
+                    >
+                      <Lock size={12} /> New University
+                    </button>
                   </div>
 
                   <div className="space-y-3 mb-6">
