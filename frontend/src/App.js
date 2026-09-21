@@ -2948,13 +2948,46 @@ const handleVerifyCurrentPassword = async (e) => {
     fetchProfiles();
   };
 
-  const executeEditDept = async (e) => {
+ const executeEditDept = async (e) => {
     e.preventDefault();
     const { id, name, code } = editDeptModal;
-    await supabase.from('departments').update({ name, code: code.toUpperCase() }).eq('id', id);
-    setAppToast({ message: "Department successfully updated.", type: "success" });
-    setEditDeptModal({ isOpen: false, id: '', name: '', code: '' });
-    fetchAllData(false);
+    const upperCode = code.toUpperCase();
+
+    // Get the campus for this specific department to generate the suggestion
+    const currentDept = departments.find(d => d.id === id);
+    const finalCampus = currentDept?.campus_location || 'Main';
+
+    // --- SMART PRE-FLIGHT CHECK: Ensure the new code doesn't belong to another department ---
+    const codeExists = departments.some(d => d.code === upperCode && d.id !== id);
+    if (codeExists) {
+        const getAbbr = (str) => {
+           if (!str) return "CMP";
+           const first = str.charAt(0).toUpperCase();
+           const rest = str.substring(1).replace(/[AEIOUaeiou\s]/g, '').substring(0, 2).toUpperCase();
+           return first + rest;
+        };
+        
+        const suggestedCode = `${upperCode}-${getAbbr(finalCampus)}`;
+
+        setAppToast({ 
+           message: `Update Failed: "${upperCode}" is used by another workspace. Try "${suggestedCode}" instead!`, 
+           type: "error" 
+        });
+        
+        // Auto-fill the input box with the suggestion so they can just hit Save again
+        setEditDeptModal({ ...editDeptModal, code: suggestedCode });
+        return;
+    }
+
+    const { error } = await supabase.from('departments').update({ name, code: upperCode }).eq('id', id);
+    
+    if (error) {
+       setAppToast({ message: error.message, type: "error" });
+    } else {
+       setAppToast({ message: "Workspace successfully updated.", type: "success" });
+       setEditDeptModal({ isOpen: false, id: '', name: '', code: '' });
+       fetchAllData(false);
+    }
   };
 
   const handleBlockUser = async (id, currentStatus) => {
@@ -3274,11 +3307,36 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
     const finalCampus = campusSelect === 'NEW_CAMPUS' ? customCampus.trim() : campusSelect;
     if (!name || !code || !finalCampus) return;
 
+    const upperCode = code.toUpperCase();
+
+    // --- SMART PRE-FLIGHT CHECK: Prevent Duplicate Codes & Auto-Suggest ---
+    const codeExists = departments.some(d => d.code === upperCode);
+    if (codeExists) {
+        // Generate a 3-letter campus abbreviation (e.g., "Muzon" -> "MZN", "Kaypian" -> "KYP")
+        const getAbbr = (str) => {
+           if (!str) return "CMP";
+           const first = str.charAt(0).toUpperCase();
+           const rest = str.substring(1).replace(/[AEIOUaeiou\s]/g, '').substring(0, 2).toUpperCase();
+           return first + rest;
+        };
+        
+        const suggestedCode = `${upperCode}-${getAbbr(finalCampus)}`;
+
+        setAppToast({ 
+           message: `Code "${upperCode}" is already taken by another workspace. We auto-generated "${suggestedCode}" for you!`, 
+           type: "error" 
+        });
+        
+        // Kick them back to Step 1 WITH the suggested code automatically typed in for them!
+        setDeptModal({ ...deptModal, step: 1, code: suggestedCode });
+        return;
+    }
+
    const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
    const { error } = await supabase.from('departments').insert([{ 
       name, 
-      code: code.toUpperCase(), 
+      code: upperCode, 
       campus_location: finalCampus, 
       university: profile.university,
       subjects: {}, 
@@ -3287,9 +3345,14 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
     }]); 
     
     if (error) {
-      setAppToast({ message: error.message, type: "error" });
+      if (error.code === '23505') {
+         setAppToast({ message: `Conflict: Department Code "${upperCode}" was just claimed.`, type: "error" });
+         setDeptModal({ ...deptModal, step: 1 });
+      } else {
+         setAppToast({ message: error.message, type: "error" });
+      }
     } else {
-      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()} at ${finalCampus}.`, 'info');
+      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${upperCode} at ${finalCampus}.`, 'info');
       await fetchAllData(false);
       setAppToast({ message: `Workspace initialized! Code: ${generatedCode}`, type: "success" });
       setDeptModal({ isOpen: false, step: 1, name: '', code: '', campusSelect: 'Main', customCampus: '' });
@@ -4109,60 +4172,94 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
           {/* PERFECTLY CENTERED MAIN CONTAINER */}
    <main className="flex-1 p-4 md:p-8 lg:p-12 pb-32 md:pb-16 w-full max-w-[100vw] md:max-w-[calc(100vw-6rem)] lg:max-w-[95rem] mx-auto relative md:ml-24 flex flex-col min-w-0">
         
-         {/* TOP METADATA & CRESTS (SIDE-BY-SIDE MOBILE FIX) */}
+        {/* TOP METADATA & CRESTS (SIDE-BY-SIDE MOBILE FIX) */}
           <div className="flex flex-row justify-between items-center w-full mb-6 md:mb-8 gap-4 relative z-40">
              
              {/* TRUTH TELLER BADGE */}
              <div className="flex flex-col text-left flex-1 min-w-0">
                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{session?.user?.email}</p>
                <p className="text-sm md:text-lg font-black text-slate-900 uppercase truncate">{profile?.full_name || 'Missing Profile Data'}</p>
-               {profile?.assigned_dept ? (
-                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1 truncate">
-                   {profile.assigned_dept} DEPARTMENT
-                 </p>
-               ) : (
-                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1 truncate">
-                   {profile?.role === 'HEAD_ADMIN' ? 'GLOBAL HEAD ADMIN' : ''}
-                 </p>
-               )}
+               
+               {/* DYNAMIC CONTEXT AWARENESS FOR ADMINS & DEPT HEADS */}
+               {(() => {
+                 const activeWorkspace = departments.find(d => d.id === activeDeptId);
+                 const currentDept = activeWorkspace || departments.find(d => d.code === profile?.assigned_dept);
+                 
+                 if (currentDept) {
+                   return (
+                     <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1 truncate flex items-center gap-1.5">
+                       <Layers size={12}/> {currentDept.code} DEPT <span className="text-slate-300 mx-1">|</span> {currentDept.campus_location} CAMPUS
+                     </p>
+                   );
+                 } else if (isHeadAdmin) {
+                   return (
+                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1 truncate flex items-center gap-1.5">
+                       <Globe size={12}/> GLOBAL HEAD ADMIN
+                     </p>
+                   );
+                 }
+                 return null;
+               })()}
              </div>
 
             {/* EMBEDDED CRESTS (PROPER SCALING & ASPECT RATIO) */}
              <div className="flex items-center gap-3 shrink-0">
-                {/* University Crest */}
-                <button 
-                  type="button"
-                  onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
-                  className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all bg-transparent border-0 shrink-0"
-                >
-                    <img 
-                      src={departments[0]?.university_logo_url || accordLogo} 
-                      alt="University Crest" 
-                      className={`w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'brightness-0 opacity-20' : ''}`} 
-                    />
-                    {isHeadAdmin && (
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Campus</div>
-                    )}
-                </button>
+                {(() => {
+                   const activeWorkspace = departments.find(d => d.id === activeDeptId);
+                   const currentDept = activeWorkspace || departments.find(d => d.code === profile?.assigned_dept);
+                   
+                   return (
+                     <>
+                        {/* University Crest */}
+                        <button 
+                          type="button"
+                          onClick={() => isHeadAdmin && setLogoModal({ isOpen: true, type: 'university', targetId: null, currentLogo: departments[0]?.university_logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
+                          className="relative group/crest cursor-pointer focus:outline-none z-10 hover:z-30 transition-all bg-transparent border-0 shrink-0"
+                        >
+                            <img 
+                              src={departments[0]?.university_logo_url || accordLogo} 
+                              alt="University Crest" 
+                              className={`w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105 ${!departments[0]?.university_logo_url ? 'brightness-0 opacity-20' : ''}`} 
+                            />
+                            {isHeadAdmin && (
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Uni</div>
+                            )}
+                        </button>
 
-                {/* Department Crest */}
-                {profile?.assigned_dept && departments.find(d => d.code === profile.assigned_dept)?.logo_url && (
-                   <button 
-                     type="button"
-                     onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: departments.find(d => d.code === profile.assigned_dept)?.id, currentLogo: departments.find(d => d.code === profile.assigned_dept)?.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
-                     className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0 shrink-0"
-                   >
-                       <img 
-                         src={departments.find(d => d.code === profile.assigned_dept)?.logo_url} 
-                         alt="Dept Crest" 
-                         className="w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
-                       />
-                       {(isHeadAdmin || isDeptAdmin) && (
-                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
-                       )}
-                   </button>
-                )}
+                        {/* Campus Crest (NEW - Sits cleanly in the middle) */}
+                        {currentDept?.campus_logo_url && (
+                           <div className="relative z-15 shrink-0 hidden sm:block">
+                               <img 
+                                 src={currentDept.campus_logo_url} 
+                                 alt="Campus Crest" 
+                                 className="w-10 h-10 md:w-14 md:h-14 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl" 
+                               />
+                           </div>
+                        )}
+
+                        {/* Department Crest */}
+                        {currentDept?.logo_url && (
+                           <button 
+                             type="button"
+                             onClick={() => (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: currentDept.id, currentLogo: currentDept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1, removeBg: true })}
+                             className="relative group/crest cursor-pointer focus:outline-none z-20 hover:z-30 transition-all bg-transparent border-0 shrink-0"
+                           >
+                               <img 
+                                 src={currentDept.logo_url} 
+                                 alt="Dept Crest" 
+                                 className="w-12 h-12 md:w-16 md:h-16 aspect-square shrink-0 object-contain bg-transparent border-none drop-shadow-xl transition-transform group-hover/crest:scale-105" 
+                               />
+                               {(isHeadAdmin || isDeptAdmin) && (
+                               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded opacity-0 group-hover/crest:opacity-100 transition-opacity shadow-lg whitespace-nowrap">Edit Dept</div>
+                               )}
+                           </button>
+                        )}
+                     </>
+                   )
+                })()}
              </div>
+             
+      
              
           </div>
 
