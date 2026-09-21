@@ -2199,7 +2199,6 @@ function App() {
   };
 
   const [createModal, setCreateModal] = useState({ isOpen: false, name: '', email: '', pass: '', dept: '' });
-  const [deptModal, setDeptModal] = useState({ isOpen: false, name: '', code: '', campus: 'Main' });
   const [appToast, setAppToast] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ 
@@ -3267,17 +3266,20 @@ const executeRegistration = async () => {
     }
   };
 
-const executeAddDepartment = async (e) => {
-    e.preventDefault();
-    const { name, code, campus } = deptModal;
-    if (!name || !code) return;
+const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', code: '', campusSelect: 'Main', customCampus: '' });
+
+  const executeAddDepartment = async (e) => {
+    if (e) e.preventDefault();
+    const { name, code, campusSelect, customCampus } = deptModal;
+    const finalCampus = campusSelect === 'NEW_CAMPUS' ? customCampus.trim() : campusSelect;
+    if (!name || !code || !finalCampus) return;
 
    const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
    const { error } = await supabase.from('departments').insert([{ 
       name, 
       code: code.toUpperCase(), 
-      campus_location: campus, 
+      campus_location: finalCampus, 
       university: profile.university,
       subjects: {}, 
       rooms: [],
@@ -3287,10 +3289,10 @@ const executeAddDepartment = async (e) => {
     if (error) {
       setAppToast({ message: error.message, type: "error" });
     } else {
-      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()} at ${campus}.`, 'info');
+      await sendNotification(null, 'HEAD_ADMIN', null, 'New Department', `Created department ${code.toUpperCase()} at ${finalCampus}.`, 'info');
       await fetchAllData(false);
       setAppToast({ message: `Workspace initialized! Code: ${generatedCode}`, type: "success" });
-      setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main' });
+      setDeptModal({ isOpen: false, step: 1, name: '', code: '', campusSelect: 'Main', customCampus: '' });
     }
   };
 
@@ -3511,42 +3513,47 @@ const executeAddDepartment = async (e) => {
                  {otpMode ? "Verify Your Email" : "Staff Registration"}
               </p>
               
-            {!otpMode ? (
+          {!otpMode ? (
                 <form onSubmit={(e) => { e.preventDefault(); executeRegistration(); }}>
                   <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                     <button type="button" onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'join' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Join Workspace</button>
-                    
-                    {/* LOCKED NEW UNIVERSITY BUTTON */}
-                    <button 
-                      type="button" 
-                      onClick={() => setAppToast({ message: "New University Registration is coming soon!", type: "error" })} 
-                      className="flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all text-slate-400 opacity-70 hover:opacity-100 flex items-center justify-center gap-1.5 cursor-not-allowed"
-                    >
-                      <Lock size={12} /> New University
-                    </button>
+                    <button type="button" onClick={() => { setRegMode('new'); setRegRole('HEAD_ADMIN'); }} className={`flex-1 py-3 text-[9px] font-black uppercase rounded-lg transition-all ${regMode === 'new' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>New University</button>
                   </div>
 
-                  <div className="space-y-3 mb-6">
-                    <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                    <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                    <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
-                    
-                    {regMode === 'join' ? (
-                      <>
+                  {regMode === 'new' ? (
+                    /* --- LOCKED COMING SOON UI --- */
+                    <div className="bg-slate-900 p-8 rounded-3xl text-center shadow-xl border border-slate-700 animate-in zoom-in-95 duration-300 mb-6">
+                       <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-slate-700">
+                          <Lock size={24} className="text-emerald-500" />
+                       </div>
+                       <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Coming Soon</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">
+                         New University registration is currently locked while we finalize beta testing. 
+                       </p>
+                       <button type="button" onClick={() => { setRegMode('join'); setRegRole('PROCTOR'); }} className="w-full bg-slate-800 hover:bg-slate-700 text-white p-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors border border-slate-600 active:scale-95">
+                         Return to Join Workspace
+                       </button>
+                    </div>
+                  ) : (
+                    /* --- JOIN WORKSPACE INPUTS --- */
+                    <>
+                      <div className="space-y-3 mb-6">
+                        <input type="text" placeholder="Full Name (e.g. Juan Dela Cruz)" value={fullName} onChange={e=>setFullName(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                        <input type="email" placeholder="Work Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                        <input type="password" placeholder="Create Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+                        
                         <input type="text" placeholder="6-Character Invite Code (e.g. X7B9PQ)" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} className="w-full bg-blue-50 p-4 rounded-2xl font-black text-xs text-blue-800 border-2 border-transparent focus:border-blue-500 outline-none transition-all tracking-widest uppercase"/>
                         <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
                           <option value="PROCTOR">Proctor</option>
                           <option value="DEPT_ADMIN">Department Head</option>
                         </select>
-                      </>
-                    ) : (
-                      <input type="text" placeholder="Official University Name" value={regUni} onChange={e=>setRegUni(e.target.value)} className="w-full bg-emerald-50 p-4 rounded-2xl font-black text-xs text-emerald-800 border-2 border-transparent focus:border-emerald-500 outline-none transition-all uppercase"/>
-                    )}
-                  </div>
-                  
-                  <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
-                    {loading ? "Processing..." : "Send Verification Code"}
-                  </button>
+                      </div>
+                      
+                      <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-50 transition-all mb-6 shadow-xl active:scale-95">
+                        {loading ? "Processing..." : "Send Verification Code"}
+                      </button>
+                    </>
+                  )}
                 </form>
               ) : (
                 <form onSubmit={(e) => { e.preventDefault(); executeVerifyOtp(); }} className="space-y-4 mb-6">
@@ -4182,8 +4189,8 @@ const executeAddDepartment = async (e) => {
                     </div>
 
                     <div className="relative z-[200] flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-8 md:mt-0">
-                      {isHeadAdmin && (
-                        <button onClick={() => setDeptModal({ isOpen: true, name: '', code: '', campus: 'Main' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
+                     {isHeadAdmin && (
+                        <button onClick={() => setDeptModal({ isOpen: true, step: 1, name: '', code: '', campusSelect: departments[0]?.campus_location || 'Main', customCampus: '' })} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/50 active:scale-95 transition-all flex items-center justify-center gap-2">
                           <Plus size={16} /> Add Workspace
                         </button>
                       )}
@@ -4713,27 +4720,63 @@ const executeAddDepartment = async (e) => {
                 </div>
               </div>
               
-            <form onSubmit={executeAddDepartment} className="space-y-4 mb-2">
-                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
-                  <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-                </div>
-                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
-                  <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
-                </div>
-                
-               {/* --- NEW BRANCH INPUT GOES HERE --- */}
-                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Branch / Location</label>
-                  <input required type="text" value={deptModal.campus} onChange={e=>setDeptModal({...deptModal, campus: e.target.value})} placeholder="e.g. Muzon" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
-                </div>
+            {deptModal.step === 1 ? (
+                 <div className="space-y-4 mb-2">
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Department Name</label>
+                      <input required type="text" value={deptModal.name} onChange={e=>setDeptModal({...deptModal, name: e.target.value})} placeholder="e.g. Computer Science" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all"/>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Unique Department Code</label>
+                      <input required type="text" value={deptModal.code} onChange={e=>setDeptModal({...deptModal, code: e.target.value.toUpperCase()})} placeholder="e.g. CS" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase"/>
+                    </div>
+                    
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Select Campus Location</label>
+                      <select value={deptModal.campusSelect} onChange={e=>setDeptModal({...deptModal, campusSelect: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
+                         {[...new Set(departments.map(d => d.campus_location || 'Main'))].sort().map(c => (
+                            <option key={c} value={c}>{c}</option>
+                         ))}
+                         <option value="NEW_CAMPUS" className="font-black text-blue-600">+ Create New Campus Location</option>
+                      </select>
+                    </div>
 
-                <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setDeptModal({ isOpen: false, name: '', code: '', campus: 'Main' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-                  <button type="submit" className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Create Workspace</button>
-                </div>
-             </form>
+                    {deptModal.campusSelect === 'NEW_CAMPUS' && (
+                      <div className="animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[9px] font-black text-blue-500 uppercase ml-2 mb-1 block">New Campus Name</label>
+                        <input required type="text" value={deptModal.customCampus} onChange={e=>setDeptModal({...deptModal, customCampus: e.target.value})} placeholder="e.g. South Branch" className="w-full bg-blue-50 border-2 border-blue-200 p-4 rounded-2xl text-xs font-bold text-blue-900 outline-none focus:border-blue-500 transition-all"/>
+                      </div>
+                    )}
+
+                    <div className="flex gap-4 pt-4">
+                      <button type="button" onClick={() => setDeptModal({ isOpen: false, step: 1, name: '', code: '', campusSelect: 'Main', customCampus: '' })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => {
+                          if(!deptModal.name || !deptModal.code || (deptModal.campusSelect === 'NEW_CAMPUS' && !deptModal.customCampus)) return setAppToast({message: "Please fill all fields.", type:"error"});
+                          setDeptModal({...deptModal, step: 2});
+                      }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Review & Next</button>
+                    </div>
+                 </div>
+                ) : (
+                 <div className="space-y-4 mb-2 animate-in slide-in-from-right-4">
+                    <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-slate-100 text-center">
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Confirmation</p>
+                       <p className="text-sm font-bold text-slate-700 leading-relaxed">
+                         You are about to create the <strong className="text-slate-900 uppercase">{deptModal.name} ({deptModal.code})</strong> workspace in the <strong className="text-blue-600 uppercase">{deptModal.campusSelect === 'NEW_CAMPUS' ? deptModal.customCampus : deptModal.campusSelect}</strong> campus.
+                       </p>
+                    </div>
+                    {deptModal.campusSelect === 'NEW_CAMPUS' && (
+                       <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-700">
+                          <AlertTriangle size={24} className="shrink-0"/>
+                          <p className="text-[10px] font-bold leading-relaxed">This will initialize a completely new Campus cluster on the master dashboard.</p>
+                       </div>
+                    )}
+                    <div className="flex gap-4 pt-4">
+                      <button type="button" onClick={() => setDeptModal({...deptModal, step: 1})} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Back</button>
+                      <button type="button" onClick={executeAddDepartment} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Confirm & Initialize</button>
+                    </div>
+                 </div>
+                )}
+
                 </div>
               </div>
             )}
