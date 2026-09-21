@@ -154,11 +154,11 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
         setParticipants(members || []);
       }
 
-      let query = supabase.from('messages').select('*').order('created_at', { ascending: true });
+     let query = supabase.from('messages').select('*').order('created_at', { ascending: true });
       if (roomIds.length > 0) {
-        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.eq.campus_${myCampus},room_id.in.(${roomIds.join(',')})`);
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.in.(${roomIds.join(',')})`);
       } else {
-        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id},room_id.eq.campus_${myCampus}`);
+        query = query.or(`receiver_id.is.null,receiver_id.eq.${profile.id},sender_id.eq.${profile.id}`);
       }
       
       const { data: msgData } = await query;
@@ -184,7 +184,7 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
        
        if (payload.eventType === 'INSERT') {
           const m = payload.new;
-          const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id || m.room_id === `campus_${myCampus}` || (m.room_id && rooms.some(r => r.id === m.room_id));
+const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id === profile.id || (m.room_id && rooms.some(r => r.id === m.room_id));
           
           if (isRelevant) {
             setMessages(prev => [...prev, m]); 
@@ -327,14 +327,16 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
           finalText = `[Replying to Announcement]: "${snippet}"\n\n${text}`;
       }
 
-      // Stamps the sender's Campus dynamically if they are using the University Board
-      const displayRole = type === 'global' ? `${profile.role} • ${myCampus} Campus` : profile.role;
+     // INJECT HIDDEN CAMPUS TAG
+      if (type === 'campus_global' && finalText) {
+          finalText = `[CAMPUS:${myCampus}] ${finalText}`;
+      }
 
       const payload = {
-        sender_id: profile.id, sender_name: profile.full_name, sender_role: displayRole,
+        sender_id: profile.id, sender_name: profile.full_name, sender_role: profile.role,
         text: finalText.trim() ? finalText : null, 
         receiver_id: type === 'dm' ? target.id : null, parent_id: activeThread ? activeThread.id : null,
-        room_id: (type === 'group' || type === 'broadcast' || type === 'campus_global') ? target.id : null,
+        room_id: (type === 'group' || type === 'broadcast') ? target.id : null,
         attachment_url: attachment?.url || null, attachment_type: attachment?.type || null
       };
 
@@ -645,12 +647,17 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
              // Unlock the Global Campus for everyone, but keep targeted Broadcasts read-only
              const canPost = isGlobal || isCampusGlobal || (!isBroadcast || canManageMembers);
 
-             const paneMessages = messages.filter(m => {
+            const paneMessages = messages.filter(m => {
                if (activeThread) return m.parent_id === activeThread.id;
-               if (isGlobal) return !m.receiver_id && !m.room_id && !m.parent_id;
-               if (isCampusGlobal) return m.room_id === target.id && !m.parent_id;
+               
+               const isCampusMsg = m.text && m.text.startsWith('[CAMPUS:');
+               const matchesMyCampus = m.text && m.text.startsWith(`[CAMPUS:${myCampus}]`);
+
+               if (isGlobal) return !m.receiver_id && !m.room_id && !m.parent_id && !isCampusMsg;
+               if (isCampusGlobal) return !m.receiver_id && !m.room_id && !m.parent_id && matchesMyCampus;
+               
                if (isRoom) return m.room_id === target.id && !m.parent_id;
-               return !m.room_id && !m.parent_id && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id));
+               return !m.room_id && !m.parent_id && !isCampusMsg && ((m.sender_id === profile.id && m.receiver_id === target.id) || (m.sender_id === target.id && m.receiver_id === profile.id));
              });
 
              const attachments = paneMessages.filter(m => m.attachment_url);
@@ -711,13 +718,32 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
                            const isMe = m.sender_id === profile.id;
                            const replyCount = messages.filter(r => r.parent_id === m.id).length;
 
-                           let quoteSnippet = "";
+                          let quoteSnippet = "";
                            let actualMsg = m.text || "";
+                           
+                           // STRIP THE CAMPUS TAG SO IT STAYS HIDDEN
+                           if (actualMsg.startsWith('[CAMPUS:')) {
+                               const tagEnd = actualMsg.indexOf('] ');
+                               if (tagEnd !== -1) {
+                                   actualMsg = actualMsg.substring(tagEnd + 2);
+                               }
+                           }
+
                            if (actualMsg.startsWith('[Replying to Announcement]: "')) {
                                const endQuoteIdx = actualMsg.indexOf('"\n\n');
                                if (endQuoteIdx !== -1) {
                                    quoteSnippet = actualMsg.substring(29, endQuoteIdx);
                                    actualMsg = actualMsg.substring(endQuoteIdx + 3);
+                               }
+                           }
+
+                           // DYNAMICALLY INJECT CAMPUS LOCATION INTO ROLE
+                           let displayRole = m.sender_role;
+                           if (isGlobal || isCampusGlobal) {
+                               const senderProfile = allProfiles.find(p => p.id === m.sender_id);
+                               const senderDept = departments.find(d => d.code === senderProfile?.assigned_dept);
+                               if (senderDept?.campus_location) {
+                                   displayRole = `${m.sender_role} • ${senderDept.campus_location} Campus`;
                                }
                            }
 
@@ -730,8 +756,9 @@ const ChatPanel = ({ profile, allProfiles, departments = [], onClose, onViewProc
                                            <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shrink-0"><BellRing size={10} className="text-white"/></div>
                                            <div>
                                               <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{m.sender_name}</p>
-                                              <p className="text-[8px] text-slate-500 uppercase">{m.sender_role} • {formatDateTime(m.created_at)}</p>
+                                              <p className="text-[8px] text-slate-500 uppercase">{displayRole} • {formatDateTime(m.created_at)}</p>
                                            </div>
+
                                            {isMe && (
                                               <div className="ml-auto flex gap-1">
                                                 {confirmDeleteMsg === m.id ? (
