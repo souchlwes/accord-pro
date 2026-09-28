@@ -2119,14 +2119,38 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
                         <h3 className="text-[11px] md:text-xs font-black uppercase tracking-widest">Reliever Requests ({pendingRequests.length})</h3>
                       </div>
                       <div className="space-y-3">
-                        {pendingRequests.map((s, i) => (
-                          <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 text-slate-900">
-                            <p className="text-[9px] md:text-[10px] font-black uppercase text-amber-600 tracking-wider">{s.subject_code}</p>
-                            <p className="text-[11px] md:text-xs font-bold truncate mb-2">{s.subject_name}</p>
-                            <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-black text-slate-500 mb-3 bg-slate-50 p-2 rounded-lg">
-                              <Calendar size={10}/> {s.exam_date} • {formatTime(s.start_time)}
+                        
+                       {pendingRequests.map((s, i) => (
+                          <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border-2 border-amber-100 text-slate-900 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/5 rounded-bl-full pointer-events-none"></div>
+                            
+                            <div className="flex justify-between items-start mb-1">
+                               <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                                 Yr {s.year_level} - Sec {s.section}
+                               </p>
+                               <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                                 <AlertCircle size={10}/> Reliever
+                               </span>
                             </div>
+
+                            <p className="text-[11px] font-black uppercase text-slate-800 tracking-wider mt-4">{s.subject_code}</p>
+                            <p className="text-[10px] font-bold text-slate-500 truncate mb-4">{s.subject_name}</p>
+                            
+                            <div className="grid grid-cols-2 gap-2 mb-5">
+                               <div className="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Calendar size={10}/> Date & Time</span>
+                                 <span className="text-[9px] font-bold text-slate-700">{s.exam_date}</span>
+                                 <span className="text-[9px] font-black text-slate-900 mt-0.5">{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                               </div>
+                               <div className="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Home size={10}/> Location</span>
+                                 <span className="text-[9px] font-bold text-slate-700">{s.dept_code} Dept</span>
+                                 <span className="text-[9px] font-black text-slate-900 mt-0.5">Room {s.room}</span>
+                               </div>
+                            </div>
+
                             <div className="flex gap-2">
+                             
                               <button 
                                 onClick={() => {
                                   const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
