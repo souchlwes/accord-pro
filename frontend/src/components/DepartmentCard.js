@@ -714,12 +714,13 @@ for (let d = 0; d < examDays; d++) {
            const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
            const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
 
-           // PAUSE AND ASK ADMIN (Passing the Live Draft!)
+        // PAUSE AND ASK ADMIN (Passing the Live Draft!)
            const userChoice = await new Promise((resolve) => {
               setProctorWarningModal({
                  isOpen: true,
                  resolve: resolve,
                  sectionID: sectionID,
+                 dayIndex: d + 1,
                  dayDate: dayDate,
                  startTime: startTime,
                  endTime: endTime,
@@ -802,6 +803,10 @@ for (let d = 0; d < examDays; d++) {
                     isOpen: true,
                     resolve: resolve,
                     sectionID: sectionID,
+                    dayIndex: d + 1,
+                    dayDate: dayDate,
+                    startTime: startTime,
+                    endTime: endTime,
                     targetHeadcount: targetHeadcount,
                     nextRoom: nextChronologicalRoom,
                     nextCap: nextChronologicalCap,
@@ -2494,9 +2499,11 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                <p className="text-[11px] font-black text-amber-800 uppercase tracking-widest leading-relaxed">
                  Action Required for Section: <strong className="text-rose-600 text-sm">{proctorWarningModal.sectionID}</strong>
                </p>
-               <p className="text-[9px] font-bold text-amber-700 uppercase mt-1">
-                 Date: {proctorWarningModal.dayDate} | Source: {proctorWarningModal.source} Pool
-               </p>
+               <div className="text-[9px] font-bold text-amber-700 uppercase mt-2 flex flex-col gap-1">
+                 <span className="flex items-center gap-1.5"><Calendar size={12}/> Day {proctorWarningModal.dayIndex} • {proctorWarningModal.dayDate}</span>
+                 <span className="flex items-center gap-1.5"><Clock size={12}/> {formatTime(proctorWarningModal.startTime)} - {formatTime(proctorWarningModal.endTime)}</span>
+                 <span className="mt-1 pt-1 border-t border-amber-200/50 block">Source: {proctorWarningModal.source} Pool</span>
+               </div>
             </div>
             
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 leading-relaxed">
@@ -2701,10 +2708,19 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                </div>
             </div>
             
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
-              <span>Section Enrolled: <strong className="text-slate-800 text-sm block">{roomWarningModal.targetHeadcount} Students</strong></span>
-              <AlertCircle size={20} className="text-amber-400"/>
-            </p>
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+               <div>
+                 <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-2">Schedule Details</p>
+                 <div className="text-[9px] font-black text-amber-700 uppercase flex flex-col gap-1">
+                   <span className="flex items-center gap-1.5"><Calendar size={12}/> Day {roomWarningModal.dayIndex} • {roomWarningModal.dayDate}</span>
+                   <span className="flex items-center gap-1.5"><Clock size={12}/> {formatTime(roomWarningModal.startTime)} - {formatTime(roomWarningModal.endTime)}</span>
+                 </div>
+               </div>
+               <div className="text-left md:text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-amber-200/50 pt-3 md:pt-0 md:pl-5">
+                 <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1">Section Enrolled</p>
+                 <span className="text-slate-900 font-black text-sm block md:text-right">{roomWarningModal.targetHeadcount} Students</span>
+               </div>
+            </div>
 
             <div className="space-y-4 mb-6 text-left max-h-[55vh] overflow-y-auto pr-2 custom-scrollbar">
                
