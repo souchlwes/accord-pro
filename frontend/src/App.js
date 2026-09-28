@@ -1689,8 +1689,9 @@ return (
 // --- 3. PROCTOR DASHBOARD ---
 // --- 3. PROCTOR DASHBOARD ---
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, onShowAI, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout, universityLogo, departmentLogo }) => {
-  const [dashboardView, setDashboardView] = useState('upcoming');
+ const [dashboardView, setDashboardView] = useState('upcoming');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showGuide, setShowGuide] = useState(() => localStorage.getItem('accord_proctor_guide') !== 'hidden');
 
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -1969,8 +1970,63 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
        
       
 
-      <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-6 md:space-y-8 relative">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+     <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-6 md:space-y-8 relative">
+        
+        {/* --- HOW IT WORKS / PROCTOR WORKSPACE GUIDE --- */}
+        {showGuide ? (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-3xl p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row gap-4 items-start md:items-center justify-between animate-in fade-in duration-300">
+            <div className="relative z-10 flex-1">
+              <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2 mb-2">
+                <Info size={16} className="text-blue-600"/> How It Works: Proctor Operations
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[10px] text-slate-600 font-bold mt-2">
+                <div className="bg-white/80 p-3 rounded-2xl border border-blue-100">
+                  <span className="text-blue-600 font-black block mb-0.5">1. Log Availability</span>
+                  Add your exam dates and hours in the Log Book to qualify for automated assignments.
+                </div>
+                <div className="bg-white/80 p-3 rounded-2xl border border-blue-100">
+                  <span className="text-amber-600 font-black block mb-0.5">2. Reliever Requests</span>
+                  Review assignments scheduled outside logged hours and Accept or Decline promptly.
+                </div>
+                <div className="bg-white/80 p-3 rounded-2xl border border-blue-100">
+                  <span className="text-rose-600 font-black block mb-0.5">3. Flag Emergencies</span>
+                  Click the alert icon on your assigned slot to alert Admins if an emergency arises.
+                </div>
+                <div className="bg-white/80 p-3 rounded-2xl border border-blue-100">
+                  <span className="text-emerald-600 font-black block mb-0.5">4. Export Schedule</span>
+                  Download your confirmed proctoring itinerary anytime as a PDF or Excel document.
+                </div>
+              </div>
+            </div>
+            
+            <div className="relative z-10 flex gap-2 shrink-0 self-end md:self-center mt-2 md:mt-0">
+              <button 
+                onClick={onShowAI} 
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+              >
+                <Headphones size={14} /> Need Help?
+              </button>
+              <button 
+                onClick={() => { setShowGuide(false); localStorage.setItem('accord_proctor_guide', 'hidden'); }} 
+                className="bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-500 p-2.5 rounded-xl border border-slate-200 transition-all active:scale-95" 
+                title="Dismiss Guide"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <button 
+              onClick={() => { setShowGuide(true); localStorage.removeItem('accord_proctor_guide'); }}
+              className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 border border-blue-100"
+            >
+              <HelpCircle size={14} /> How It Works
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
                 
                 {/* --- WELCOME TILE (MOBILE RESPONSIVE) --- */}
                 <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
@@ -2251,6 +2307,8 @@ function App() {
   const [joinCode, setJoinCode] = useState('');
 
   // --- DATA STATES ---
+  const staffEditorRef = useRef(null);
+  const logoEditorRef = useRef(null);
   const [departments, setDepartments] = useState([]);
   const [globalSchedule, setGlobalSchedule] = useState([]);
   const [globalAvailability, setGlobalAvailability] = useState([]);
@@ -3013,23 +3071,31 @@ const handleVerifyCurrentPassword = async (e) => {
 
   const executeEditStaff = async (e) => {
     e.preventDefault();
-    const { id, name, role, dept, newAvatarBase64, newAvatarType, currentAvatar } = editStaffModal;
+    const { id, name, role, dept, newAvatarBase64, currentAvatar } = editStaffModal;
     let finalAvatarUrl = currentAvatar;
 
-    // If a new image was selected, upload it to R2 first
+    // IF A NEW IMAGE WAS CROPPED/ZOOMED, EXTRACT THE CANVAS FIRST
     if (newAvatarBase64) {
       try {
+        let base64ToUpload = newAvatarBase64;
+        
+        // Grab the actual zoomed/cropped canvas from AvatarEditor
+        if (staffEditorRef.current) {
+          const canvas = staffEditorRef.current.getImageScaledToCanvas();
+          base64ToUpload = canvas.toDataURL('image/png');
+        }
+
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: newAvatarBase64, mimeType: newAvatarType, userId: id })
+          body: JSON.stringify({ imageBase64: base64ToUpload, mimeType: 'image/png', userId: id })
         });
         const uploadData = await uploadRes.json();
         if (uploadRes.ok) finalAvatarUrl = uploadData.url;
         else throw new Error(uploadData.error);
       } catch (err) {
         setAppToast({ message: "Image upload failed: " + err.message, type: "error" });
-        return; // Halt save if upload fails
+        return;
       }
     }
 
@@ -3038,17 +3104,13 @@ const handleVerifyCurrentPassword = async (e) => {
       avatar_url: finalAvatarUrl
     }).eq('id', id);
 
-    // --- THE NO-REFRESH FIX ---
-    // Instantly update the logged-in user's top nav and chat avatar
     if (id === profile?.id) {
       setProfile(prev => ({ ...prev, full_name: name, avatar_url: finalAvatarUrl }));
     }
-    // Instantly update the directory list without refetching
     setAllProfiles(prev => prev.map(p => p.id === id ? { ...p, full_name: name, avatar_url: finalAvatarUrl } : p));
-    // --------------------------
 
     setAppToast({ message: "Staff profile successfully updated.", type: "success" });
-    setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null });
+    setEditStaffModal({ isOpen: false, id: '', name: '', role: '', dept: '', currentAvatar: '', newAvatarBase64: null, newAvatarType: null, zoom: 1 });
     fetchProfiles();
   };
 
@@ -3502,6 +3564,12 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
     if (newLogoBase64) {
       try {
         let processedBase64 = newLogoBase64;
+
+        // Grab the actual zoomed/cropped canvas from AvatarEditor
+        if (logoEditorRef.current) {
+          const canvas = logoEditorRef.current.getImageScaledToCanvas();
+          processedBase64 = canvas.toDataURL('image/png');
+        }
         
         // MAGIC TRICK: Auto-Remove White Background using Canvas Scanning
         if (removeBg) {
@@ -3871,12 +3939,15 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                   <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
                      {editStaffModal.newAvatarBase64 ? (
                        <div className="flex flex-col items-center w-full">
-                         <AvatarEditor
+                         
+                        <AvatarEditor
+                           ref={staffEditorRef}
                            image={editStaffModal.newAvatarBase64}
                            width={100} height={100} border={20} borderRadius={50}
                            scale={editStaffModal.zoom}
                            className="shadow-sm rounded-full bg-white mb-3"
                          />
+
                          <input 
                            type="range" min="1" max="3" step="0.1" 
                            value={editStaffModal.zoom} 
@@ -5113,7 +5184,8 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                       <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
                          {logoModal.newLogoBase64 ? (
                            <div className="flex flex-col items-center w-full">
-                             <AvatarEditor
+                           <AvatarEditor
+                               ref={logoEditorRef}
                                image={logoModal.newLogoBase64}
                                width={150} height={150} border={20} borderRadius={100}
                                scale={logoModal.zoom}
