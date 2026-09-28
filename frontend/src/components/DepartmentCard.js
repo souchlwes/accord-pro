@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   Trash2, Plus, Play, Clock, Calendar, Download,
-  ShieldCheck, Globe, Home, BookOpen, ChevronRight,
+  ShieldCheck, Globe, Home, BookOpen, ChevronRight, ChevronLeft,
   Settings2, Users, RefreshCw, CheckCircle2, AlertCircle,
   LayoutGrid, AlertTriangle, Edit3, ArrowUp, ArrowDown, Lock, X, Info, Layers, DoorOpen, HelpCircle, Headphones, Search
 } from 'lucide-react';
