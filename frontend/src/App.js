@@ -11,11 +11,11 @@ import DepartmentCard from './components/DepartmentCard';
 import ScheduleCalendar from './components/ScheduleCalendar';
 import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
+
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones, Paperclip, Image as ImageIcon, FileText, DownloadCloud, UserMinus, Hash, Info, MoreHorizontal, Folder, Menu
+  RefreshCw, Globe, Home, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones, Paperclip, Image as ImageIcon, FileText, DownloadCloud, UserMinus, Hash, Info, MoreHorizontal, Folder, Menu
 } from 'lucide-react';
-
 
 
 // --- SMART STICKY STATE HOOK (Survives Back Button & Refreshes) ---
