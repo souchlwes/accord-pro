@@ -1732,6 +1732,7 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
   
   const [flagModal, setFlagModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
   const [declineModal, setDeclineModal] = useState({ isOpen: false, scheduleId: null, subjectCode: '', deptCode: '', note: '' });
+  const [detailsModal, setDetailsModal] = useState({ isOpen: false, data: null }); // NEW: Itinerary Details Modal
   const [toast, setToast] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -2193,22 +2194,41 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
                           No sessions scheduled
                         </p>
                       ) : (dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).map((s, i) => (
-                        <div key={i} className={`p-3 md:p-3.5 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/40'}`}>
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="min-w-0 pr-2">
-                              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-blue-400 truncate">{s.subject_code}</p>
-                              <p className="text-[11px] md:text-xs font-bold truncate max-w-full">{s.subject_name}</p>
+                        <div 
+                          key={i} 
+                          onClick={() => setDetailsModal({ isOpen: true, data: s })}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden shadow-sm ${s.flagged ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-400' : 'bg-white/5 border-white/10 hover:border-blue-500/40 hover:bg-white/10'}`}
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex flex-col gap-1 pr-2">
+                               <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded w-max ${s.flagged ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'}`}>
+                                 Yr {s.year_level} - Sec {s.section}
+                               </span>
+                               <p className="text-[11px] md:text-xs font-bold text-slate-200 truncate mt-1">{s.subject_name}</p>
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{s.subject_code}</p>
                             </div>
                             {!isViewMode && !s.flagged && (
-                              <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all shrink-0">
-                                <AlertTriangle size={12}/>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' }); }} 
+                                className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all shrink-0 border border-rose-500/20 hover:border-transparent"
+                                title="Flag Emergency"
+                              >
+                                <AlertTriangle size={14}/>
                               </button>
                             )}
                           </div>
-                          <div className="flex flex-wrap md:flex-nowrap justify-between items-center gap-1 bg-slate-800/80 p-2 rounded-xl text-[7px] md:text-[8px] font-black uppercase text-slate-300">
-                            <span>{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
-                            <span className="text-amber-400">{s.exam_date}</span>
-                            <span className="text-rose-400">RM {s.room}</span>
+                          
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-white/5 flex flex-col justify-center">
+                               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Calendar size={10}/> Schedule</span>
+                               <span className="text-[9px] font-bold text-slate-300">{s.exam_date}</span>
+                               <span className="text-[9px] font-black text-white">{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-white/5 flex flex-col justify-center">
+                               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Home size={10}/> Location</span>
+                               <span className="text-[9px] font-bold text-slate-300">{s.dept_code} Dept</span>
+                               <span className="text-[9px] font-black text-white">RM {s.room}</span>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -2272,6 +2292,82 @@ const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailab
           </div>
         </div>
       )}
+
+
+{detailsModal.isOpen && detailsModal.data && (() => {
+        const s = detailsModal.data;
+        const isPastSession = isPast(s.exam_date, s.end_time);
+        return (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300" onClick={() => setDetailsModal({ isOpen: false, data: null })}>
+            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+              {/* Decorative header accent */}
+              <div className={`absolute top-0 left-0 w-full h-2 ${s.flagged ? 'bg-rose-500' : isPastSession ? 'bg-slate-400' : 'bg-blue-600'}`}></div>
+              
+              <div className="flex justify-between items-start mb-6">
+                <div className="pr-4">
+                   <p className={`text-[9px] font-black uppercase tracking-widest mb-2 px-2.5 py-1 rounded inline-block ${s.flagged ? 'bg-rose-100 text-rose-600' : isPastSession ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
+                     {s.flagged ? 'Emergency Flagged' : isPastSession ? 'Completed Session' : 'Confirmed Assignment'}
+                   </p>
+                   <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none">{s.subject_code}</h3>
+                   <p className="text-xs font-bold text-slate-500 mt-1">{s.subject_name}</p>
+                </div>
+                <button onClick={() => setDetailsModal({ isOpen: false, data: null })} className="p-2 hover:bg-slate-100 rounded-full transition-colors shrink-0">
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Target Class</span>
+                   <span className="text-sm font-black text-slate-800">Yr {s.year_level} - Sec {s.section}</span>
+                 </div>
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Department</span>
+                   <span className="text-sm font-black text-slate-800">{s.dept_code}</span>
+                 </div>
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Exam Date</span>
+                   <span className="text-sm font-black text-slate-800">{s.exam_date}</span>
+                 </div>
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Block</span>
+                   <span className="text-sm font-black text-slate-800">{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                 </div>
+                 <div className="col-span-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-center justify-between">
+                   <div>
+                     <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest block mb-1">Room Assignment</span>
+                     <span className="text-lg font-black text-blue-900">Room {s.room}</span>
+                   </div>
+                   <Home size={24} className="text-blue-300"/>
+                 </div>
+              </div>
+
+              {s.flagged && s.flagNote && (
+                <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800">
+                  <span className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                    <AlertTriangle size={12}/> Emergency Note
+                  </span>
+                  <p className="text-xs font-bold leading-relaxed">{s.flagNote}</p>
+                </div>
+              )}
+
+              {!isViewMode && !s.flagged && !isPastSession && (
+                <div className="pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={() => {
+                      setDetailsModal({ isOpen: false, data: null });
+                      setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' });
+                    }} 
+                    className="w-full p-4 rounded-xl font-black text-[10px] uppercase text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 border border-rose-100 hover:border-transparent"
+                  >
+                    <AlertTriangle size={14}/> Flag Emergency
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {declineModal.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
