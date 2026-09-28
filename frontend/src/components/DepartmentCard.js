@@ -498,7 +498,8 @@ role,
     })).sort((a, b) => new Date(a.date) - new Date(b.date) || a.section.localeCompare(b.section));
   }, [localSchedule, deptCode]);
 
-  // --- NEW: FILTERS PAST SESSIONS INTO HISTORY ---
+  
+  // --- 1. FILTERS PAST SESSIONS INTO HISTORY ---
   const filteredPreview = useMemo(() => {
     return consolidatedPreview.filter(item => {
         const past = isPast(item.date, item.endTime);
@@ -506,7 +507,7 @@ role,
     });
   }, [consolidatedPreview, previewView]);
 
-  // --- NEW: SMART SEARCH & FILTER ENGINE ---
+  // --- 2. SMART SEARCH & FILTER ENGINE ---
   const processedPreview = useMemo(() => {
     return filteredPreview.filter(item => {
       const matchYear = previewFilterYear === 'ALL' || String(item.year) === String(previewFilterYear);
@@ -518,29 +519,29 @@ role,
            (s.code && s.code.toLowerCase().includes(searchStr)) || 
            (s.proctor && s.proctor.toLowerCase().includes(searchStr))
         );
-      
       return matchYear && matchSearch;
     });
   }, [filteredPreview, previewFilterYear, previewSearchTerm]);
 
-  // --- NEW: PAGINATION SLICER ---
+  // --- 3. PAGINATION SLICER ---
   const paginatedPreview = useMemo(() => {
     const startIndex = (previewPage - 1) * PREVIEW_ITEMS_PER_PAGE;
     return processedPreview.slice(startIndex, startIndex + PREVIEW_ITEMS_PER_PAGE);
   }, [processedPreview, previewPage]);
 
-  const totalPreviewPages = Math.ceil(processedPreview.length / PREVIEW_ITEMS_PER_PAGE);
+  const totalPreviewPages = Math.ceil(processedPreview.length / PREVIEW_ITEMS_PER_PAGE) || 1;
 
-  // --- REBUILT: SUMMARY TABLES NOW RESPECT FILTERS ---
+  // --- 4. SUMMARY TABLES NOW RESPECT PAGINATION & FILTERS ---
   const tablesByYearAndDay = useMemo(() => {
     const data = {};
-    processedPreview.forEach(item => {
+    // We strictly use paginatedPreview so the table only shows the 5 cards on screen!
+    paginatedPreview.forEach(item => {
       if (!data[item.year]) data[item.year] = {};
       if (!data[item.year][item.date]) data[item.year][item.date] = [];
       data[item.year][item.date].push(item);
     });
     return data;
-  }, [processedPreview]);
+  }, [paginatedPreview]);
 
   // --- GENERATOR UI STATES ---
   const [examDays, setExamDays] = useState(0);
@@ -1911,56 +1912,63 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                storageKey={`tut_prev_${deptId}`}
             />
             
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-slate-100 pb-8 px-4 gap-6">
-             
-              <div>
-                <h3 className="text-4xl font-black uppercase text-slate-900 tracking-tighter flex items-center gap-4">
-                  Master <span className="text-blue-600">Draft</span>
-                  {auditLog.length > 0 && <span className="text-[10px] bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2"><Edit3 size={12}/> {auditLog.length - 1} Manual Edits • 0 Conflicts</span>}
-                </h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Consolidated View for {deptCode}</p>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mt-4 w-max">
-                  <button onClick={() => setPreviewView('upcoming')} className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${previewView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Upcoming</button>
-                  <button onClick={() => setPreviewView('history')} className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${previewView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>History</button>
-                </div>
-                </div>
-             <div className="flex gap-3">
-                 <button onClick={() => setExportConfig({ isOpen: true, format: 'excel', type: 'ALL', targetValue: '' })} className="flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-emerald-100 transition-all active:scale-95 shadow-sm">
-                    <Download size={16} /> Excel
-                 </button>
-                 <button onClick={() => setExportConfig({ isOpen: true, format: 'pdf', type: 'ALL', targetValue: '' })} className="flex items-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 px-6 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-rose-100 transition-all active:scale-95 shadow-sm">
-                    <Download size={16} /> PDF
-                 </button>
-                
-                <button onClick={() => setSummaryModalIsOpen(true)} className="flex items-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-blue-500 transition-all active:scale-95 shadow-xl ml-2">
-                    <Lock size={18} /> Approve & Lock
-                 </button>
-              </div>
-            </div>
+           
 
-            {/* --- SMART SEARCH & FILTERS UI --- */}
-            <div className="flex flex-col sm:flex-row gap-4 px-4 relative z-10 mb-8 mt-2">
-              <div className="relative flex-1 shadow-sm">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search section, room, subject, or proctor..." 
-                  value={previewSearchTerm}
-                  onChange={(e) => setPreviewSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
-              <div className="w-full sm:w-48 shrink-0 shadow-sm">
-                <select 
-                  value={previewFilterYear} 
-                  onChange={e => setPreviewFilterYear(e.target.value)} 
-                  className="w-full bg-slate-50 p-4 rounded-2xl font-black text-[10px] md:text-xs text-slate-600 border-2 border-slate-100 outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer uppercase tracking-widest"
-                >
-                  <option value="ALL">All Year Levels</option>
-                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
-                </select>
-              </div>
-            </div>
+         {/* --- REBUILT PREVIEW HEADER & TOOLBAR --- */}
+            <div className="preview-top-anchor bg-white rounded-[2.5rem] p-6 md:p-8 border-2 border-slate-100 shadow-sm flex flex-col gap-6 mb-8">
+               
+               {/* Top Row: Title & Actions */}
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h3 className="text-3xl md:text-4xl font-black uppercase text-slate-900 tracking-tighter flex items-center gap-4">
+                      Master <span className="text-blue-600">Draft</span>
+                      {auditLog.length > 0 && <span className="text-[10px] bg-slate-900 text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5"><Edit3 size={12}/> {auditLog.length - 1} Edits</span>}
+                    </h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Consolidated View for {deptCode}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:gap-3 w-full md:w-auto">
+                     <button onClick={() => setExportConfig({ isOpen: true, format: 'excel', type: 'ALL', targetValue: '' })} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-3 rounded-2xl font-black text-[9px] md:text-[10px] uppercase hover:bg-emerald-100 transition-all shadow-sm">
+                        <Download size={14} /> Excel
+                     </button>
+                     <button onClick={() => setExportConfig({ isOpen: true, format: 'pdf', type: 'ALL', targetValue: '' })} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 px-5 py-3 rounded-2xl font-black text-[9px] md:text-[10px] uppercase hover:bg-rose-100 transition-all shadow-sm">
+                        <Download size={14} /> PDF
+                     </button>
+                     <button onClick={() => setSummaryModalIsOpen(true)} className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-[9px] md:text-[10px] uppercase hover:bg-blue-500 transition-all shadow-xl md:ml-2">
+                        <Lock size={16} /> Approve & Lock
+                     </button>
+                  </div>
+               </div>
+
+               {/* Grid layout for filters so it never overflows */}
+               <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-3 pt-6 border-t-2 border-slate-50 items-center">
+                  <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-auto">
+                    <button onClick={() => setPreviewView('upcoming')} className={`flex-1 px-6 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${previewView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Upcoming</button>
+                    <button onClick={() => setPreviewView('history')} className={`flex-1 px-6 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${previewView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
+                  </div>
+
+                  <div className="relative w-full">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search section, room, subject, proctor..." 
+                      value={previewSearchTerm}
+                      onChange={(e) => setPreviewSearchTerm(e.target.value)}
+                      className="w-full bg-slate-50 p-3.5 pl-11 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
+                    />
+                  </div>
+                  
+                  <div className="w-full lg:w-48">
+                    <select 
+                      value={previewFilterYear} 
+                      onChange={e => setPreviewFilterYear(e.target.value)} 
+                      className="w-full bg-slate-50 p-3.5 rounded-2xl font-black text-[10px] md:text-xs text-slate-600 border-2 border-slate-100 outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer uppercase tracking-widest"
+                    >
+                      <option value="ALL">All Years</option>
+                      {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
+                    </select>
+                  </div>
+               </div>
+            </div>   
 
             {Object.keys(tablesByYearAndDay).sort().map(year => (
              
@@ -2115,7 +2123,8 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     </div>
                   </div>
                 </div>
-)) : (
+
+     )) : (
                 <div className="text-center py-32 bg-slate-50 rounded-[4rem] border-4 border-dashed border-slate-100">
                   <RefreshCw size={48} className="text-slate-200 mx-auto mb-6 animate-spin-slow" />
                   <p className="text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em] text-[10px] md:text-xs">
@@ -2131,7 +2140,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 <button 
                   onClick={() => {
                      setPreviewPage(p => Math.max(1, p - 1));
-                     document.querySelector('.grid-cols-1.gap-10')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                     document.querySelector('.preview-top-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                   disabled={previewPage === 1}
                   className="p-3 md:p-4 bg-slate-50 text-slate-500 rounded-xl md:rounded-2xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
@@ -2149,7 +2158,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 <button 
                   onClick={() => {
                      setPreviewPage(p => Math.min(totalPreviewPages, p + 1));
-                     document.querySelector('.grid-cols-1.gap-10')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                     document.querySelector('.preview-top-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                   disabled={previewPage === totalPreviewPages}
                   className="p-3 md:p-4 bg-slate-50 text-slate-500 rounded-xl md:rounded-2xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
@@ -2159,7 +2168,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               </div>
             )}
           </div>
-        )}
+        )}       
       </div>
 
       {/* --- MODALS --- */}
