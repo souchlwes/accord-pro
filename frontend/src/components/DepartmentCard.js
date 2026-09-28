@@ -167,7 +167,7 @@ role,
   const [previewSearchTerm, setPreviewSearchTerm] = useState("");
   const [previewFilterYear, setPreviewFilterYear] = useState("ALL");
   const [previewPage, setPreviewPage] = useState(1);
-  const PREVIEW_ITEMS_PER_PAGE = 5; // 5 cards per page keeps the UI lightning fast
+  const PREVIEW_ITEMS_PER_PAGE = 2; // Aggressively shorten the scroll length!
 
   // Reset to page 1 whenever a filter changes
   useEffect(() => {
@@ -1939,13 +1939,16 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   </div>
                </div>
 
-               {/* Grid layout for filters so it never overflows */}
+               {/* Bottom Row: Filters & Search (NO SELECT DROPDOWN) */}
                <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-3 pt-6 border-t-2 border-slate-50 items-center">
+                  
+                  {/* Status Toggle */}
                   <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-auto">
                     <button onClick={() => setPreviewView('upcoming')} className={`flex-1 px-6 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${previewView === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Upcoming</button>
                     <button onClick={() => setPreviewView('history')} className={`flex-1 px-6 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${previewView === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
                   </div>
 
+                  {/* Search Bar */}
                   <div className="relative w-full">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
@@ -1957,17 +1960,15 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     />
                   </div>
                   
-                  <div className="w-full lg:w-48">
-                    <select 
-                      value={previewFilterYear} 
-                      onChange={e => setPreviewFilterYear(e.target.value)} 
-                      className="w-full bg-slate-50 p-3.5 rounded-2xl font-black text-[10px] md:text-xs text-slate-600 border-2 border-slate-100 outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer uppercase tracking-widest"
-                    >
-                      <option value="ALL">All Years</option>
-                      {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
-                    </select>
+                  {/* Year Level Pills (Replaces the ugly Dropdown!) */}
+                  <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-auto overflow-x-auto custom-scrollbar">
+                    <button onClick={() => setPreviewFilterYear('ALL')} className={`px-4 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${previewFilterYear === 'ALL' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>All</button>
+                    {[1, 2, 3, 4, 5].map(y => (
+                      <button key={y} onClick={() => setPreviewFilterYear(String(y))} className={`px-4 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${previewFilterYear === String(y) ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Y{y}</button>
+                    ))}
                   </div>
                </div>
+
             </div>   
 
             {Object.keys(tablesByYearAndDay).sort().map(year => (
@@ -2167,6 +2168,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                 </button>
               </div>
             )}
+
           </div>
         )}       
       </div>
