@@ -162,7 +162,20 @@ role,
 
   
   const [previewView, setPreviewView] = useState("upcoming");
+  
+  // --- NEW: SMART PREVIEW FILTERS & PAGINATION STATES ---
+  const [previewSearchTerm, setPreviewSearchTerm] = useState("");
+  const [previewFilterYear, setPreviewFilterYear] = useState("ALL");
+  const [previewPage, setPreviewPage] = useState(1);
+  const PREVIEW_ITEMS_PER_PAGE = 5; // 5 cards per page keeps the UI lightning fast
+
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => {
+    setPreviewPage(1);
+  }, [previewSearchTerm, previewFilterYear, previewView]);
+
   const [generationErrors, setGenerationErrors] = useState([]);
+
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
@@ -493,15 +506,41 @@ role,
     });
   }, [consolidatedPreview, previewView]);
 
+  // --- NEW: SMART SEARCH & FILTER ENGINE ---
+  const processedPreview = useMemo(() => {
+    return filteredPreview.filter(item => {
+      const matchYear = previewFilterYear === 'ALL' || String(item.year) === String(previewFilterYear);
+      const searchStr = previewSearchTerm.toLowerCase().trim();
+      const matchSearch = !searchStr || 
+        item.section.toLowerCase().includes(searchStr) ||
+        (item.room && item.room.toLowerCase().includes(searchStr)) ||
+        item.subs.some(s => 
+           (s.code && s.code.toLowerCase().includes(searchStr)) || 
+           (s.proctor && s.proctor.toLowerCase().includes(searchStr))
+        );
+      
+      return matchYear && matchSearch;
+    });
+  }, [filteredPreview, previewFilterYear, previewSearchTerm]);
+
+  // --- NEW: PAGINATION SLICER ---
+  const paginatedPreview = useMemo(() => {
+    const startIndex = (previewPage - 1) * PREVIEW_ITEMS_PER_PAGE;
+    return processedPreview.slice(startIndex, startIndex + PREVIEW_ITEMS_PER_PAGE);
+  }, [processedPreview, previewPage]);
+
+  const totalPreviewPages = Math.ceil(processedPreview.length / PREVIEW_ITEMS_PER_PAGE);
+
+  // --- REBUILT: SUMMARY TABLES NOW RESPECT FILTERS ---
   const tablesByYearAndDay = useMemo(() => {
     const data = {};
-    filteredPreview.forEach(item => {
+    processedPreview.forEach(item => {
       if (!data[item.year]) data[item.year] = {};
       if (!data[item.year][item.date]) data[item.year][item.date] = [];
       data[item.year][item.date].push(item);
     });
     return data;
-  }, [filteredPreview]);
+  }, [processedPreview]);
 
   // --- GENERATOR UI STATES ---
   const [examDays, setExamDays] = useState(0);
@@ -1892,14 +1931,40 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                  <button onClick={() => setExportConfig({ isOpen: true, format: 'pdf', type: 'ALL', targetValue: '' })} className="flex items-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 px-6 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-rose-100 transition-all active:scale-95 shadow-sm">
                     <Download size={16} /> PDF
                  </button>
-                 <button onClick={() => setSummaryModalIsOpen(true)} className="flex items-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-blue-500 transition-all active:scale-95 shadow-xl ml-2">
+                
+                <button onClick={() => setSummaryModalIsOpen(true)} className="flex items-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase hover:bg-blue-500 transition-all active:scale-95 shadow-xl ml-2">
                     <Lock size={18} /> Approve & Lock
                  </button>
               </div>
             </div>
 
+            {/* --- SMART SEARCH & FILTERS UI --- */}
+            <div className="flex flex-col sm:flex-row gap-4 px-4 relative z-10 mb-8 mt-2">
+              <div className="relative flex-1 shadow-sm">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search section, room, subject, or proctor..." 
+                  value={previewSearchTerm}
+                  onChange={(e) => setPreviewSearchTerm(e.target.value)}
+                  className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+              <div className="w-full sm:w-48 shrink-0 shadow-sm">
+                <select 
+                  value={previewFilterYear} 
+                  onChange={e => setPreviewFilterYear(e.target.value)} 
+                  className="w-full bg-slate-50 p-4 rounded-2xl font-black text-[10px] md:text-xs text-slate-600 border-2 border-slate-100 outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer uppercase tracking-widest"
+                >
+                  <option value="ALL">All Year Levels</option>
+                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
+                </select>
+              </div>
+            </div>
+
             {Object.keys(tablesByYearAndDay).sort().map(year => (
-              <div key={year} className="space-y-6">
+             
+             <div key={year} className="space-y-6">
                 <div className="flex justify-between items-center px-4">
                   <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Year Level {year}</h4>
                   <button 
@@ -1973,8 +2038,9 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             ))}
 
            <div className="grid grid-cols-1 gap-10 mt-16">
-              {filteredPreview.length > 0 ? filteredPreview.map((row, i) => (
-                <div key={i} className="bg-white border-2 border-slate-100 rounded-[3rem] overflow-hidden flex flex-col md:flex-row hover:border-blue-300 transition-all hover:shadow-2xl group relative">
+              {paginatedPreview.length > 0 ? paginatedPreview.map((row, i) => (
+              
+              <div key={i} className="bg-white border-2 border-slate-100 rounded-[3rem] overflow-hidden flex flex-col md:flex-row hover:border-blue-300 transition-all hover:shadow-2xl group relative">
                   <div className="absolute top-6 right-10 flex gap-4 z-20 items-center">
                     {renderStatusBadge(row.status)}
                   </div>
@@ -2049,13 +2115,49 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                     </div>
                   </div>
                 </div>
-              )) : (
+)) : (
                 <div className="text-center py-32 bg-slate-50 rounded-[4rem] border-4 border-dashed border-slate-100">
                   <RefreshCw size={48} className="text-slate-200 mx-auto mb-6 animate-spin-slow" />
-                  <p className="text-slate-300 font-black uppercase tracking-[0.8em] text-xs">No active draft found</p>
+                  <p className="text-slate-300 font-black uppercase tracking-[0.4em] md:tracking-[0.8em] text-[10px] md:text-xs">
+                    {previewSearchTerm || previewFilterYear !== 'ALL' ? "No results match your search" : "No active draft found"}
+                  </p>
                 </div>
               )}
             </div>
+
+            {/* --- PREVIEW PAGINATION CONTROLS --- */}
+            {totalPreviewPages > 1 && (
+              <div className="flex items-center justify-between bg-white p-4 md:p-6 border-2 border-slate-100 rounded-2xl md:rounded-[2rem] mt-10 shadow-sm">
+                <button 
+                  onClick={() => {
+                     setPreviewPage(p => Math.max(1, p - 1));
+                     document.querySelector('.grid-cols-1.gap-10')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  disabled={previewPage === 1}
+                  className="p-3 md:p-4 bg-slate-50 text-slate-500 rounded-xl md:rounded-2xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
+                >
+                  <ChevronLeft size={20}/>
+                </button>
+                <div className="flex flex-col items-center">
+                   <span className="text-[10px] md:text-xs font-black uppercase text-slate-800 tracking-widest">
+                     Page {previewPage} of {totalPreviewPages}
+                   </span>
+                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                     {processedPreview.length} Total Blocks
+                   </span>
+                </div>
+                <button 
+                  onClick={() => {
+                     setPreviewPage(p => Math.min(totalPreviewPages, p + 1));
+                     document.querySelector('.grid-cols-1.gap-10')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  disabled={previewPage === totalPreviewPages}
+                  className="p-3 md:p-4 bg-slate-50 text-slate-500 rounded-xl md:rounded-2xl shadow-sm border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
+                >
+                  <ChevronRight size={20}/>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2734,7 +2836,14 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-2 flex items-center gap-3"><BookOpen className="text-blue-600"/> Edit Subject (Year {editSubjectModal.year})</h3>
             
             <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 mb-6 space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
+               
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Year Level</label>
+                    <select value={editSubjectModal.year} onChange={e => setEditSubjectModal({...editSubjectModal, year: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
+                      {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Subject Code</label>
                     <input value={editSubjectModal.code} onChange={e => setEditSubjectModal({...editSubjectModal, code: e.target.value})} placeholder="e.g. CS101" className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all uppercase" />
@@ -2805,20 +2914,47 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
 
             <div className="flex gap-4 pt-4 border-t-2 border-slate-50">
               <button onClick={() => setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={() => {
+             <button onClick={() => {
                   const validProfs = editSubjectModal.tempProfs.filter(p => p.name.trim() !== '');
                   if (validProfs.length === 0) return showToast("Add at least one professor.", "error");
                   if (!editSubjectModal.code || !editSubjectModal.name) return showToast("Fill all details.", "error");
 
                   const compiledProfString = validProfs.map(p => p.sections.trim() ? `${p.name.trim()} (${p.sections.trim().toUpperCase()})` : p.name.trim()).join(', ');
-                  const yearSubs = [...(subjects[editSubjectModal.year] || [])];
-                  const subIndex = yearSubs.findIndex(s => s.code === editSubjectModal.originalCode);
                   
+                  // Create a full copy of all subjects
+                  const updatedSubjects = { ...subjects };
+                  
+                  // 1. Locate the subject in ALL years just in case it moved
+                  let oldYear = null;
+                  let subIndex = -1;
+                  for (const [y, sList] of Object.entries(updatedSubjects)) {
+                     const idx = sList.findIndex(s => s.code === editSubjectModal.originalCode);
+                     if (idx !== -1) {
+                        oldYear = y;
+                        subIndex = idx;
+                        break;
+                     }
+                  }
+
                   if (subIndex !== -1) {
-                      yearSubs[subIndex] = { code: editSubjectModal.code.toUpperCase(), name: editSubjectModal.name, prof: compiledProfString };
-                      onUpdate('subjects', { ...dept, subjects: { ...subjects, [editSubjectModal.year]: yearSubs } });
-                      showToast(`Subject updated successfully.`);
-                      setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+                     // 2. Remove it from its old year
+                     updatedSubjects[oldYear].splice(subIndex, 1);
+                     
+                     // 3. Add it to the new (or same) year
+                     if (!updatedSubjects[editSubjectModal.year]) {
+                         updatedSubjects[editSubjectModal.year] = [];
+                     }
+                     updatedSubjects[editSubjectModal.year].push({ 
+                         code: editSubjectModal.code.toUpperCase(), 
+                         name: editSubjectModal.name, 
+                         prof: compiledProfString 
+                     });
+
+                     onUpdate('subjects', { ...dept, subjects: updatedSubjects });
+                     showToast(`Subject updated successfully.`);
+                     setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] });
+                  } else {
+                     showToast("Could not find original subject to update.", "error");
                   }
               }} className="flex-[2] p-4 rounded-xl font-black text-[10px] uppercase text-white bg-blue-600 hover:bg-blue-500 shadow-lg transition-colors">Save Subject</button>
             </div>
