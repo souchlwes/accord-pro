@@ -348,7 +348,7 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
           // 1. If in a thread, check for an @Mention and notify that specific user!
           const mentionedUser = systemUsers.find(u => displayMsg.includes(`@${u.full_name}`));
           if (activeThread && mentionedUser) {
-              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: mentionedUser.email, title: `💬 New Reply from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
+              fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: mentionedUser.email, title: `New Reply from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
               
               await supabase.from('notifications').insert([{ 
                  target_user_id: mentionedUser.id, title: `Thread Reply`, message: `${profile.full_name} replied to you.`, 
@@ -361,7 +361,7 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
               if (type === 'global' && (profile.role === 'HEAD_ADMIN' || profile.role === 'DEPT_ADMIN')) {
                   const chatEmails = systemUsers.filter(u => u.email).map(u => u.email);
                   chatEmails.forEach(singleEmail => {
-                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 OFFICIAL UNIVERSITY ALERT`, message: displayMsg }) }).catch(()=>{});
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `OFFICIAL UNIVERSITY ALERT`, message: displayMsg }) }).catch(()=>{});
                   });
                   
                   const notifyPayload = systemUsers.map(u => ({
@@ -378,7 +378,7 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
                   
                   const chatEmails = campusUsers.filter(u => u.email).map(u => u.email);
                   chatEmails.forEach(singleEmail => {
-                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `📢 ${myCampus.toUpperCase()} CAMPUS ALERT`, message: displayMsg }) }).catch(()=>{});
+                     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: singleEmail, title: `${myCampus.toUpperCase()} CAMPUS ALERT`, message: displayMsg }) }).catch(()=>{});
                   });
                   
                   const notifyPayload = campusUsers.map(u => ({
@@ -387,7 +387,7 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
                   if (notifyPayload.length > 0) await supabase.from('notifications').insert(notifyPayload);
 
               } else if (type === 'dm' && target?.email) {
-                fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `💬 Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
+                fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: target.email, title: `Direct Message from ${profile.full_name}`, message: displayMsg }) }).catch(()=>{});
                   
                   await supabase.from('notifications').insert([{
                       target_user_id: target.id, title: `New Message`, message: `${profile.full_name} sent you a direct message.`
@@ -395,7 +395,7 @@ const isRelevant = !m.receiver_id || m.receiver_id === profile.id || m.sender_id
 
               } else if (type === 'group' || type === 'broadcast') {
                   const roomMembers = participants.filter(p => p.room_id === target.id && p.user_id !== profile.id);
-                  const titlePrefix = type === 'broadcast' ? 'CHANNEL ALERT' : '👥 GROUP CHAT';
+                  const titlePrefix = type === 'broadcast' ? 'CHANNEL ALERT' : 'GROUP CHAT';
                   
                   const targetedEmails = systemUsers.filter(u => roomMembers.some(rm => rm.user_id === u.id) && u.email).map(u => u.email);
                   targetedEmails.forEach(singleEmail => {
@@ -4751,6 +4751,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
                         onGenerate={(schedule, dates) => handleScheduleGenerated(schedule, dates, dept.code)}
                         onNotify={sendNotification} 
                         highlightTarget={targetHighlight}
+                        onShowAI={() => setIsAIOpen(true)}
                       />
                     ))}
                   </div>
