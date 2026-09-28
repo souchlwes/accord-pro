@@ -1873,298 +1873,300 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       )}
 
-    <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-5 mb-6 md:mb-10 flex flex-col md:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 md:gap-0">
+        <nav className="bg-slate-900 px-4 md:px-8 py-3 md:py-5 mb-4 md:mb-10 flex flex-col lg:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 lg:gap-0">
         
-        {/* BRANDING CLUSTER (ACCORD + INSTITUTION CRESTS) */}
-        <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
-          <div className="flex items-center gap-3 font-black uppercase tracking-tighter text-lg md:text-xl shrink-0">
-            <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
-            <span className="hidden md:inline">ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
+        {/* BRANDING CLUSTER (MOBILE FLEX ADJUSTED) */}
+        <div className="flex items-center justify-between lg:justify-start w-full lg:w-auto">
+          <div className="flex items-center gap-2 md:gap-3 font-black uppercase tracking-tighter text-base md:text-xl shrink-0">
+            <img src={accordLogo} alt="Accord Logo" className="w-7 h-7 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
+            <span>ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
           </div>
 
-{/* OFFICIAL EMBEDDED CRESTS (PURE WHITE MONOTONE FOR DARK NAVBAR) */}
           {(universityLogo || departmentLogo) && (
-            <>
-              <div className="w-px h-8 bg-slate-700 mx-1 md:mx-2 hidden sm:block"></div>
-              <div className="flex items-center gap-3 shrink-0">
-                 {universityLogo && (
-                    <img src={universityLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Univ Crest" />
-                 )}
-                 {departmentLogo && (
-                    <img src={departmentLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Dept Crest" />
-                 )}
-              </div>
-            </>
+            <div className="flex items-center gap-2 md:gap-3 shrink-0">
+               <div className="w-px h-6 md:h-8 bg-slate-700 mx-1 md:mx-2"></div>
+               {universityLogo && (
+                  <img src={universityLogo} className="w-6 h-6 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Univ Crest" />
+               )}
+               {departmentLogo && (
+                  <img src={departmentLogo} className="w-6 h-6 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Dept Crest" />
+               )}
+            </div>
           )}
-
         </div>
 
-       <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-end">
+       <div className="flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full lg:w-auto justify-between lg:justify-end overflow-hidden">
 
-  {/* --- NEW: WRAPPED IN A FLEX ROW TO HOLD AVATAR AND TEXT TOGETHER --- */}
-  <div className="flex items-center gap-3 md:gap-4 mr-auto md:mr-4">
-    
-    <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={42} />
-    
-    <div className="text-left md:text-right">
-      <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
-      <div className="flex items-center gap-2 justify-start md:justify-end">
-        <p className="text-xs font-bold text-blue-400 uppercase">{profile?.full_name}</p>
-        <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1.5 rounded-lg transition-all" title="Edit Profile">
-          <Edit2 size={12} />
-        </button>
-      </div>
-      {profile?.assigned_dept && <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-1">{profile.assigned_dept} DEPARTMENT</p>}
-    </div>
-  </div>
+          {/* USER PROFILE CARD (RESPONSIVE ALIGNMENT) */}
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start bg-white/5 sm:bg-transparent p-2.5 sm:p-0 rounded-2xl border border-white/5 sm:border-transparent">
+            <div className="flex items-center gap-3">
+              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={36} />
+              <div className="text-left sm:text-right">
+                <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] md:text-xs font-bold text-blue-400 uppercase truncate max-w-[130px] md:max-w-none">{profile?.full_name}</p>
+                  <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1 md:p-1.5 rounded-lg transition-all" title="Edit Profile">
+                    <Edit2 size={10} className="md:w-3 md:h-3" />
+                  </button>
+                </div>
+                {profile?.assigned_dept && <p className="text-[7px] md:text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{profile.assigned_dept} DEPT</p>}
+              </div>
+            </div>
+          </div>
           
-          <div className="flex gap-2">
+          {/* ACTION BUTTONS (HORIZONTAL SCROLL ON MOBILE TO PREVENT STACKING) */}
+          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0 justify-start sm:justify-end hide-scrollbar">
             {!isViewMode && (
               <>
-
-{/* AI ASSISTANT BUTTON */}
-                <button id="tour-proctor-ai" onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
-                  <Headphones size={18} />
+                <button id="tour-proctor-ai" onClick={onShowAI} className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
+                  <Headphones size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
 
-                <button id="tour-proctor-chat" onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all relative">
-                  <MessageSquare size={18} />
+                <button id="tour-proctor-chat" onClick={onShowChat} className="shrink-0 bg-white/10 hover:bg-indigo-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
+                  <MessageSquare size={16} className="md:w-[18px] md:h-[18px]" />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[8px] font-black text-white shadow-lg animate-bounce">
+                    <span className="absolute -top-1.5 -right-1.5 md:-top-2 md:-right-2 flex h-3.5 w-3.5 md:h-4 md:w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[7px] md:text-[8px] font-black text-white shadow-lg animate-bounce">
                       {unreadMessageCount}
                     </span>
                   )}
                 </button>
-                <button id="tour-proctor-help" onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all relative"><HelpCircle size={18} /></button>
-                <button id="tour-proctor-notify" onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-2.5 rounded-xl transition-all relative">
-                  <Bell size={18} />
-                  {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                
+                <button id="tour-proctor-help" onClick={onShowHelp} className="shrink-0 bg-white/10 hover:bg-emerald-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
+                  <HelpCircle size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
                 
-                {/* --- INJECTED SETTINGS ICON --- */}
-                <button id="tour-proctor-settings" onClick={onShowPassword} className="bg-white/10 hover:bg-slate-500 text-white p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
-                  <Settings size={18} />
+                <button id="tour-proctor-notify" onClick={onShowNotify} className="shrink-0 bg-white/10 hover:bg-blue-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
+                  <Bell size={16} className="md:w-[18px] md:h-[18px]" />
+                  {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                </button>
+                
+                <button id="tour-proctor-settings" onClick={onShowPassword} className="shrink-0 bg-white/10 hover:bg-slate-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
+                  <Settings size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
               </>
             )}
             {isViewMode ? (
-              <button onClick={onCloseView} className="bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
+              <button onClick={onCloseView} className="shrink-0 w-full sm:w-auto bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
             ) : (
-<button id="tour-proctor-logout" onClick={onLogout} className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-xl transition-all"><LogOut size={18} /></button>
-)}
+              <button id="tour-proctor-logout" onClick={onLogout} className="shrink-0 bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white p-2 md:p-2.5 rounded-xl transition-all border border-rose-500/20 hover:border-transparent">
+                <LogOut size={16} className="md:w-[18px] md:h-[18px]" />
+              </button>
+            )}
           </div>
         </div>
       </nav>
+       
       
-       <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-8 relative">
-        
-   
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Welcome Tile (Span 7) */}
-          <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-            
-            <div className="flex items-center gap-4 z-10">
-              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={64} />
-              <div className="min-w-0">
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1 truncate">
-                  {getGreeting()}
-                </span>
-                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white truncate">
-                  {profile?.full_name?.split(' ')[0] || 'Proctor'}
-                </h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">
-                  {profile?.assigned_dept ? `${profile.assigned_dept} Department Pool` : 'Global Reserve Proctor'}
-                </p>
-              </div>
-            </div>
 
-            <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 z-10">
-            
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Immediate Assignment</span>
-                <p className="text-xs font-bold text-white mt-1">
-                  {nextAssignment ? `${nextAssignment.subject_code} • RM ${nextAssignment.room}` : 'No sessions queued'}
-                </p>
-              </div>
-              {nextAssignment && (
-                <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest">
-                  {nextAssignment.exam_date} @ {formatTime(nextAssignment.start_time)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Stats Bento (Span 5) */}
-          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-            <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all hover:-translate-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Scheduled</span>
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Calendar size={16} /></div>
-              </div>
-              <p className="text-3xl font-black text-slate-900 mt-4">{confirmedAssignments.length}</p>
-              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Active Blocks</span>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all hover:-translate-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed</span>
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle2 size={16} /></div>
-              </div>
-              <p className="text-3xl font-black text-slate-900 mt-4">{historyAssignments.length}</p>
-              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Past Sessions</span>
-            </div>
-
-            <div className="col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-[2rem] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md"><Clock size={16} /></div>
-                <div>
-                  <h4 className="text-xs font-black uppercase text-slate-900">Availability Status</h4>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">
-                    {globalAvailability.filter(a => a.proctor_id === profile?.id).length} Logged Windows
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth' })} 
-                className="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-blue-200/50 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
-              >
-                Manage
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* BENTO ROW 2: CRITICAL ALERTS & SCHEDULE */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Schedule & Pending Column (Span 4) */}
-          <div className="lg:col-span-4 flex flex-col gap-6">
-            
-            {/* Reliever Alerts Tile */}
-            {pendingRequests.length > 0 && (
-              <div className="bg-amber-500 border-2 border-amber-600 rounded-[2.5rem] p-6 shadow-xl relative overflow-hidden text-white">
-                <div className="flex items-center gap-2 mb-4">
-                  <BellRing size={20} className="animate-pulse" />
-                  <h3 className="text-xs font-black uppercase tracking-widest">Reliever Requests ({pendingRequests.length})</h3>
-                </div>
-                <div className="space-y-3">
-                  {pendingRequests.map((s, i) => (
-                    <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 text-slate-900">
-                      <p className="text-[10px] font-black uppercase text-amber-600 tracking-wider">{s.subject_code}</p>
-                      <p className="text-xs font-bold truncate mb-2">{s.subject_name}</p>
-                      <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 mb-3 bg-slate-50 p-2 rounded-lg">
-                        <Calendar size={10}/> {s.exam_date} • {formatTime(s.start_time)}
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
-                            const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
-                            onAcceptAssignment(profile.id, profile.full_name, profile.assigned_dept, s.exam_date, fStart, fEnd, s.subject_code);
-                            showToast("Request Accepted! Schedule verified.", "success");
-                          }}
-                          className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase py-2.5 rounded-xl transition-all"
-                        >
-                          Accept
-                        </button>
-                        <button 
-                          onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })}
-                          className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white font-black text-[9px] uppercase py-2.5 rounded-xl transition-all border border-rose-200"
-                        >
-                          Decline
-                        </button>
-                      </div>
+      <main className="container mx-auto px-4 md:px-6 max-w-7xl space-y-6 md:space-y-8 relative">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+                
+                {/* --- WELCOME TILE (MOBILE RESPONSIVE) --- */}
+                <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col justify-between border border-slate-700/50">
+                  <div className="absolute top-0 right-0 w-64 h-64 md:w-80 md:h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16 md:-mr-20 md:-mt-20"></div>
+                  
+                  <div className="flex items-center gap-4 z-10">
+                    {/* Shrink avatar on mobile slightly */}
+                    <div className="shrink-0 w-12 h-12 md:w-16 md:h-16">
+                      <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size="100%" />
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Confirmed Roster Tile */}
-            <div className="bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 text-white shadow-xl flex flex-col flex-1 max-h-[600px] border border-slate-800">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xs font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                  <Calendar size={14}/> Itinerary
-                </h2>
-                <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
-                  <button onClick={() => setDashboardView('upcoming')} className={`px-3 py-1 text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Upcoming</button>
-                  <button onClick={() => setDashboardView('history')} className={`px-3 py-1 text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'history' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>History</button>
-                </div>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-                {(dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).length === 0 ? (
-                  <p className="text-slate-500 text-[10px] uppercase font-bold text-center py-12 border border-dashed border-white/10 rounded-2xl">
-                    No sessions scheduled
-                  </p>
-                ) : (dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).map((s, i) => (
-                  <div key={i} className={`p-3.5 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/40'}`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">{s.subject_code}</p>
-                        <p className="text-xs font-bold truncate max-w-[180px]">{s.subject_name}</p>
-                      </div>
-                      {!isViewMode && !s.flagged && (
-                        <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all">
-                          <AlertTriangle size={12}/>
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex justify-between items-center bg-slate-800/80 p-2 rounded-xl text-[8px] font-black uppercase text-slate-300">
-                      <span>{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
-                      <span className="text-amber-400">{s.exam_date}</span>
-                      <span className="text-rose-400">RM {s.room}</span>
+                    <div className="min-w-0">
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.25em] text-blue-400 block mb-1 truncate">
+                        {getGreeting()}
+                      </span>
+                      <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight text-white truncate">
+                        {profile?.full_name?.split(' ')[0] || 'Proctor'}
+                      </h1>
+                      <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">
+                        {profile?.assigned_dept ? `${profile.assigned_dept} Department Pool` : 'Global Reserve Proctor'}
+                      </p>
                     </div>
                   </div>
-                ))}
+
+                  <div className="mt-6 md:mt-8 pt-5 md:pt-6 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 z-10">
+                    <div>
+                      <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 block">Immediate Assignment</span>
+                      <p className="text-[11px] md:text-xs font-bold text-white mt-1">
+                        {nextAssignment ? `${nextAssignment.subject_code} • RM ${nextAssignment.room}` : 'No sessions queued'}
+                      </p>
+                    </div>
+                    {nextAssignment && (
+                      <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-widest shrink-0 self-start sm:self-auto">
+                        {nextAssignment.exam_date} @ {formatTime(nextAssignment.start_time)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* --- QUICK STATS BENTO (MOBILE RESPONSIVE) --- */}
+                <div className="lg:col-span-5 grid grid-cols-2 gap-3 md:gap-4">
+                  <div className="bg-white/80 backdrop-blur-md p-4 md:p-6 rounded-3xl md:rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400">Scheduled</span>
+                      <div className="p-2 md:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Calendar size={14} className="md:w-4 md:h-4"/></div>
+                    </div>
+                    <p className="text-2xl md:text-3xl font-black text-slate-900 mt-4 md:mt-6">{confirmedAssignments.length}</p>
+                    <span className="text-[7px] md:text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Active Blocks</span>
+                  </div>
+
+                  <div className="bg-white/80 backdrop-blur-md p-4 md:p-6 rounded-3xl md:rounded-[2rem] border border-slate-200/80 shadow-lg flex flex-col justify-between hover:shadow-xl transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400">Completed</span>
+                      <div className="p-2 md:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle2 size={14} className="md:w-4 md:h-4"/></div>
+                    </div>
+                    <p className="text-2xl md:text-3xl font-black text-slate-900 mt-4 md:mt-6">{historyAssignments.length}</p>
+                    <span className="text-[7px] md:text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">Past Sessions</span>
+                  </div>
+
+                  <div className="col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 md:p-5 rounded-3xl md:rounded-[2rem] flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 md:p-2.5 bg-blue-600 text-white rounded-xl shadow-md"><Clock size={14} className="md:w-4 md:h-4"/></div>
+                      <div>
+                        <h4 className="text-[10px] md:text-xs font-black uppercase text-slate-900 leading-tight">Availability Status</h4>
+                        <p className="text-[8px] md:text-[9px] font-bold text-slate-500 uppercase mt-0.5">
+                          {globalAvailability.filter(a => a.proctor_id === profile?.id).length} Logged Windows
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => document.getElementById('availability-log-section')?.scrollIntoView({ behavior: 'smooth' })} 
+                      className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-blue-600 bg-white px-3 md:px-4 py-2 rounded-xl shadow-sm border border-blue-200/50 hover:bg-blue-600 hover:text-white transition-all active:scale-95 shrink-0"
+                    >
+                      Manage
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-2 pt-4 mt-2 border-t border-white/10">
-                <button onClick={handleExportExcel} className="flex-1 p-3 bg-white/5 hover:bg-emerald-600 hover:text-white rounded-xl text-slate-300 font-black text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border border-white/5">
-                  <Download size={12}/> Excel
-                </button>
-                <button onClick={handleExportPDF} className="flex-1 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/20">
-                  <Printer size={12}/> PDF Print
-                </button>
+              {/* BENTO ROW 2: CRITICAL ALERTS & SCHEDULE */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+                
+                {/* Schedule & Pending Column (Span 4) */}
+                <div className="lg:col-span-4 flex flex-col gap-4 md:gap-6">
+                  
+                  {/* Reliever Alerts Tile */}
+                  {pendingRequests.length > 0 && (
+                    <div className="bg-amber-500 border-2 border-amber-600 rounded-3xl md:rounded-[2.5rem] p-5 md:p-6 shadow-xl relative overflow-hidden text-white">
+                      <div className="flex items-center gap-2 mb-4">
+                        <BellRing size={18} className="md:w-5 md:h-5 animate-pulse" />
+                        <h3 className="text-[11px] md:text-xs font-black uppercase tracking-widest">Reliever Requests ({pendingRequests.length})</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {pendingRequests.map((s, i) => (
+                          <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 text-slate-900">
+                            <p className="text-[9px] md:text-[10px] font-black uppercase text-amber-600 tracking-wider">{s.subject_code}</p>
+                            <p className="text-[11px] md:text-xs font-bold truncate mb-2">{s.subject_name}</p>
+                            <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-black text-slate-500 mb-3 bg-slate-50 p-2 rounded-lg">
+                              <Calendar size={10}/> {s.exam_date} • {formatTime(s.start_time)}
+                            </div>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => {
+                                  const fStart = s.start_time.length === 5 ? `${s.start_time}:00` : s.start_time;
+                                  const fEnd = s.end_time.length === 5 ? `${s.end_time}:00` : s.end_time;
+                                  onAcceptAssignment(profile.id, profile.full_name, profile.assigned_dept, s.exam_date, fStart, fEnd, s.subject_code);
+                                  showToast("Request Accepted! Schedule verified.", "success");
+                                }}
+                                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[8px] md:text-[9px] uppercase py-2.5 rounded-xl transition-all"
+                              >
+                                Accept
+                              </button>
+                              <button 
+                                onClick={() => setDeclineModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })}
+                                className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white font-black text-[8px] md:text-[9px] uppercase py-2.5 rounded-xl transition-all border border-rose-200"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Confirmed Roster Tile */}
+                  <div className="bg-slate-900/90 backdrop-blur-xl rounded-3xl md:rounded-[2.5rem] p-5 md:p-6 text-white shadow-xl flex flex-col flex-1 max-h-[500px] md:max-h-[600px] border border-slate-800">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="text-[11px] md:text-xs font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                        <Calendar size={14}/> Itinerary
+                      </h2>
+                      <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
+                        <button onClick={() => setDashboardView('upcoming')} className={`px-2.5 py-1 text-[7px] md:text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Upcoming</button>
+                        <button onClick={() => setDashboardView('history')} className={`px-2.5 py-1 text-[7px] md:text-[8px] font-black uppercase rounded-lg transition-all ${dashboardView === 'history' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>History</button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                      {(dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).length === 0 ? (
+                        <p className="text-slate-500 text-[9px] md:text-[10px] uppercase font-bold text-center py-10 md:py-12 border border-dashed border-white/10 rounded-2xl">
+                          No sessions scheduled
+                        </p>
+                      ) : (dashboardView === 'upcoming' ? confirmedAssignments : historyAssignments).map((s, i) => (
+                        <div key={i} className={`p-3 md:p-3.5 rounded-2xl border transition-all ${s.flagged ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10 hover:border-blue-500/40'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="min-w-0 pr-2">
+                              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-blue-400 truncate">{s.subject_code}</p>
+                              <p className="text-[11px] md:text-xs font-bold truncate max-w-full">{s.subject_name}</p>
+                            </div>
+                            {!isViewMode && !s.flagged && (
+                              <button onClick={() => setFlagModal({ isOpen: true, scheduleId: s.id, subjectCode: s.subject_code, deptCode: s.dept_code, note: '' })} className="p-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all shrink-0">
+                                <AlertTriangle size={12}/>
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap md:flex-nowrap justify-between items-center gap-1 bg-slate-800/80 p-2 rounded-xl text-[7px] md:text-[8px] font-black uppercase text-slate-300">
+                            <span>{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                            <span className="text-amber-400">{s.exam_date}</span>
+                            <span className="text-rose-400">RM {s.room}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2 pt-4 mt-2 border-t border-white/10 shrink-0">
+                      <button onClick={handleExportExcel} className="flex-1 p-2.5 md:p-3 bg-white/5 hover:bg-emerald-600 hover:text-white rounded-xl text-slate-300 font-black text-[7px] md:text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border border-white/5">
+                        <Download size={12} className="md:w-3 md:h-3"/> Excel
+                      </button>
+                      <button onClick={handleExportPDF} className="flex-1 p-2.5 md:p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-[7px] md:text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/20">
+                        <Printer size={12} className="md:w-3 md:h-3"/> PDF Print
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Availability Log Tile (Span 8) */}
+                <div id="availability-log-section" className="lg:col-span-8">
+                  <AvailabilityLogBook 
+                    profile={profile} 
+                    globalAvailability={globalAvailability} 
+                    onAdd={onAddAvailability} 
+                    onBulkAdd={onBulkAddAvailability} 
+                    onDelete={onDeleteAvailability} 
+                    readOnly={isViewMode} 
+                    showToast={showToast} 
+                    isHighlighted={highlightTarget === 'availability-log'}
+                  />
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Availability Log Tile (Span 8) */}
-          <div id="availability-log-section" className="lg:col-span-8">
-            <AvailabilityLogBook 
-              profile={profile} 
-              globalAvailability={globalAvailability} 
-              onAdd={onAddAvailability} 
-              onBulkAdd={onBulkAddAvailability} 
-              onDelete={onDeleteAvailability} 
-              readOnly={isViewMode} 
-              showToast={showToast} 
-              isHighlighted={highlightTarget === 'availability-log'}
-            />
-          </div>
-        </div>
+            {/* Master Timeline Bottom Tile */}
+              <div className="bg-white/90 backdrop-blur-md p-5 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-xl border border-slate-200/80 overflow-hidden">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-4 md:mb-6">
+                  <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase">
+                    Live Campus <span className="text-blue-600 italic">Timeline</span>
+                  </h2>
+                  <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2.5 py-1 md:px-3 md:py-1 rounded-full hidden sm:block">
+                    University Master View
+                  </span>
+                </div>
+                <div className="overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="min-w-[700px] md:min-w-[800px]">
+                    <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
+                  </div>
+                </div>
+              </div>
 
-      {/* Master Timeline Bottom Tile */}
-        <div className="bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 overflow-hidden">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-              Live Campus <span className="text-blue-600 italic">Timeline</span>
-            </h2>
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-              University Master View
-            </span>
-          </div>
-          <div className="overflow-x-auto pb-2 custom-scrollbar">
-            <div className="min-w-[800px]">
-              <ScheduleCalendar scheduleData={globalSchedule} examDates={allExamDates} readOnly={true} />
-            </div>
-          </div>
-        </div>
-
-      </main>  
+            </main>
 
       {/* --- PROCTOR MODALS --- */}
       {flagModal.isOpen && (
