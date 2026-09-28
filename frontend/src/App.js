@@ -13,7 +13,7 @@ import ConflictTable from './components/ConflictTable';
 import GlobalResourceMonitor from './components/GlobalResourceMonitor';
 import {
   LayoutDashboard, Printer, Activity, Zap, LogOut, Lock, User, 
-  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones, Paperclip, Image as ImageIcon, FileText, DownloadCloud, UserMinus, Hash, Info, MoreHorizontal, Folder
+  RefreshCw, Globe, Calendar, List, Users, Shield, ShieldCheck,  UserPlus, Trash2, Archive, CheckCircle, Plus, Clock, AlertOctagon, Download, Bell, BellRing, AlertTriangle, X, Upload, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, Send, Search, ArrowLeft, Reply, Edit2, MoreVertical, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, Play, Headphones, Paperclip, Image as ImageIcon, FileText, DownloadCloud, UserMinus, Hash, Info, MoreHorizontal, Folder, Menu
 } from 'lucide-react';
 
 
@@ -1689,7 +1689,8 @@ return (
 // --- 3. PROCTOR DASHBOARD ---
 // --- 3. PROCTOR DASHBOARD ---
 const ProctorDashboard = ({ profile, globalSchedule, allExamDates, globalAvailability, onAddAvailability, onBulkAddAvailability, onDeleteAvailability, isViewMode, onCloseView, notifications, onShowNotify, onFlagIssue, onDeclineAssignment, onAcceptAssignment, onShowHelp, onShowChat, onShowAI, allProfiles, onViewProctor, onEditProfile, highlightTarget, unreadMessageCount, onShowPassword, onLogout, universityLogo, departmentLogo }) => {
-const [dashboardView, setDashboardView] = useState('upcoming');
+  const [dashboardView, setDashboardView] = useState('upcoming');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (highlightTarget === 'availability-log') {
@@ -1873,88 +1874,98 @@ const [dashboardView, setDashboardView] = useState('upcoming');
         </div>
       )}
 
-        <nav className="bg-slate-900 px-4 md:px-8 py-3 md:py-5 mb-4 md:mb-10 flex flex-col lg:flex-row justify-between items-center sticky top-0 z-50 shadow-2xl text-white gap-4 lg:gap-0">
-        
-        {/* BRANDING CLUSTER (MOBILE FLEX ADJUSTED) */}
-        <div className="flex items-center justify-between lg:justify-start w-full lg:w-auto">
-          <div className="flex items-center gap-2 md:gap-3 font-black uppercase tracking-tighter text-base md:text-xl shrink-0">
-            <img src={accordLogo} alt="Accord Logo" className="w-7 h-7 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
-            <span>ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
-          </div>
+       {/* Increased top padding (pt-6 md:pt-8) so absolute badges don't get cut off! */}
+        <nav className="bg-slate-900 px-4 md:px-8 pt-6 pb-4 md:pt-8 md:pb-6 mb-4 md:mb-10 flex flex-wrap justify-between items-center sticky top-0 z-50 shadow-2xl text-white transition-all">
+            
+            {/* BRANDING CLUSTER & MOBILE TOGGLE */}
+            <div className="flex items-center justify-between w-full lg:w-auto">
+              <div className="flex items-center gap-2 md:gap-3 font-black uppercase tracking-tighter text-base md:text-xl shrink-0">
+                <img src={accordLogo} alt="Accord Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain brightness-0 invert drop-shadow-lg opacity-90" />
+                <span>ACCORD <span className="text-blue-500 italic">PROCTOR</span></span>
+                
+                {(universityLogo || departmentLogo) && (
+                  <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-2 md:ml-4 border-l border-slate-700 pl-2 md:pl-4">
+                     {universityLogo && (
+                        <img src={universityLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Univ Crest" />
+                     )}
+                     {departmentLogo && (
+                        <img src={departmentLogo} className="w-7 h-7 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Dept Crest" />
+                     )}
+                  </div>
+                )}
+              </div>
 
-          {(universityLogo || departmentLogo) && (
-            <div className="flex items-center gap-2 md:gap-3 shrink-0">
-               <div className="w-px h-6 md:h-8 bg-slate-700 mx-1 md:mx-2"></div>
-               {universityLogo && (
-                  <img src={universityLogo} className="w-6 h-6 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Univ Crest" />
-               )}
-               {departmentLogo && (
-                  <img src={departmentLogo} className="w-6 h-6 md:w-9 md:h-9 aspect-square shrink-0 object-contain brightness-0 invert opacity-90" alt="Dept Crest" />
-               )}
+              {/* HAMBURGER BUTTON (MOBILE ONLY) */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+                className="lg:hidden bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl transition-colors"
+              >
+                {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
             </div>
-          )}
-        </div>
 
-       <div className="flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full lg:w-auto justify-between lg:justify-end overflow-hidden">
+           {/* COLLAPSIBLE MOBILE MENU / DESKTOP ALIGNMENT */}
+           <div className={`w-full lg:w-auto flex-col lg:flex-row items-center gap-4 lg:gap-6 mt-6 lg:mt-0 ${isMobileMenuOpen ? 'flex animate-in slide-in-from-top-4' : 'hidden lg:flex'}`}>
 
-          {/* USER PROFILE CARD (RESPONSIVE ALIGNMENT) */}
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start bg-white/5 sm:bg-transparent p-2.5 sm:p-0 rounded-2xl border border-white/5 sm:border-transparent">
-            <div className="flex items-center gap-3">
-              <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={36} />
-              <div className="text-left sm:text-right">
-                <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-[11px] md:text-xs font-bold text-blue-400 uppercase truncate max-w-[130px] md:max-w-none">{profile?.full_name}</p>
-                  <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1 md:p-1.5 rounded-lg transition-all" title="Edit Profile">
-                    <Edit2 size={10} className="md:w-3 md:h-3" />
-                  </button>
+              {/* USER PROFILE CARD */}
+              <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start bg-white/5 lg:bg-transparent p-4 lg:p-0 rounded-2xl border border-white/10 lg:border-transparent">
+                <div className="flex items-center gap-4">
+                  <UserAvatar fullName={profile?.full_name} avatarUrl={profile?.avatar_url} size={42} />
+                  <div className="text-left lg:text-right">
+                    <p className="text-[10px] md:text-[11px] font-black uppercase text-slate-400">{isViewMode ? 'Viewing Dashboard Of' : 'Logged in as'}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-blue-400 uppercase truncate max-w-[150px] lg:max-w-none">{profile?.full_name}</p>
+                      <button onClick={() => onEditProfile && onEditProfile(profile)} className="text-slate-400 hover:text-white bg-white/10 hover:bg-blue-500 p-1.5 rounded-lg transition-all" title="Edit Profile">
+                        <Edit2 size={12} />
+                      </button>
+                    </div>
+                    {profile?.assigned_dept && <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{profile.assigned_dept} DEPT</p>}
+                  </div>
                 </div>
-                {profile?.assigned_dept && <p className="text-[7px] md:text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{profile.assigned_dept} DEPT</p>}
+              </div>
+              
+              {/* ACTION BUTTONS (FULL WIDTH GRID ON MOBILE) */}
+              <div className="grid grid-cols-5 lg:flex gap-2 lg:gap-3 w-full lg:w-auto pt-2 lg:pt-0 border-t border-white/5 lg:border-none mt-2 lg:mt-0">
+                {!isViewMode && (
+                  <>
+                    <button id="tour-proctor-ai" onClick={onShowAI} className="bg-indigo-600 hover:bg-indigo-500 text-white p-3.5 lg:p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20 flex justify-center items-center" title="Accord AI Support">
+                      <Headphones size={20} className="lg:w-[18px] lg:h-[18px]" />
+                    </button>
+
+                    <button id="tour-proctor-chat" onClick={onShowChat} className="bg-white/10 hover:bg-indigo-500 text-white p-3.5 lg:p-2.5 rounded-xl transition-all relative flex justify-center items-center">
+                      <MessageSquare size={20} className="lg:w-[18px] lg:h-[18px]" />
+                      {unreadMessageCount > 0 && (
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[10px] font-black text-white shadow-lg animate-bounce">
+                          {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                        </span>
+                      )}
+                    </button>
+                    
+                    <button id="tour-proctor-help" onClick={onShowHelp} className="bg-white/10 hover:bg-emerald-500 text-white p-3.5 lg:p-2.5 rounded-xl transition-all relative flex justify-center items-center">
+                      <HelpCircle size={20} className="lg:w-[18px] lg:h-[18px]" />
+                    </button>
+                    
+                    <button id="tour-proctor-notify" onClick={onShowNotify} className="bg-white/10 hover:bg-blue-500 text-white p-3.5 lg:p-2.5 rounded-xl transition-all relative flex justify-center items-center">
+                      <Bell size={20} className="lg:w-[18px] lg:h-[18px]" />
+                      {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
+                    </button>
+                    
+                    <button id="tour-proctor-settings" onClick={onShowPassword} className="bg-white/10 hover:bg-slate-500 text-white p-3.5 lg:p-2.5 rounded-xl transition-all relative flex justify-center items-center" title="Settings & Privacy">
+                      <Settings size={20} className="lg:w-[18px] lg:h-[18px]" />
+                    </button>
+                  </>
+                )}
+                {isViewMode ? (
+                  <button onClick={onCloseView} className="col-span-5 w-full bg-rose-500 hover:bg-rose-600 text-white px-4 py-4 lg:py-2.5 rounded-xl transition-all font-black text-[11px] lg:text-[10px] uppercase tracking-widest shadow-xl mt-2 lg:mt-0">Close View</button>
+                ) : (
+                  <button id="tour-proctor-logout" onClick={onLogout} className="col-span-5 lg:col-span-1 bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white p-4 lg:p-2.5 rounded-xl transition-all border border-rose-500/20 hover:border-transparent flex justify-center items-center gap-2 lg:gap-0 mt-2 lg:mt-0">
+                    <LogOut size={18} />
+                    <span className="lg:hidden text-[11px] font-black uppercase tracking-widest">Sign Out</span>
+                  </button>
+                )}
               </div>
             </div>
-          </div>
-          
-          {/* ACTION BUTTONS (HORIZONTAL SCROLL ON MOBILE TO PREVENT STACKING) */}
-          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0 justify-start sm:justify-end hide-scrollbar">
-            {!isViewMode && (
-              <>
-                <button id="tour-proctor-ai" onClick={onShowAI} className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative shadow-lg shadow-indigo-600/20" title="Accord AI Support">
-                  <Headphones size={16} className="md:w-[18px] md:h-[18px]" />
-                </button>
-
-                <button id="tour-proctor-chat" onClick={onShowChat} className="shrink-0 bg-white/10 hover:bg-indigo-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
-                  <MessageSquare size={16} className="md:w-[18px] md:h-[18px]" />
-                  {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 md:-top-2 md:-right-2 flex h-3.5 w-3.5 md:h-4 md:w-4 items-center justify-center rounded-full bg-rose-500 border-2 border-slate-900 text-[7px] md:text-[8px] font-black text-white shadow-lg animate-bounce">
-                      {unreadMessageCount}
-                    </span>
-                  )}
-                </button>
-                
-                <button id="tour-proctor-help" onClick={onShowHelp} className="shrink-0 bg-white/10 hover:bg-emerald-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
-                  <HelpCircle size={16} className="md:w-[18px] md:h-[18px]" />
-                </button>
-                
-                <button id="tour-proctor-notify" onClick={onShowNotify} className="shrink-0 bg-white/10 hover:bg-blue-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative">
-                  <Bell size={16} className="md:w-[18px] md:h-[18px]" />
-                  {notifications?.filter(n => !n.is_read).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"/>}
-                </button>
-                
-                <button id="tour-proctor-settings" onClick={onShowPassword} className="shrink-0 bg-white/10 hover:bg-slate-500 text-white p-2 md:p-2.5 rounded-xl transition-all relative" title="Settings & Privacy">
-                  <Settings size={16} className="md:w-[18px] md:h-[18px]" />
-                </button>
-              </>
-            )}
-            {isViewMode ? (
-              <button onClick={onCloseView} className="shrink-0 w-full sm:w-auto bg-rose-500 hover:bg-rose-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-xl transition-all font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl">Close View</button>
-            ) : (
-              <button id="tour-proctor-logout" onClick={onLogout} className="shrink-0 bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white p-2 md:p-2.5 rounded-xl transition-all border border-rose-500/20 hover:border-transparent">
-                <LogOut size={16} className="md:w-[18px] md:h-[18px]" />
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
+        </nav> 
        
       
 
