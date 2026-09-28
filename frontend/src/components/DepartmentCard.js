@@ -76,14 +76,33 @@ const parseSubjectProfs = (profString) => {
 };
 
 // --- ACCORD PRO TUTORIAL BANNER ---
+ // --- ACCORD PRO TUTORIAL BANNER ---
 const TabTutorial = ({ title, description, onShowAI, storageKey }) => {
   const [isOpen, setIsOpen] = useState(() => localStorage.getItem(storageKey) !== 'hidden');
-  if (!isOpen) return null;
   
   const handleDismiss = () => {
      setIsOpen(false);
      localStorage.setItem(storageKey, 'hidden');
   };
+
+  const handleRestore = () => {
+     setIsOpen(true);
+     localStorage.removeItem(storageKey);
+  };
+
+  // When hidden, show a compact restore button
+  if (!isOpen) {
+     return (
+        <div className="flex justify-end mb-2 animate-in fade-in duration-300">
+           <button 
+             onClick={handleRestore} 
+             className="text-[9px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-transparent hover:bg-blue-50"
+           >
+              <Info size={12} /> Show Guide
+           </button>
+        </div>
+     );
+  }
 
   return (
      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-[2rem] p-6 mb-8 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between relative overflow-hidden group shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
@@ -100,7 +119,7 @@ const TabTutorial = ({ title, description, onShowAI, storageKey }) => {
        </div>
        <div className="relative z-10 flex gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0">
          <button onClick={onShowAI} className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">
-           <Headphones size={14} /> Ask AI
+           <Headphones size={14} /> Need Help?
          </button>
          <button onClick={handleDismiss} className="bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-500 p-2.5 rounded-xl border border-slate-200 hover:border-rose-200 transition-all active:scale-95" title="Dismiss Guide">
            <X size={14} />
