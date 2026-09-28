@@ -26,14 +26,15 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
     if (!session) return `User is currently on the authentication screen. Auth Mode: ${authMode}. They may need help logging in, resetting a password, or finding an invite code.`;
     if (profile?.status === 'BLOCKED') return `User's account is currently BLOCKED by an admin.`;
     if (profile?.status === 'PENDING') return `User's account is PENDING. They are waiting for a Head Admin to approve their access.`;
-    return `User is logged in as ${profile?.role} in the ${profile?.assigned_dept || 'Global'} department. They are currently actively working inside the '${activeTab}' tab.`;
+    return `User is logged in as ${profile?.role} in the${profile?.assigned_dept || 'Global'} department. They are currently actively working inside the '${activeTab}' tab.`;
   };
 
   const getDynamicQuestions = () => {
     if (!session) return ["Where do I get an invite code?", "Why is my account pending?"];
     if (activeTab === 'users') return ["How do I approve a pending user?", "How do I edit staff roles?"];
-    if (activeTab === 'dashboard') return ["How do I resolve a double-booking?", "How do I export the schedule?"];
-    return ["How do I use this section?", "How do I log availability?"];
+    if (activeTab === 'dashboard') return ["How does Reliever Logic work?", "How do I resolve a double-booking?"];
+    if (activeTab === 'generate' || activeTab === 'preview') return ["What is the Conflict of Interest rule?", "How does the Re-Validation Engine work?"];
+    return ["How do I use this workspace?", "How does Global Room Pooling work?"];
   };
 
   const handleFileSelect = (e) => {
@@ -74,19 +75,24 @@ export default function GlobalAIAssistant({ session, profile, authMode, activeTa
 
     try {
       const currentTime = new Date().toLocaleTimeString();
-      const systemPrompt = `You are the Accord Pro Assistant, an intelligent, reliable AI for an institutional examination operations platform. 
+      const systemPrompt = `You are the Accord Pro Assistant, an expert AI for an institutional examination scheduling platform. 
       
       CURRENT LIVE CONTEXT:
-      Time: ${currentTime}
-      ${getUserContext()}
+      Time: ${currentTime}${getUserContext()}
+
+      ACCORD PRO CORE LOGIC & RULES (YOU MUST KNOW THESE TO HELP THE ADMIN):
+      1. CONFLICT OF INTEREST RULE: The algorithm strictly prevents professors from proctoring their own subjects to prevent answer leakage. If an admin asks why a specific proctor is missing from the generator or dropdown, explicitly tell them to check if that proctor is the assigned Subject Teacher.
+      2. RELIEVER LOGIC: Proctors must actively log availability to be 'Verified'. If the system runs out of verified staff during generation, it drafts unverified proctors and automatically sends them a 'Reliever Request' to Accept or Decline on their dashboard.
+      3. RE-VALIDATION ENGINE: Admins can manually override rooms or proctors in the Master Draft. Every manual change triggers an instant system scan to prevent newly created double-bookings.
+      4. GLOBAL POOLING: Admins can toggle Room and Proctor sources between 'Internal Department' (local resources only) and 'Global Pool' (borrowing shared university resources).
 
       CORE PLATFORM BOUNDARIES (CRITICAL):
       - Accord Pro is STRICTLY for Room/Proctor scheduling, conflict resolution, and dispatch.
-      - Accord Pro DOES NOT handle student registrations, grading, test results, or student portals. NEVER mention these features.
+      - Accord Pro DOES NOT handle student registrations, grading, or test results. NEVER mention these features.
 
       CRITICAL RULES:
       1. Be highly reliable, concise, and professional.
-      2. ABSOLUTELY NO MARKDOWN. Do NOT use asterisks (*), hash symbols (#), or bullet points. Respond in pure, clean, plain text paragraphs.
+      2. ABSOLUTELY NO MARKDOWN. Do NOT use asterisks (*), hash symbols (#), or bullet points. Respond in pure, clean, plain text paragraphs because the UI parser strips markdown.
       3. DO NOT promise to open support tickets. Instruct the user to message their Head Admin directly via the internal Accord Chat.`;
 
       let apiUserContent = userDisplayMessage;
