@@ -3680,8 +3680,18 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
 
   if (!session || isRegisteringProcess || authMode === 'success') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative">
+        
+        {/* NEW: Back to Landing Page Button */}
+        <button 
+          onClick={() => setShowLanding(true)} 
+          className="absolute top-6 left-6 md:top-10 md:left-10 text-slate-400 hover:text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors z-50 bg-white/5 hover:bg-white/10 px-4 py-3 rounded-2xl"
+        >
+          <ArrowLeft size={16} /> Back to Home
+        </button>
+
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
+         
           <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
           <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
@@ -3879,6 +3889,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
   }
 
  // --- SECURE ACCESS DENIED SCREEN ---
+ // --- SECURE ACCESS DENIED SCREEN ---
   if (!profile && !loading) {
     return (
        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 text-center animate-in fade-in zoom-in duration-500">
@@ -3887,7 +3898,13 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
           <p className="text-[10px] md:text-xs text-slate-400 mb-8 font-bold leading-relaxed max-w-md uppercase tracking-widest">
             Your account profile could not be found or has been deleted from the system. If you believe this is an error, please contact your Head Administrator.
           </p>
-          <button onClick={handleHardReset} className="bg-rose-600 hover:bg-rose-500 text-white px-10 py-4 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
+          <button onClick={async () => {
+             // Forceful logout bypassing the confirmation modal
+             await supabase.auth.signOut();
+             localStorage.removeItem('active_dept_id');
+             sessionStorage.clear();
+             window.location.reload();
+          }} className="bg-rose-600 hover:bg-rose-500 text-white px-10 py-4 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
             Return to Login
           </button>
        </div>
