@@ -75,6 +75,41 @@ const parseSubjectProfs = (profString) => {
   });
 };
 
+// --- ACCORD PRO TUTORIAL BANNER ---
+const TabTutorial = ({ title, description, onShowAI, storageKey }) => {
+  const [isOpen, setIsOpen] = useState(() => localStorage.getItem(storageKey) !== 'hidden');
+  if (!isOpen) return null;
+  
+  const handleDismiss = () => {
+     setIsOpen(false);
+     localStorage.setItem(storageKey, 'hidden');
+  };
+
+  return (
+     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-[2rem] p-6 mb-8 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between relative overflow-hidden group shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+       <div className="absolute -right-4 -top-4 text-blue-500/5 transform rotate-12 pointer-events-none">
+         <HelpCircle size={100} />
+       </div>
+       <div className="relative z-10 flex-1 pr-4">
+         <h4 className="text-xs font-black text-blue-800 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+           <Info size={14} className="text-blue-600"/> Workspace Guide: {title}
+         </h4>
+         <p className="text-[10px] font-bold text-slate-600 leading-relaxed">
+           {description}
+         </p>
+       </div>
+       <div className="relative z-10 flex gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0">
+         <button onClick={onShowAI} className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">
+           <Headphones size={14} /> Ask AI
+         </button>
+         <button onClick={handleDismiss} className="bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-500 p-2.5 rounded-xl border border-slate-200 hover:border-rose-200 transition-all active:scale-95" title="Dismiss Guide">
+           <X size={14} />
+         </button>
+       </div>
+    </div>
+  );
+};
+
 const DepartmentCard = ({
   dept,
   onUpdate,
@@ -86,11 +121,12 @@ const DepartmentCard = ({
   allDepartments = [],
   allProfiles = [],
   globalAvailability = [], 
- role,
+role,
   onNotify,
   onEditProctor,
   highlightTarget,
-  onEditCrest
+  onEditCrest,
+  onShowAI
 }) => {
   const [activeTab, setActiveTab] = useState("subjects");
 
@@ -1341,9 +1377,22 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
      <div className="p-12">
        {/* SUBJECTS TAB */}
-        {activeTab === 'subjects' && (
+       {activeTab === 'subjects' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
             
+           <TabTutorial 
+               title="Curriculum & Subjects" 
+               description={
+                 <span className="flex flex-col gap-2 mt-1.5">
+                   <span><strong>Build your master curriculum.</strong> Add subject codes, descriptions, and assign co-teachers for specific sections.</span>
+                   <span><strong className="text-blue-700">Smart Checking:</strong> The system actively scans your input against the global directory to verify staff identities.</span>
+                   <span><strong className="text-blue-700">Conflict of Interest Rule:</strong> Accord Pro's algorithm ensures that assigned professors are never scheduled to proctor their own exams to prevent answer leakage. <em className="text-slate-500 block mt-1">(Tip: Leave the section field blank to assign a professor to all sections of a subject.)</em></span>
+                 </span>
+               }
+               onShowAI={onShowAI}
+               storageKey={`tut_subj_${deptId}`}
+            />
+
             {/* --- UPGRADED DYNAMIC SUBJECT FORM --- */}
             <div className="flex flex-col gap-6 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
               
@@ -1498,12 +1547,21 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         )}
 
         {/* PROCTORS TAB */}
-        {activeTab === 'proctors' && (
+       {activeTab === 'proctors' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
-            <div className="bg-emerald-50/50 p-6 rounded-[2.5rem] border border-emerald-100">
-               <p className="text-[10px] font-black uppercase text-emerald-600 mb-2">Automated Roster Information</p>
-               <p className="text-[9px] text-slate-500 leading-relaxed font-bold">Proctors appear here automatically when they link their account to "{deptCode}". They must manually log availability on their own dashboard to be used in the generator.</p>
-            </div>
+            
+           <TabTutorial 
+               title="Proctor Roster & Availability" 
+               description={
+                 <span className="flex flex-col gap-2 mt-1.5">
+                   <span><strong>Monitor your department's workforce in real-time.</strong> This roster automatically syncs staff accounts linked to your department.</span>
+                   <span><strong className="text-blue-700">Availability Engine:</strong> Proctors must explicitly log their available hours on their personal dashboards to appear as 'Verified' (Green).</span>
+                   <span><strong className="text-blue-700">Reliever Logic:</strong> If the algorithm runs out of verified staff, it will draft unverified proctors and automatically send them a mandatory 'Reliever Request' to accept or decline before the schedule locks.</span>
+                 </span>
+               }
+               onShowAI={onShowAI}
+               storageKey={`tut_proc_${deptId}`}
+            />
             
             <div className="grid grid-cols-1 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {activeDeptProctors.map(p => {
@@ -1565,9 +1623,23 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         )}
 
      {/* ROOMS TAB */}
-        {activeTab === 'rooms' && (
+       {activeTab === 'rooms' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
+           <TabTutorial 
+               title="Room Management" 
+               description={
+                 <span className="flex flex-col gap-2 mt-1.5">
+                   <span><strong>Define your physical exam locations.</strong> Register room numbers and set strict maximum capacities.</span>
+                   <span><strong className="text-blue-700">Smart Allocation:</strong> The generation algorithm automatically pairs sections with rooms that safely fit their enrolled headcount.</span>
+                   <span><strong className="text-blue-700">Global Sharing:</strong> Toggle a room to the 'Global Pool' to allow other departments across your campus to borrow it when their internal resources are exhausted.</span>
+                 </span>
+               }
+               onShowAI={onShowAI}
+               storageKey={`tut_room_${deptId}`}
+            />
+            
             <div className="flex flex-col md:flex-row gap-4 bg-amber-50/50 p-8 rounded-[3rem] border border-amber-100 shadow-inner">
+            
               <input value={roomNum} onChange={e => setRoomNum(e.target.value)} placeholder="ROOM NO. OR HALL" className="flex-[2] p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
               <input value={roomCap} onChange={e => setRoomCap(e.target.value)} placeholder="CAPACITY (e.g. 40-50)" className="flex-1 p-5 rounded-3xl text-xs font-black border-2 border-amber-50 outline-none focus:border-amber-500" />
               <select value={roomType} onChange={e => setRoomType(e.target.value)} className="bg-white px-8 rounded-3xl font-black text-[10px] uppercase outline-none shadow-sm border-2 border-amber-50 appearance-none">
@@ -1621,10 +1693,24 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         )}
 
         {/* GENERATE TAB */}
-        {activeTab === 'generate' && (
+       {activeTab === 'generate' && (
           <div className="space-y-8 animate-in zoom-in-95 duration-300">
+           <TabTutorial 
+               title="Algorithm Configuration" 
+               description={
+                 <span className="flex flex-col gap-2 mt-1.5">
+                   <span><strong>Configure the boundaries of your exam schedule.</strong> Define the total exam days, daily start times, and exact student headcount for every section to trigger capacity matching.</span>
+                   <span><strong className="text-blue-700">Algorithm Toggles:</strong> Choose whether to strictly use internal department resources or borrow from the Global Pool.</span>
+                   <span>Once you click <strong>Start Calculation</strong>, Accord Pro will evaluate thousands of permutations to resolve conflicts, enforce rotation rules, and distribute workloads equally among your staff.</span>
+                 </span>
+               }
+               onShowAI={onShowAI}
+               storageKey={`tut_gen_${deptId}`}
+            />
+            
             {generationErrors.length > 0 && (
-              <div className="bg-rose-50 border-2 border-rose-200 rounded-[2.5rem] p-8">
+            
+            <div className="bg-rose-50 border-2 border-rose-200 rounded-[2.5rem] p-8">
                 <div className="flex items-center gap-4 mb-6 text-rose-600">
                   <AlertCircle size={32} />
                   <div>
@@ -1752,9 +1838,23 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
         )}
 
        {/* PREVIEW TAB */}
-        {activeTab === 'preview' && (
+       {activeTab === 'preview' && (
           <div className="space-y-10 animate-in fade-in duration-500">
+           <TabTutorial 
+               title="Master Draft Audit" 
+               description={
+                 <span className="flex flex-col gap-2 mt-1.5">
+                   <span><strong>Audit your generated Master Draft before publishing.</strong></span>
+                   <span><strong className="text-blue-700">Manual Powers:</strong> You have absolute authority to reorder subjects via the arrows, override strict room capacities, or force-swap proctors using the Edit buttons.</span>
+                   <span><strong className="text-blue-700">Re-Validation Engine:</strong> Every manual change triggers an instant system scan to detect newly created double-bookings. Once the schedule is flawless, click <strong>Approve & Lock</strong> to publish it to the live global timeline.</span>
+                 </span>
+               }
+               onShowAI={onShowAI}
+               storageKey={`tut_prev_${deptId}`}
+            />
+            
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-slate-100 pb-8 px-4 gap-6">
+             
               <div>
                 <h3 className="text-4xl font-black uppercase text-slate-900 tracking-tighter flex items-center gap-4">
                   Master <span className="text-blue-600">Draft</span>
