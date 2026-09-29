@@ -1431,15 +1431,17 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="flex bg-slate-50/50 p-3 gap-2 border-b border-slate-100">
+      <div className="flex bg-slate-50/50 p-2 md:p-3 gap-2 border-b border-slate-100 overflow-x-auto hide-scrollbar">
         {['subjects', 'proctors', 'rooms', 'generate', 'preview'].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === t ? 'bg-white shadow-xl text-blue-600 scale-[1.02] border border-slate-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>
+          <button key={t} onClick={() => setActiveTab(t)} className={`shrink-0 flex-1 min-w-[110px] md:min-w-0 py-3 md:py-4 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] rounded-xl md:rounded-2xl transition-all duration-300 ${activeTab === t ? 'bg-white shadow-md text-blue-600 border border-slate-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>
 {t} {t === 'preview' && filteredPreview.length > 0 && `(${filteredPreview.length})`}
           </button>
         ))}
       </div>
 
-     <div className="p-12">
+     {/* Reduced Mobile Padding: p-4 instead of p-12 */}
+     <div className="p-4 sm:p-6 md:p-12">
+
        {/* SUBJECTS TAB */}
        {activeTab === 'subjects' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-2">
@@ -1803,33 +1805,34 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             
             {generationErrors.length > 0 && (
             
-            <div className="bg-rose-50 border-2 border-rose-200 rounded-[2.5rem] p-8">
-                <div className="flex items-center gap-4 mb-6 text-rose-600">
-                  <AlertCircle size={32} />
+            <div className="bg-rose-50 border-2 border-rose-200 rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-8">
+                <div className="flex items-center gap-3 md:gap-4 mb-5 md:mb-6 text-rose-600">
+                  <AlertCircle size={28} className="md:w-8 md:h-8" />
                   <div>
-                    <h5 className="font-black uppercase tracking-tighter text-xl">Schedule Halted</h5>
-                    <p className="text-[9px] font-bold opacity-70 uppercase tracking-widest">Pre-flight Conflict Report</p>
+                    <h5 className="font-black uppercase tracking-tighter text-lg md:text-xl leading-none">Schedule Halted</h5>
+                    <p className="text-[8px] md:text-[9px] font-bold opacity-70 uppercase tracking-widest mt-1">Pre-flight Conflict Report</p>
                   </div>
                 </div>
                 <div className="space-y-3">
                   {generationErrors.map((err, i) => (
-                    <div key={i} className="bg-white/60 p-4 rounded-2xl flex justify-between items-center border border-rose-100 shadow-sm">
-                      <div>
-                        <span className="text-[8px] font-black text-rose-600 uppercase block">Issue</span>
-                        <p className="text-xs font-black text-slate-800">{err.issue}</p>
+                    <div key={i} className="bg-white/60 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center border border-rose-100 shadow-sm gap-3">
+                      <div className="w-full sm:w-auto">
+                        <span className="text-[8px] font-black text-rose-600 uppercase block mb-0.5">Issue</span>
+                        <p className="text-[11px] md:text-xs font-black text-slate-800">{err.issue}</p>
                       </div>
-                      <div className="text-right max-w-[60%]">
-                        <span className="text-[8px] font-black text-emerald-600 uppercase block">Resolution</span>
-                        <p className="text-[10px] font-bold text-slate-600 leading-tight">{err.resolution}</p>
+                      <div className="text-left sm:text-right w-full sm:max-w-[60%] border-t sm:border-none border-rose-100 pt-2 sm:pt-0">
+                        <span className="text-[8px] font-black text-emerald-600 uppercase block mb-0.5">Resolution</span>
+                        <p className="text-[9px] md:text-[10px] font-bold text-slate-600 leading-tight">{err.resolution}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            <div className="bg-slate-900 rounded-[3.5rem] p-12 text-white shadow-2xl relative overflow-hidden">
+            <div className="bg-slate-900 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-12 text-white shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-16 relative z-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 relative z-10">
+               
                 <div className="space-y-10">
                   <h4 className="flex items-center gap-3 text-blue-400 font-black text-[10px] uppercase tracking-[0.4em]">
                     <div className="w-10 h-1 bg-blue-400 rounded-full"/> Timeline Config
@@ -2080,79 +2083,83 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
               </div>
             ))}
 
-           <div className="grid grid-cols-1 gap-10 mt-16">
+        
+<div className="grid grid-cols-1 gap-6 md:gap-10 mt-8 md:mt-12">
               {paginatedPreview.length > 0 ? paginatedPreview.map((row, i) => (
               
-              <div key={i} className="bg-white border-2 border-slate-100 rounded-[3rem] overflow-hidden flex flex-col md:flex-row hover:border-blue-300 transition-all hover:shadow-2xl group relative">
-                  <div className="absolute top-6 right-10 flex gap-4 z-20 items-center">
+              <div key={i} className="bg-white border-2 border-slate-100 rounded-[2rem] md:rounded-[3rem] overflow-hidden flex flex-col md:flex-row hover:border-blue-300 transition-all hover:shadow-2xl group relative">
+                  <div className="absolute top-4 right-4 md:top-6 md:right-10 flex gap-4 z-20 items-center">
                     {renderStatusBadge(row.status)}
                   </div>
-                  <div className={`p-10 md:w-80 flex flex-col justify-between text-white border-r-8 transition-all duration-500 ${row.status === 'ACTIVE' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-800 border-blue-600'}`}>
+                  
+                  {/* Left Metadata Pane - Restructured for Mobile */}
+                  <div className={`p-6 md:p-10 md:w-80 flex flex-col justify-between text-white border-b-8 md:border-b-0 md:border-r-8 transition-all duration-500 ${row.status === 'ACTIVE' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-800 border-blue-600'}`}>
                     <div>
-                      <span className="text-blue-400 font-black text-[10px] uppercase tracking-[0.3em]">Year {row.year} Block</span>
-                      <h5 className="text-5xl font-black tracking-tighter mt-2">{row.section}</h5>
+                      <span className="text-blue-400 font-black text-[9px] md:text-[10px] uppercase tracking-[0.3em]">Year {row.year} Block</span>
+                      <h5 className="text-4xl md:text-5xl font-black tracking-tighter mt-1 md:mt-2">{row.section}</h5>
                     </div>
-                    <div className="mt-8 space-y-4">
-                      <div className="flex items-center gap-3 text-[11px] font-black uppercase"><Calendar size={16} className="text-blue-400"/> {row.date}</div>
-                      <div className="flex items-center gap-3 text-[11px] font-black uppercase"><Clock size={16} className="text-blue-400"/> {formatTime(row.startTime)} - {formatTime(row.endTime)}</div>
+                    <div className="mt-5 md:mt-8 space-y-2 md:space-y-4">
+                      <div className="flex items-center gap-2 md:gap-3 text-[10px] md:text-[11px] font-black uppercase"><Calendar size={14} className="text-blue-400 md:w-4 md:h-4"/> {row.date}</div>
+                      <div className="flex items-center gap-2 md:gap-3 text-[10px] md:text-[11px] font-black uppercase"><Clock size={14} className="text-blue-400 md:w-4 md:h-4"/> {formatTime(row.startTime)} - {formatTime(row.endTime)}</div>
                     </div>
-                    <div className="mt-10 pt-8 border-t border-white/10 space-y-3">
-                      <div onClick={() => setRoomModal({ isOpen: true, targetBlock: { section: row.section, date: row.date, startTime: row.startTime, endTime: row.endTime, dept: deptCode }, pool: 'Draft' })} className="bg-blue-600 hover:bg-blue-500 cursor-pointer px-4 py-3 rounded-xl text-[10px] font-black flex justify-between items-center shadow-md transition-colors">
+                    <div className="mt-6 md:mt-10 pt-5 md:pt-8 border-t border-white/10 space-y-3">
+                      <div onClick={() => setRoomModal({ isOpen: true, targetBlock: { section: row.section, date: row.date, startTime: row.startTime, endTime: row.endTime, dept: deptCode }, pool: 'Draft' })} className="bg-blue-600 hover:bg-blue-500 cursor-pointer px-4 py-3 rounded-xl text-[9px] md:text-[10px] font-black flex justify-between items-center shadow-md transition-colors">
                         <span>ROOM</span><span className="flex items-center gap-2">{row.room} <Edit3 size={12}/></span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex-1 p-10 bg-slate-50/30">
-                    <div className="mb-8 flex items-center gap-3">
-                      <BookOpen size={20} className="text-blue-600" />
-                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Scheduled Subjects ({row.subs.length})</span>
+                  {/* Right Subject Pane - Reduced padding */}
+                  <div className="flex-1 p-5 md:p-10 bg-slate-50/30">
+                    <div className="mb-6 md:mb-8 flex items-center gap-3">
+                      <BookOpen size={16} className="text-blue-600 md:w-5 md:h-5" />
+                      <span className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Scheduled Subjects ({row.subs.length})</span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                       {row.subs.map((s, idx) => (
 
-<div 
-  id={`block-${s.code}`}
-  className={`bg-white p-6 rounded-3xl border-2 transition-all duration-300 flex flex-col justify-between ${
-    highlightTarget === s.code ? 'ring-[4px] ring-rose-500 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] scale-105 z-10' : 
-    s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 hover:border-blue-100 hover:shadow-md'
-  }`}
->
-<div className="flex justify-between items-start">
+                      <div 
+                        id={`block-${s.code}`}
+                        className={`bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 transition-all duration-300 flex flex-col justify-between ${
+                          highlightTarget === s.code ? 'ring-[4px] ring-rose-500 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] scale-[1.02] z-10' : 
+                          s.flagged ? 'border-orange-400 bg-orange-50' : 'border-slate-100 hover:border-blue-100 hover:shadow-md'
+                        }`}
+                      >
+                          <div className="flex justify-between items-start">
                             <div className="flex-1 mr-2">
                               <select 
                                 value={s.code} 
                                 onChange={(e) => handleSubjectSwitch(s.id, e.target.value)}
-                                className="bg-transparent border-none text-sm font-black text-blue-600 outline-none cursor-pointer appearance-none hover:underline"
+                                className="bg-transparent border-none text-xs md:text-sm font-black text-blue-600 outline-none cursor-pointer appearance-none hover:underline p-0"
                               >
                                 {subjects[s.year_level]?.map(sub => (
                                   <option key={sub.code} value={sub.code}>{sub.code}</option>
                                 ))}
                               </select>
-                              <span className="block text-[9px] font-black text-slate-400 uppercase italic tracking-tighter mt-1">{s.slot}</span>
+                              <span className="block text-[8px] md:text-[9px] font-black text-slate-400 uppercase italic tracking-tighter mt-1">{s.slot}</span>
                             </div>
-                            <div className="flex flex-col gap-1 bg-slate-50 p-1 rounded-lg">
-                              <button onClick={() => handleMoveSubject(row, idx, -1)} className="text-slate-300 hover:text-blue-600"><ArrowUp size={14}/></button>
-                              <button onClick={() => handleMoveSubject(row, idx, 1)} className="text-slate-300 hover:text-blue-600"><ArrowDown size={14}/></button>
+                            <div className="flex flex-row md:flex-col gap-1 bg-slate-50 p-1 rounded-lg shrink-0">
+                              <button onClick={() => handleMoveSubject(row, idx, -1)} className="text-slate-300 hover:text-blue-600 p-1"><ArrowUp size={12} className="md:w-3.5 md:h-3.5"/></button>
+                              <button onClick={() => handleMoveSubject(row, idx, 1)} className="text-slate-300 hover:text-blue-600 p-1"><ArrowDown size={12} className="md:w-3.5 md:h-3.5"/></button>
                             </div>
                           </div>
-                          <p className="text-[11px] font-black text-slate-800 uppercase mt-4 leading-snug">{s.name}</p>
-                          <div className={`mt-4 pt-4 border-t flex justify-between items-center ${s.flagged ? 'border-orange-200' : 'border-slate-100'}`}>
-                       <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       
-                          <Users size={12}/> 
-                          <span className="truncate max-w-[80px]">{s.proctor}</span>
-                          {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
-                             <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[7px] shadow-sm ml-1">GUEST</span>
-                          ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
-                             <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[7px] animate-pulse shadow-sm ml-1">TBC</span>
-                          ) : null)}
-                          <Edit3 size={10} className="ml-1"/>
-                       </button>
-                            <button onClick={() => setFlagModal({ isOpen: true, targetId: s.id, note: s.flagNote })} className={`p-1.5 rounded-lg transition-colors ${s.flagged ? 'bg-orange-100 text-orange-600' : 'hover:bg-slate-100 text-slate-300 hover:text-orange-500'}`}>
-                              <AlertTriangle size={14}/>
-                            </button>
+                          <p className="text-[10px] md:text-[11px] font-black text-slate-800 uppercase mt-3 md:mt-4 leading-snug">{s.name}</p>
+                          <div className={`mt-3 md:mt-4 pt-3 md:pt-4 border-t flex justify-between items-center ${s.flagged ? 'border-orange-200' : 'border-slate-100'}`}>
+                             <button onClick={() => setProctorModal({ isOpen: true, targetSub: { ...s, date: row.date, section: row.section, room: row.room, startTime: row.startTime, endTime: row.endTime }, pool: 'Department' })} className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-1.5 transition-colors ${s.isManualProctor ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}>       
+                                <Users size={10} className="md:w-3 md:h-3"/> 
+                                <span className="truncate max-w-[70px] md:max-w-[80px]">{s.proctor}</span>
+                                {!allProfiles.some(p => (p.full_name||'').toLowerCase() === (s.proctor||'').toLowerCase()) && s.proctor !== 'TBA' ? (
+                                   <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[6px] md:text-[7px] shadow-sm ml-1">GUEST</span>
+                                ) : (!globalAvailability.some(a => (a.proctor_name||'').toLowerCase() === (s.proctor||'').toLowerCase() && a.exam_date === row.date && s.startTime < a.end_time && s.endTime > a.start_time) && s.proctor !== 'TBA' ? (
+                                   <span className="bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded text-[6px] md:text-[7px] animate-pulse shadow-sm ml-1">TBC</span>
+                                ) : null)}
+                                <Edit3 size={10} className="ml-0.5 md:ml-1"/>
+                             </button>
+                             <button onClick={() => setFlagModal({ isOpen: true, targetId: s.id, note: s.flagNote })} className={`p-1.5 rounded-lg transition-colors ${s.flagged ? 'bg-orange-100 text-orange-600' : 'hover:bg-slate-100 text-slate-300 hover:text-orange-500'}`}>
+                                <AlertTriangle size={12} className="md:w-3.5 md:h-3.5"/>
+                             </button>
                           </div>
-                          {s.flagNote && <div className="mt-3 bg-orange-100 text-orange-800 text-[8px] font-bold p-2 rounded-lg italic break-words">NOTE: {s.flagNote}</div>}
+                          {s.flagNote && <div className="mt-2 md:mt-3 bg-orange-100 text-orange-800 text-[7px] md:text-[8px] font-bold p-2 rounded-lg italic break-words">NOTE: {s.flagNote}</div>}
                         </div>
                       ))}
                     </div>
