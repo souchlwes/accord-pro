@@ -1457,28 +1457,31 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                storageKey={`tut_subj_${deptId}`}
             />
 
+           
             {/* --- UPGRADED DYNAMIC SUBJECT FORM --- */}
             <div className="flex flex-col gap-6 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Year Level</label>
-                  <select className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 appearance-none" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                    {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
-                  </select>
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2 block">Year Level</label>
+                  <div className="flex bg-slate-100 p-1 rounded-2xl w-full overflow-x-auto hide-scrollbar border-2 border-transparent">
+                    {[1, 2, 3, 4, 5].map(y => (
+                      <button key={y} onClick={() => setSelectedYear(String(y))} className={`flex-1 px-3 py-3.5 text-[10px] md:text-xs font-black uppercase rounded-xl transition-all whitespace-nowrap ${String(selectedYear) === String(y) ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Y{y}</button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Subject Code</label>
-                  <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2 block">Subject Code</label>
+                  <input id={`sC-${deptId}`} placeholder="e.g. CS101" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500 uppercase" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Description</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2 block">Description</label>
                   <input id={`sN-${deptId}`} placeholder="Full Name" className="w-full p-4 rounded-2xl text-xs font-black bg-white border-2 border-slate-100 outline-none focus:border-blue-500" />
                 </div>
               </div>
 
-              {/* --- NEW: DYNAMIC PROCTOR BOXES --- */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+              {/* --- DYNAMIC PROCTOR BOXES W/ SMART AUTOCOMPLETE --- */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4 relative z-20">
                  <div className="flex justify-between items-center">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Assigned Professor(s) & Sections</label>
                  </div>
@@ -1486,47 +1489,73 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                 {tempProfs.map((p, idx) => {
                     const typedName = p.name.trim();
                     let matches = [];
-                    // LIVE SEARCH: Use our Smart Engine to find matches as they type
-                    if (typedName.length > 1) {
-                       matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                    if (typedName.length > 0) {
+                       matches = globalProctorPool.filter(proc => {
+                           const pName = proc.full_name || proc.name;
+                           return pName.toLowerCase().includes(typedName.toLowerCase()) || checkNameMatch(typedName, pName);
+                       });
                     }
+                    
+                    const isExactMatch = matches.length === 1 && (matches[0].full_name || matches[0].name).toLowerCase() === typedName.toLowerCase();
 
                     return (
                     <div key={idx} className="flex flex-col bg-slate-50 p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
-                       <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                       <div className="flex flex-col md:flex-row gap-3 items-start w-full relative">
+                         
+                         <div className="flex-1 w-full relative">
+                           <input
+                             placeholder="Prof Name (e.g. Jane Doe)"
+                             value={p.name}
+                             onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
+                             className="w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                           />
+                           
+                           {/* SMART AUTOCOMPLETE DROPDOWN */}
+                           {typedName.length > 0 && matches.length > 0 && !isExactMatch && (
+                              <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-slate-100 rounded-2xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-1">
+                                 {matches.map(m => (
+                                    <button
+                                      key={m.id}
+                                      onClick={() => { const newP = [...tempProfs]; newP[idx].name = m.full_name || m.name; setTempProfs(newP); }}
+                                      className="w-full text-left px-3 py-2.5 text-[10px] font-black text-slate-600 uppercase hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors flex items-center gap-2 group"
+                                    >
+                                      <div className="bg-slate-100 p-1.5 rounded-lg group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors"><Users size={12}/></div>
+                                      {m.full_name || m.name} 
+                                      {m.assigned_dept && <span className="ml-auto text-[8px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-blue-100 group-hover:text-blue-500">Dept: {m.assigned_dept}</span>}
+                                    </button>
+                                 ))}
+                              </div>
+                           )}
+                         </div>
+                         
                          <input
-                           placeholder="Prof Name (e.g. Jane Doe)"
-                           value={p.name}
-                           onChange={(e) => { const newP = [...tempProfs]; newP[idx].name = e.target.value; setTempProfs(newP); }}
-                           className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
-                         />
-                         <input
-                           placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                           placeholder="Sections (e.g. A,B) - Blank for ALL"
                            value={p.sections}
                            onChange={(e) => { const newP = [...tempProfs]; newP[idx].sections = e.target.value; setTempProfs(newP); }}
                            className="flex-1 w-full bg-white p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
                          />
+                         
                          {tempProfs.length > 1 && (
-                           <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                           <button onClick={() => setTempProfs(tempProfs.filter((_, i) => i !== idx))} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shrink-0" title="Remove Professor">
                              <Trash2 size={18}/>
                            </button>
                          )}
                        </div>
                        
-                       {/* --- NEW: LIVE NAME VALIDATOR UI --- */}
-                       {typedName.length > 1 && (
+                       {/* --- LIVE STATUS BADGES --- */}
+                       {typedName.length > 0 && (
                          <div className="mt-3 px-2 flex items-center">
-                            {matches.length === 0 ? (
-                               <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
+                            {isExactMatch ? (
+                               <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1.5">
+                                 <CheckCircle2 size={12}/> Verified System Account
+                               </span>
+                            ) : matches.length === 0 ? (
+                               <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5">
                                  <Info size={12}/> External Teacher (No system account found)
                                </span>
-                            ) : matches.length === 1 ? (
-                               <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                                 <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
-                               </span>
                             ) : (
-                               <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
-                                 <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                               <span className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1.5 animate-pulse">
+                                 <Users size={12}/> Select from {matches.length} matching accounts...
                                </span>
                             )}
                          </div>
@@ -1569,7 +1598,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
                   <Plus size={16}/> Add Subject to Curriculum
                 </button>
               </div>
-            </div>
+            </div> 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
               {(subjects[selectedYear] || []).map((s, i) => (
@@ -2863,13 +2892,15 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-2 flex items-center gap-3"><BookOpen className="text-blue-600"/> Edit Subject (Year {editSubjectModal.year})</h3>
             
             <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 mb-6 space-y-4 mt-4">
-               
-               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Year Level</label>
-                    <select value={editSubjectModal.year} onChange={e => setEditSubjectModal({...editSubjectModal, year: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
-                      {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
-                    </select>
+                    <div className="flex bg-slate-100 p-1 rounded-2xl w-full overflow-x-auto hide-scrollbar border-2 border-transparent">
+                        {[1, 2, 3, 4, 5].map(y => (
+                          <button key={y} onClick={() => setEditSubjectModal({...editSubjectModal, year: String(y)})} className={`flex-1 px-3 py-3.5 text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${String(editSubjectModal.year) === String(y) ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Y{y}</button>
+                        ))}
+                    </div>
                   </div>
                   <div>
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-1 block">Subject Code</label>
@@ -2881,52 +2912,76 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4 relative z-20">
                   <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Assigned Professor(s) & Sections</label>
                  {editSubjectModal.tempProfs.map((p, idx) => {
                       const typedName = p.name.trim();
                       let matches = [];
-                      // LIVE SEARCH: Use our Smart Engine to find matches as they type
-                      if (typedName.length > 1) {
-                         matches = globalProctorPool.filter(proc => checkNameMatch(typedName, proc.full_name || proc.name));
+                      if (typedName.length > 0) {
+                         matches = globalProctorPool.filter(proc => {
+                             const pName = proc.full_name || proc.name;
+                             return pName.toLowerCase().includes(typedName.toLowerCase()) || checkNameMatch(typedName, pName);
+                         });
                       }
+                      const isExactMatch = matches.length === 1 && (matches[0].full_name || matches[0].name).toLowerCase() === typedName.toLowerCase();
 
                       return (
                       <div key={idx} className="flex flex-col bg-white p-4 rounded-3xl border border-slate-100 transition-all hover:shadow-sm">
-                         <div className="flex flex-col md:flex-row gap-3 items-center w-full">
+                         <div className="flex flex-col md:flex-row gap-3 items-start w-full relative">
+                           
+                           <div className="flex-1 w-full relative">
+                             <input
+                               placeholder="Prof Name (e.g. Jane Doe)"
+                               value={p.name}
+                               onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                               className="w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
+                             />
+                             {/* SMART AUTOCOMPLETE DROPDOWN */}
+                             {typedName.length > 0 && matches.length > 0 && !isExactMatch && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-slate-100 rounded-2xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-1">
+                                   {matches.map(m => (
+                                      <button
+                                        key={m.id}
+                                        onClick={() => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = m.full_name || m.name; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
+                                        className="w-full text-left px-3 py-2.5 text-[10px] font-black text-slate-600 uppercase hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors flex items-center gap-2 group"
+                                      >
+                                        <div className="bg-slate-100 p-1.5 rounded-lg group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors"><Users size={12}/></div>
+                                        {m.full_name || m.name} 
+                                        {m.assigned_dept && <span className="ml-auto text-[8px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-blue-100 group-hover:text-blue-500">Dept: {m.assigned_dept}</span>}
+                                      </button>
+                                   ))}
+                                </div>
+                             )}
+                           </div>
+                           
                            <input
-                             placeholder="Prof Name (e.g. Jane Doe)"
-                             value={p.name}
-                             onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].name = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
-                             className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500"
-                           />
-                           <input
-                             placeholder="Sections (e.g. A,B) - Leave blank for ALL"
+                             placeholder="Sections (e.g. A,B) - Blank for ALL"
                              value={p.sections}
                              onChange={(e) => { const newP = [...editSubjectModal.tempProfs]; newP[idx].sections = e.target.value; setEditSubjectModal({...editSubjectModal, tempProfs: newP}); }}
                              className="flex-1 w-full bg-slate-50 p-3 rounded-xl text-xs font-black border-2 border-slate-100 outline-none focus:border-blue-500 uppercase"
                            />
+                           
                            {editSubjectModal.tempProfs.length > 1 && (
-                             <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Remove Professor">
+                             <button onClick={() => setEditSubjectModal({...editSubjectModal, tempProfs: editSubjectModal.tempProfs.filter((_, i) => i !== idx)})} className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shrink-0" title="Remove Professor">
                                <Trash2 size={18}/>
                              </button>
                            )}
                          </div>
                          
-                         {/* --- NEW: LIVE NAME VALIDATOR UI FOR EDIT MODAL --- */}
-                         {typedName.length > 1 && (
+                         {/* --- LIVE STATUS BADGES --- */}
+                         {typedName.length > 0 && (
                            <div className="mt-3 px-2 flex items-center">
-                              {matches.length === 0 ? (
-                                 <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1">
-                                   <Info size={12}/> External Teacher (No system account found)
+                              {isExactMatch ? (
+                                 <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1.5">
+                                   <CheckCircle2 size={12}/> Verified System Account
                                  </span>
-                              ) : matches.length === 1 ? (
-                                 <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                                   <CheckCircle2 size={12}/> Identified System Account: {matches[0].full_name || matches[0].name}
+                              ) : matches.length === 0 ? (
+                                 <span className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5">
+                                   <Info size={12}/> External Teacher (No account found)
                                  </span>
                               ) : (
-                                 <span className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-1">
-                                   <AlertTriangle size={12}/> Ambiguous! Matches {matches.length} staff ({matches.map(m=>m.full_name||m.name).join(', ')}). Add an initial!
+                                 <span className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1.5 animate-pulse">
+                                   <Users size={12}/> Select from {matches.length} matching accounts...
                                  </span>
                               )}
                            </div>
@@ -2937,7 +2992,7 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                       <Plus size={14}/> Add Co-Teacher
                   </button>
                 </div>
-            </div>
+              </div>
 
             <div className="flex gap-4 pt-4 border-t-2 border-slate-50">
               <button onClick={() => setEditSubjectModal({ isOpen: false, originalCode: '', year: '', code: '', name: '', tempProfs: [] })} className="flex-1 p-4 rounded-xl font-black text-[10px] uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
