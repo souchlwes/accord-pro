@@ -1613,13 +1613,12 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
     reader.readAsText(file);
     e.target.value = null; 
   };
-
 return (
     <div className={`rounded-[1.5rem] md:rounded-[3rem] p-4 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-4 border-blue-500 bg-blue-100 scale-105 z-10 relative shadow-blue-300' : 'bg-white border border-slate-100'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-5">
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <h2 className="text-[10px] md:text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-            <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
+            <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Log Book'}
           </h2>
           <div className="flex bg-slate-100/50 border border-slate-200 p-1 rounded-lg ml-auto md:ml-0">
               <button onClick={() => setLogView('upcoming')} className={`px-3 py-1 text-[8px] font-black uppercase rounded transition-all ${logView === 'upcoming' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Active</button>
@@ -1628,42 +1627,42 @@ return (
         </div>
         
         {!readOnly && logView === 'upcoming' && (
-          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto">
+          <div className="flex w-full md:w-auto gap-2">
             <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none text-[8px] md:text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-2.5 rounded-xl hover:bg-emerald-100 transition-all border border-emerald-200 flex items-center justify-center gap-1.5">
-              <Download size={12}/> Excel Template
+              <Download size={12}/> Template
             </button>
             <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
             <button onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none text-[8px] md:text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-3 py-2.5 rounded-xl hover:bg-blue-100 transition-all border border-blue-200 shadow-sm flex items-center justify-center gap-1.5">
-              <Upload size={12}/> Bulk Upload
+              <Upload size={12}/> Bulk Add
             </button>
           </div>
         )}
       </div>
       
-      {/* --- REBUILT MOBILE-FRIENDLY FORM GRID --- */}
+      {/* --- REBUILT MOBILE-FRIENDLY FORM GRID WITH IOS HEIGHT FIX --- */}
       {!readOnly && (
         <div className="bg-slate-50/50 rounded-2xl p-3 md:p-5 border border-slate-100 mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
             
             <div className="col-span-2 md:col-span-1">
-              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Date</label>
-              <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Date</label>
+              <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white px-3 md:px-4 h-10 md:h-11 rounded-xl font-black text-[10px] md:text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm appearance-none min-h-[40px] m-0" />
             </div>
             
-            {/* These two sit side-by-side on mobile! */}
             <div className="col-span-1">
-              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Start Time</label>
-              <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Start Time</label>
+              <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white px-3 md:px-4 h-10 md:h-11 rounded-xl font-black text-[10px] md:text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm appearance-none min-h-[40px] m-0" />
             </div>
+            
             <div className="col-span-1">
-              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">End Time</label>
-              <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+              <label className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">End Time</label>
+              <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white px-3 md:px-4 h-10 md:h-11 rounded-xl font-black text-[10px] md:text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm appearance-none min-h-[40px] m-0" />
             </div>
 
             <div className="col-span-2 md:col-span-1 mt-1 md:mt-0">
-              <button onClick={handleSubmit} className="bg-blue-600 text-white p-3 rounded-xl shadow-md hover:bg-blue-500 transition-all active:scale-95 w-full flex justify-center items-center gap-2 h-[42px]">
+              <button onClick={handleSubmit} className="bg-blue-600 text-white px-3 h-10 md:h-11 rounded-xl shadow-md hover:bg-blue-500 transition-all active:scale-95 w-full flex justify-center items-center gap-2">
                 <Plus size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Add Log</span>
+                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Add Log</span>
               </button>
             </div>
             
@@ -1695,7 +1694,6 @@ return (
       </div>
     </div>
   );
-
 };
 
 // --- 3. PROCTOR DASHBOARD ---
@@ -3822,56 +3820,58 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div className="bg-white p-10 md:p-12 rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500">
+       {/* REDUCED PADDING: p-6 instead of p-10 on mobile */}
+        <div className="bg-white p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] w-full max-w-md shadow-[0_0_100px_rgba(0,0,0,0.5)] text-center animate-in zoom-in-95 duration-500 relative z-10">
          
-          <img src={accordLogo} alt="Accord Pro Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-2xl brightness-0" />
-          <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">Accord <span className="text-blue-600">Pro</span></h1>
+          <img src={accordLogo} alt="Accord Pro Logo" className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-3 md:mb-4 object-contain drop-shadow-2xl brightness-0" />
+          <h1 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Accord <span className="text-blue-600">Pro</span></h1>
           
           {authMode === 'success' ? (
-            <div className="animate-in fade-in zoom-in duration-300 py-8">
-              <CheckCircle2 size={64} className="mx-auto text-emerald-500 mb-6" />
-              <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Request Sent!</h2>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">
+            <div className="animate-in fade-in zoom-in duration-300 py-6 md:py-8">
+              <CheckCircle2 size={56} className="mx-auto text-emerald-500 mb-4 md:mb-6" />
+              <h2 className="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Request Sent!</h2>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 md:mb-8 leading-relaxed">
                 Your account has been registered.<br/>Please wait for an Administrator to approve your access.
               </p>
-              <button onClick={() => setAuthMode('login')} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl active:scale-95">
+              <button onClick={() => setAuthMode('login')} className="w-full bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl active:scale-95">
                 Return to Login
               </button>
             </div>
           ) : authMode === 'login' ? (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secure System Login</p>
+             <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 md:mb-8">Secure System Login</p>
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const {error}=await supabase.auth.signInWithPassword({email,password}); 
                 if(error) setAppToast({ message: error.message, type: "error" });
               }}>
-               <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-3 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+               {/* REDUCED INPUT HEIGHT: py-3.5 on mobile */}
+               <input type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-50 px-4 py-3.5 md:p-4 rounded-xl md:rounded-2xl mb-3 font-bold text-[11px] md:text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
 
-{/* Changed mb-8 to mb-4 to make room for the link */}
-<input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 p-4 rounded-2xl mb-4 font-bold text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
+               <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-slate-50 px-4 py-3.5 md:p-4 rounded-xl md:rounded-2xl mb-4 font-bold text-[11px] md:text-xs border-2 border-transparent focus:border-blue-500 outline-none transition-all"/>
 
-<div className="flex justify-end mb-6">
-  <button type="button" onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-blue-600 uppercase hover:underline">
-    Forgot Password?
-  </button>
-</div>
+              <div className="flex justify-end mb-5 md:mb-6">
+                <button type="button" onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-blue-600 uppercase hover:underline">
+                  Forgot Password?
+                </button>
+              </div>
 
-<button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-6 shadow-xl active:scale-95">
-  Sign In
-</button>
-</form>
+              {/* REDUCED BUTTON HEIGHT */}
+              <button type="submit" className="w-full bg-slate-900 text-white py-3.5 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition-all mb-5 md:mb-6 shadow-xl active:scale-95 text-[10px] md:text-xs">
+                Sign In
+              </button>
+              </form>
               
-              <div className="pt-6 border-t-2 border-slate-50">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
-                <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-100 transition-all active:scale-95">
+              <div className="pt-5 md:pt-6 border-t-2 border-slate-50">
+                <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">No account yet?</p>
+                <button onClick={() => { setAuthMode('register'); setFullName(''); setEmail(''); setPassword(''); }} className="w-full bg-blue-50 text-blue-600 py-3.5 md:py-4 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest hover:bg-blue-100 transition-all active:scale-95">
                   Create New Account
                 </button>
               </div>
             </div>
 
-           ) : authMode === 'forgot' ? (
-            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+           ) : authMode === 'forgot' ? (  
+           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 text-center">Account Recovery</p>
               
               {forgotStep === 'email' ? (
