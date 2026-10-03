@@ -1,3 +1,4 @@
+import StudentPortal from './StudentPortal'; // Adjust the path if you put it in a /components folder
 import SystemTour from './SystemTour';
 import GlobalAIAssistant from './GlobalAIAssistant';
 import accordLogo from './accord.png';
@@ -2517,7 +2518,8 @@ function App() {
 
   const [targetHighlight, setTargetHighlight] = useState("");
 
- const [showLanding, setShowLanding] = useState(true);
+const [showLanding, setShowLanding] = useState(true);
+ const [showStudentPortal, setShowStudentPortal] = useState(false); // Add this!
 
   // --- ROLE HELPERS ---
   const safeRole = profile?.role?.trim().toUpperCase() || '';
@@ -3803,11 +3805,31 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
   // --- AUTHENTICATION SCREEN LOCK ---
   const isRegisteringProcess = session && !profile && (authMode === 'register' || authMode === 'success');
 
-  // Inserted Landing Page Logic
-  if (showLanding) {
-    return <LandingPage onAuthenticate={() => setShowLanding(false)} />;
-  }
+ // Inserted Landing Page & Student Portal Logic
+      if (showStudentPortal) {
+        return (
+          <StudentPortal 
+            globalSchedule={globalSchedule} 
+            onBack={() => setShowStudentPortal(false)}
+            onSubscribe={async (data) => {
+               // Silently saves the email to your database
+               await supabase.from('student_subscriptions').insert([{
+                   email: data.email,
+                   dept_code: data.deptCode,
+                   year_level: data.year,
+                   section: data.section
+               }]);
+            }}
+          />
+        );
+      }
 
+      if (showLanding) {
+        return <LandingPage 
+                 onAuthenticate={() => setShowLanding(false)} 
+                 onOpenPortal={() => setShowStudentPortal(true)} 
+               />;
+      }
   if (!session || isRegisteringProcess || authMode === 'success') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative">
