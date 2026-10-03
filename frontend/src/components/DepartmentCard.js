@@ -1132,7 +1132,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
     validateAndApplyChange(updated, `Reordered subjects in section ${block.section}.`);
   };
 
- const executeExport = async () => {
+  const executeExport = async () => {
     try {
       if (!localSchedule || localSchedule.length === 0) {
         alert("ERROR: No schedule data found to export!"); 
@@ -1166,7 +1166,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
        if (exportConfig.format === 'pdf') {
         
-        // 1. SET TO PORTRAIT MODE
+        // Portrait Mode
         const doc = new jsPDF({ orientation: 'portrait' }); 
         const titleText = `${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`;
         
@@ -1202,7 +1202,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
         let isFirstPage = true;
 
-        // 2. GROUP BY DATE -> SECTION (Matches Student Portal)
+        // GROUP BY DATE -> SECTION
         const groupedData = {};
         sorted.forEach(item => {
           const sec = item.section || "N/A";
@@ -1220,51 +1220,51 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             
             const pageWidth = doc.internal.pageSize.getWidth();
             
-            if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 12, 22, 22);
-            if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 12, 22, 22);
+            if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 14, 12, 18, 18);
+            if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 32, 12, 18, 18);
 
-            // 3. APPLY PREMIUM 'TIMES' FONT EVERYWHERE
-            doc.setFont("times", "bold");
-            doc.setFontSize(20);
+            // MODERN CORPORATE DESIGN: Pure Helvetica, clean hierarchy
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
             doc.setTextColor(15, 23, 42); 
-            doc.text((dept.university || "UNIVERSITY").toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+            doc.text((dept.university || "UNIVERSITY").toUpperCase(), pageWidth / 2, 18, { align: 'center' });
             
-            doc.setFont("times", "normal");
-            doc.setFontSize(10);
-            doc.setTextColor(71, 85, 105); 
-            doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${(dept.campus_location || 'MAIN').toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
-
-            doc.setFont("times", "italic");
+            doc.setFont("helvetica", "bold");
             doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139); 
+            doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${(dept.campus_location || 'MAIN').toUpperCase()} CAMPUS`, pageWidth / 2, 23, { align: 'center' });
+
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8);
             doc.setTextColor(37, 99, 235); 
-            doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+            doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 27, { align: 'center' });
 
             doc.setDrawColor(15, 23, 42); 
-            doc.setLineWidth(0.8);
-            doc.line(15, 36, pageWidth - 15, 36);
+            doc.setLineWidth(0.6);
+            doc.line(14, 32, pageWidth - 14, 32);
             
-            doc.setDrawColor(203, 213, 225); 
+            doc.setDrawColor(226, 232, 240); 
             doc.setLineWidth(0.2);
-            doc.line(15, 37.5, pageWidth - 15, 37.5);
+            doc.line(14, 33, pageWidth - 14, 33);
 
-            let currentY = 46;
+            let currentY = 42;
             
-            doc.setFont("times", "bold");
+            doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
             doc.setTextColor(15, 23, 42);
-            doc.text(`EXAMINATION DATE:`, 15, currentY);
+            doc.text(`EXAM DATE:`, 14, currentY);
             
-            doc.setFont("times", "normal");
-            doc.text(date.toUpperCase(), 55, currentY);
+            doc.setFont("helvetica", "normal");
+            doc.text(date.toUpperCase(), 40, currentY);
             currentY += 6;
             
-            doc.setFont("times", "bold");
-            doc.text(`TARGET SECTION:`, 15, currentY);
+            doc.setFont("helvetica", "bold");
+            doc.text(`SECTION:`, 14, currentY);
             
-            doc.setFont("times", "normal");
+            doc.setFont("helvetica", "normal");
             const sampleItem = groupedData[date][section][0];
-            doc.text(`YR ${sampleItem.year_level || ''} - SEC ${section.toUpperCase()}`, 48, currentY);
-            currentY += 10;
+            doc.text(`YR ${sampleItem.year_level || ''} - SEC ${section.toUpperCase()}`, 34, currentY);
+            currentY += 8;
 
             const items = groupedData[date][section];
             const tableRows = items.map(item => [
@@ -1276,31 +1276,32 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             ]);
 
             autoTable(doc, { 
-              head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM", "PROCTOR"]],
+              // Shorter Headers to prevent any line wrapping
+              head: [["TIME", "CODE", "SUBJECT", "ROOM", "PROCTOR"]],
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
-              styles: { font: 'times', fontSize: 9, cellPadding: 6, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, valign: 'middle' }, 
-              headStyles: { font: 'times', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
+              styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: [51, 65, 85], lineColor: [226, 232, 240], lineWidth: 0.1, valign: 'middle' }, 
+              headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
               columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 36 },
-                1: { halign: 'center', cellWidth: 26 },
+                0: { halign: 'center', fontStyle: 'bold', cellWidth: 32 },
+                1: { halign: 'center', cellWidth: 22 },
                 2: { halign: 'left' },
-                3: { halign: 'center', fontStyle: 'bold', cellWidth: 20, textColor: [37, 99, 235] },
-                4: { halign: 'center', cellWidth: 35 }
+                3: { halign: 'center', fontStyle: 'bold', cellWidth: 18, textColor: [37, 99, 235] },
+                4: { halign: 'center', cellWidth: 38 }
               },
               alternateRowStyles: { fillColor: [248, 250, 252] },
-              margin: { bottom: 30, left: 15, right: 15 },
+              margin: { bottom: 25, left: 14, right: 14 },
               didDrawPage: () => {
                 const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                doc.setFont("times", "italic");
-                doc.setFontSize(9);
+                doc.setFont("helvetica", "italic");
+                doc.setFontSize(7);
                 doc.setTextColor(148, 163, 184); 
-                doc.setDrawColor(203, 213, 225);
+                doc.setDrawColor(226, 232, 240);
                 doc.setLineWidth(0.5);
-                doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
-                doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
-                doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+                doc.line(14, doc.internal.pageSize.getHeight() - 12, pageWidth - 14, doc.internal.pageSize.getHeight() - 12);
+                doc.text(`Generated securely by Accord Pro System: ${printDate}`, 14, doc.internal.pageSize.getHeight() - 8);
+                doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
               }
             });
           });
