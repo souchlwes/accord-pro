@@ -333,7 +333,7 @@ const StudentPortal = ({ onBack }) => {
                 placeholder="6-Digit PIN" 
                 value={accessCode} 
                 onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-black/40 text-white px-6 py-5 pl-14 rounded-2xl font-mono font-medium text-3xl text-center tracking-[0.3em] uppercase border border-white/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner placeholder:text-slate-500 placeholder:tracking-normal placeholder:font-sans placeholder:text-base"
+                className="w-full bg-black/40 text-white px-6 py-5 pl-14 rounded-2xl font-bold text-xl md:text-2xl text-center tracking-[0.4em] uppercase border-2 border-white/10 focus:border-blue-500 outline-none transition-all shadow-inner placeholder:text-slate-500 placeholder:tracking-normal"
               />
             </div>
 
