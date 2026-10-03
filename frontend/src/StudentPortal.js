@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
-  BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, Sparkles, DownloadCloud, Layers
+  BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, DownloadCloud, Layers
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import jsPDF from 'jspdf';
@@ -129,29 +129,70 @@ const StudentPortal = ({ onBack }) => {
     return grouped;
   }, [publicSchedule, viewMode, filterYear, searchQuery]);
 
-  // --- PDF EXPORT ENGINE ---
+  // --- PREMIUM PDF EXPORT ENGINE ---
   const handleExportPDF = () => {
     try {
       const doc = new jsPDF({ orientation: 'portrait' });
       const deptName = unlockedDept.code || 'Department';
-      
-      doc.addImage(accordLogo, 'PNG', 14, 12, 10, 10);
-      doc.setFont("helvetica", "bolditalic");
-      doc.setFontSize(18);
-      doc.setTextColor(15, 23, 42);
-      doc.text("ACCORD", 26, 19);
-      const accordWidth = doc.getTextWidth("ACCORD ");
-      doc.setTextColor(37, 99, 235);
-      doc.text("PRO", 26 + accordWidth, 19);
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`${deptName.toUpperCase()} STUDENT EXAM SCHEDULE`, 14, 30);
+      // 1. PREMIUM LETTERHEAD & FOOTER INJECTION
+      const drawHeaderFooter = (data) => {
+        // Logo & Brand
+        doc.addImage(accordLogo, 'PNG', 14, 12, 10, 10);
+        
+        doc.setFont("helvetica", "bolditalic");
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.text("ACCORD", 26, 19);
+        
+        const accordWidth = doc.getTextWidth("ACCORD ");
+        doc.setTextColor(37, 99, 235); // Blue 600
+        doc.text("PRO", 26 + accordWidth, 19);
 
-      let currentY = 38;
+        // Document Title
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.text(`OFFICIAL EXAM ITINERARY • ${deptName.toUpperCase()} DEPT`, 14, 28);
+        
+        // Timestamp
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184); // Slate 400
+        const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        doc.text(`Generated: ${printDate}`, doc.internal.pageSize.getWidth() - 14, 28, { align: 'right' });
+
+        // Divider Line
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.5);
+        doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
+        
+        // Footer (Page Numbers)
+        const pageCount = doc.internal.getNumberOfPages();
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.text(`Page ${data.pageNumber} of ${pageCount}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        doc.text(`Generated securely by Accord Pro System`, 14, doc.internal.pageSize.getHeight() - 10);
+      };
+
+      let currentY = 44; // Start below the letterhead
 
       Object.keys(processedSchedule).sort().forEach(date => {
+        
+        // Draw the Date as a standalone, elegant header
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42);
+        
+        // Prevent orphaned headers at the bottom of the page
+        if (currentY > doc.internal.pageSize.getHeight() - 40) {
+          doc.addPage();
+          currentY = 44;
+        }
+        
+        doc.text(date.toUpperCase(), 14, currentY);
+        currentY += 6;
+
         Object.keys(processedSchedule[date]).sort().forEach(section => {
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
@@ -161,25 +202,50 @@ const StudentPortal = ({ onBack }) => {
             item.room
           ]);
 
-          autoTable(doc, { 
+          autoTable(doc, {
             head: [
-              [{ content: `DATE: ${date}   |   ${section.toUpperCase()}`, colSpan: 4, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 10 } }],
-              ["Time", "Code", "Subject", "Room"]
+              // Clean Section Sub-Header
+              [{ content: section.toUpperCase(), colSpan: 4, styles: { halign: 'left', fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 9 } }],
+              // Actual Column Headers
+              ["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]
             ],
-            body: tableRows, 
-            startY: currentY, 
-            theme: 'grid', 
-            styles: { font: 'helvetica', fontSize: 9, cellPadding: 4 }, 
-            headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-            margin: { top: 20, bottom: 20 }, 
-            pageBreak: 'avoid',
+            body: tableRows,
+            startY: currentY,
+            theme: 'plain', // Removes default harsh grid
+            styles: { 
+              font: 'helvetica', 
+              fontSize: 9, 
+              cellPadding: 5,
+              textColor: [51, 65, 85], // Slate 700
+              lineColor: [226, 232, 240], // Slate 200
+              lineWidth: 0.1 // Ultra-subtle borders
+            },
+            headStyles: { 
+              font: 'helvetica', 
+              fillColor: [15, 23, 42], // Slate 900
+              textColor: [255, 255, 255], // White
+              fontSize: 8,
+              fontStyle: 'bold',
+              halign: 'left'
+            },
+            alternateRowStyles: {
+              fillColor: [248, 250, 252] // Slate 50 alternating rows
+            },
+            margin: { top: 40, bottom: 25, left: 14, right: 14 },
+            pageBreak: 'auto',
+            didDrawPage: drawHeaderFooter // Injects Header/Footer on every new page created
           });
 
-          currentY = doc.lastAutoTable.finalY + 10;
+          currentY = doc.lastAutoTable.finalY + 12; // Gap between sections
         });
+        
+        currentY += 8; // Extra gap before the next Date
       });
 
-      doc.save(`${deptName}_Student_Schedule.pdf`);
+      // Name the file dynamically based on the active filters
+      const fileNameTag = filterYear !== 'ALL' ? `Yr${filterYear}` : 'Master';
+      doc.save(`Accord_${deptName}_${fileNameTag}_Schedule.pdf`);
+      
     } catch (err) {
       alert("PDF Export Failed: " + err.message);
     }
