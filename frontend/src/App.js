@@ -3509,7 +3509,7 @@ const executeRegistration = async () => {
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({
                   emails: studentEmail,
-                  title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
+                  title: `Schedule Released: Year ${targetYear} (${deptCode})`,
                   message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
                })
             }).catch(e => console.error("Auto-blast failed:", e));
@@ -3536,7 +3536,8 @@ const executeRegistration = async () => {
     });
   };
 // --- NEW: MASTER TIMELINE PDF EXPORT ---
-  const exportGlobalPDF = () => {
+  const exportGlobalPDF = async () => {
+    setAppToast({ message: "Generating Master PDF...", type: "info" });
     try {
       if (!globalSchedule || globalSchedule.length === 0) {
         setAppToast({ message: "No schedule data to export!", type: "error" });
@@ -3545,34 +3546,28 @@ const executeRegistration = async () => {
 
       const doc = new jsPDF({ orientation: 'landscape' });
       
-      const drawLetterhead = (data) => {
-        if (!doc.headerPrintedPages) doc.headerPrintedPages = new Set();
-        if (doc.headerPrintedPages.has(data.pageNumber)) return;
-        doc.headerPrintedPages.add(data.pageNumber);
-
-        doc.addImage(accordLogo, 'PNG', 14, 12, 12, 12);
-        doc.setFont("helvetica", "bolditalic");
-        doc.setFontSize(22);
-        doc.setTextColor(15, 23, 42); 
-        doc.text("ACCORD", 30, 20);
-        
-        const accordWidth = doc.getTextWidth("ACCORD ");
-        doc.setTextColor(37, 99, 235); 
-        doc.text("PRO", 30 + accordWidth, 20);
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(100, 116, 139); 
-        doc.text("UNIVERSITY MASTER TIMELINE", 30, 26);
-
-        doc.setDrawColor(37, 99, 235); 
-        doc.setLineWidth(0.5);
-        doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
+      const getBase64ImageFromUrl = (imageUrl) => {
+        return new Promise((resolve) => {
+          if (!imageUrl) { resolve(null); return; }
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null); 
+          img.src = imageUrl;
+        });
       };
 
-      let currentY = 40; 
+      const uniLogoData = await getBase64ImageFromUrl(departments[0]?.university_logo_url) || accordLogo;
 
-      // 1. Group by Date, then by Department
+      let isFirstPage = true;
+      
       const groupedData = {};
       const sorted = [...globalSchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
@@ -3584,13 +3579,52 @@ const executeRegistration = async () => {
         groupedData[date][dept].push(item);
       });
 
-      // 2. Iterate through Dates and Departments
       Object.keys(groupedData).sort().forEach(date => {
         Object.keys(groupedData[date]).sort().forEach(dept => {
-          const items = groupedData[date][dept];
+          if (!isFirstPage) doc.addPage();
+          isFirstPage = false;
+          
+          const pageWidth = doc.internal.pageSize.getWidth();
+          
+          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 12, 22, 22);
 
+          doc.setFont("times", "bold");
+          doc.setFontSize(22);
+          doc.setTextColor(15, 23, 42); 
+          doc.text((profile?.university || "UNIVERSITY").toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+          
+          doc.setFont("times", "normal");
+          doc.setFontSize(11);
+          doc.setTextColor(71, 85, 105); 
+          doc.text(`MASTER TIMELINE • ${dept} DEPARTMENT`, pageWidth / 2, 26, { align: 'center' });
+
+          doc.setFont("times", "italic");
+          doc.setFontSize(10);
+          doc.setTextColor(37, 99, 235); 
+          doc.text(`OFFICIAL EXAM ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+
+          doc.setDrawColor(15, 23, 42); 
+          doc.setLineWidth(0.8);
+          doc.line(15, 36, pageWidth - 15, 36);
+          
+          doc.setDrawColor(148, 163, 184); 
+          doc.setLineWidth(0.2);
+          doc.line(15, 37.5, pageWidth - 15, 37.5);
+
+          let currentY = 46;
+          
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`EXAMINATION DATE:`, 15, currentY);
+          
+          doc.setFont("helvetica", "normal");
+          doc.text(date.toUpperCase(), 62, currentY);
+          currentY += 10;
+
+          const items = groupedData[date][dept];
           const tableRows = items.map(item => [
-            `${item.start_time ? formatTime(item.start_time) : "--:--"} - ${item.end_time ? formatTime(item.end_time) : "--:--"}`,
+            `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
             `Yr ${item.year_level} - ${item.section}`,
             `${item.subject_code || "N/A"} - ${item.subject_name || "N/A"}`,
             item.room || "N/A",
@@ -3598,23 +3632,33 @@ const executeRegistration = async () => {
           ]);
 
           autoTable(doc, { 
-            head: [
-              [
-                { content: `EXAM DATE: ${date}   |   DEPARTMENT: ${dept}`, colSpan: 5, styles: { halign: 'center', fillColor: [37, 99, 235], fontStyle: 'bold', fontSize: 11 } }
-              ],
-              ["Time", "Section", "Subject", "Room", "Proctor"]
-            ],
+            head: [["TIME BLOCK", "SECTION", "SUBJECT DESCRIPTION", "ROOM", "PROCTOR"]],
             body: tableRows, 
             startY: currentY, 
             theme: 'grid', 
-            styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 }, 
-            headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-            margin: { top: 40, bottom: 20 }, 
-            pageBreak: 'avoid',
-            didDrawPage: drawLetterhead 
+            styles: { font: 'helvetica', fontSize: 10, cellPadding: 7, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, valign: 'middle' }, 
+            headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
+            columnStyles: {
+              0: { halign: 'center', fontStyle: 'bold', cellWidth: 42 },
+              1: { halign: 'center', cellWidth: 32 },
+              2: { halign: 'left' },
+              3: { halign: 'center', fontStyle: 'bold', cellWidth: 25, textColor: [37, 99, 235] },
+              4: { halign: 'center', cellWidth: 45 }
+            },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            margin: { bottom: 30, left: 15, right: 15 },
+            didDrawPage: () => {
+              const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              doc.setFont("helvetica", "italic");
+              doc.setFontSize(8);
+              doc.setTextColor(148, 163, 184); 
+              doc.setDrawColor(226, 232, 240);
+              doc.setLineWidth(0.5);
+              doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
+              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
+              doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            }
           });
-
-          currentY = doc.lastAutoTable.finalY + 15; 
         });
       });
 
