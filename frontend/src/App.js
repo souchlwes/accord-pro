@@ -3519,7 +3519,7 @@ const executeRegistration = async () => {
                    headers: { 'Content-Type': 'application/json' },
                    body: JSON.stringify({
                       emails: studentEmail,
-                      title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
+                      title: `SCHEDULE RELEASED: Year ${targetYear} (${deptCode})`,
                       message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
                    })
                 }).catch(e => console.error("Auto-blast failed:", e));
