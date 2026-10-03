@@ -159,7 +159,7 @@ const StudentPortal = ({ onBack }) => {
         });
       };
 
-      // Fetch Logos (Fallback to default logo if missing or blocked)
+      // Fetch Logos: If no dept logo exists, it stays null (NO duplicate Accord Logo)
       const uniLogoData = await getBase64ImageFromUrl(unlockedDept.university_logo_url) || accordLogo;
       const deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url) || accordLogo;
 
@@ -176,57 +176,58 @@ const StudentPortal = ({ onBack }) => {
           
           // --- 1. EXECUTIVE LETTERHEAD ---
           // Left: University Crest
-          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 15, 22, 22);
+          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 12, 22, 22);
           
-          // Right: Department Crest
-          if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 15, 22, 22);
+          // Right: Department Crest (Only prints if you actually uploaded one)
+          if (deptLogoData) {
+            doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 12, 22, 22);
+          }
 
-          // Center: Titles
-          doc.setFont("times", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(100, 116, 139); // Slate 500
-          doc.text("OFFICIAL SECTION ITINERARY", pageWidth / 2, 18, { align: 'center' });
-
-          // Classic Serif Font for University Name
+          // Center: Titles (Using Times font for a premium academic look)
           doc.setFont("times", "bold");
-          doc.setFontSize(18);
+          doc.setFontSize(22);
           doc.setTextColor(15, 23, 42); // Slate 900
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 26, { align: 'center' });
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
           
+          doc.setFont("times", "normal");
+          doc.setFontSize(11);
+          doc.setTextColor(71, 85, 105); // Slate 600
+          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
+
           doc.setFont("times", "italic");
-          doc.setFontSize(12);
+          doc.setFontSize(10);
           doc.setTextColor(37, 99, 235); // Blue 600
-          doc.text(`${deptName} (${deptCode}) • ${campusName} Campus`, pageWidth / 2, 33, { align: 'center' });
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
 
           // Premium Double Line Divider
           doc.setDrawColor(15, 23, 42); // Slate 900
           doc.setLineWidth(0.8);
-          doc.line(15, 40, pageWidth - 15, 40);
+          doc.line(15, 36, pageWidth - 15, 36);
           
-          doc.setDrawColor(203, 213, 225); // Slate 300
+          doc.setDrawColor(148, 163, 184); // Slate 400
           doc.setLineWidth(0.2);
-          doc.line(15, 41.5, pageWidth - 15, 41.5);
+          doc.line(15, 37.5, pageWidth - 15, 37.5);
 
           // --- 2. ISOLATED SECTION HEADER ---
-          let currentY = 52;
+          let currentY = 46;
           
-          doc.setFont("helvetica", "bold");
+          doc.setFont("times", "bold");
           doc.setFontSize(11);
           doc.setTextColor(15, 23, 42);
           doc.text(`EXAMINATION DATE:`, 15, currentY);
           
-          doc.setFont("helvetica", "normal");
-          doc.text(date.toUpperCase(), 58, currentY);
+          doc.setFont("times", "normal");
+          doc.text(date.toUpperCase(), 62, currentY);
           currentY += 6;
           
-          doc.setFont("helvetica", "bold");
+          doc.setFont("times", "bold");
           doc.text(`TARGET SECTION:`, 15, currentY);
           
-          doc.setFont("helvetica", "normal");
-          doc.text(section.toUpperCase(), 52, currentY);
+          doc.setFont("times", "normal");
+          doc.text(section.toUpperCase(), 55, currentY);
           currentY += 10;
 
-          // --- 3. PREMIUM TABLE STRUCTURE ---
+          // --- 3. PREMIUM TABLE STRUCTURE (Highly Visible Grid) ---
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
             `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
@@ -239,48 +240,49 @@ const StudentPortal = ({ onBack }) => {
             head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]],
             body: tableRows,
             startY: currentY,
-            theme: 'grid',
+            theme: 'grid', // Restored the grid
             styles: { 
-              font: 'helvetica', 
+              font: 'times', 
               fontSize: 10, 
               cellPadding: 7,
               textColor: [30, 41, 59], // Slate 800
-              lineColor: [226, 232, 240], // Slate 200
-              lineWidth: 0.1
+              lineColor: [100, 116, 139], // Slate 500 (Much darker, visible lines)
+              lineWidth: 0.2
             },
             headStyles: { 
-              font: 'helvetica', 
-              fillColor: [241, 245, 249], // Slate 100
-              textColor: [15, 23, 42], // Slate 900
-              fontSize: 9, 
+              font: 'times', 
+              fillColor: [15, 23, 42], // Slate 900
+              textColor: [255, 255, 255], 
+              fontSize: 10, 
               fontStyle: 'bold', 
               halign: 'center',
-              lineColor: [203, 213, 225], // Slate 300
-              lineWidth: 0.5
+              lineColor: [15, 23, 42],
+              lineWidth: 0.2
             },
             columnStyles: {
               0: { halign: 'center', fontStyle: 'bold' },
               1: { halign: 'center' },
               2: { halign: 'left' },
-              3: { halign: 'center', fontStyle: 'bold', textColor: [37, 99, 235] } // Blue text for rooms
+              3: { halign: 'center', fontStyle: 'bold' } 
             },
-            alternateRowStyles: { fillColor: [250, 250, 250] }, 
+            alternateRowStyles: { fillColor: [248, 250, 252] }, 
             margin: { bottom: 30, left: 15, right: 15 },
             
             // --- 4. FOOTER INJECTION ---
-            didDrawPage: (data) => {
+            didDrawPage: () => {
               const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-              doc.setFont("helvetica", "italic");
-              doc.setFontSize(8);
-              doc.setTextColor(148, 163, 184); // Slate 400
+              doc.setFont("times", "italic");
+              doc.setFontSize(9);
+              doc.setTextColor(100, 116, 139); // Slate 500
               
               // Top border for footer
-              doc.setDrawColor(226, 232, 240);
+              doc.setDrawColor(203, 213, 225);
               doc.setLineWidth(0.5);
               doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
 
               doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
-              doc.text(`Page ${data.pageNumber}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+              // Global page number fix!
+              doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
             }
           });
         });
