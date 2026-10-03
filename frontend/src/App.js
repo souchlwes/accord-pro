@@ -3807,21 +3807,7 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
 
  // Inserted Landing Page & Student Portal Logic
       if (showStudentPortal) {
-        return (
-          <StudentPortal 
-            globalSchedule={globalSchedule} 
-            onBack={() => setShowStudentPortal(false)}
-            onSubscribe={async (data) => {
-               // Silently saves the email to your database
-               await supabase.from('student_subscriptions').insert([{
-                   email: data.email,
-                   dept_code: data.deptCode,
-                   year_level: data.year,
-                   section: data.section
-               }]);
-            }}
-          />
-        );
+        return <StudentPortal onBack={() => setShowStudentPortal(false)} />;
       }
 
       if (showLanding) {
