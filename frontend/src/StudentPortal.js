@@ -84,7 +84,6 @@ const StudentPortal = ({ onBack }) => {
     setSubLoading(false);
     
     if (!error) {
-        // --- NEW: INSTANT CONFIRMATION EMAIL ---
         fetch('/api/notify', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
@@ -94,7 +93,6 @@ const StudentPortal = ({ onBack }) => {
               message: `You are successfully subscribed to live schedule updates for Year ${subYear} - Section ${subSection.trim().toUpperCase()}. We will email you the exact moment your room assignments are published or changed.`
            })
         }).catch(e => console.error("Confirmation email failed:", e));
-        // ----------------------------------------
 
         setIsSubscribed(true);
         setTimeout(() => { 
@@ -186,6 +184,7 @@ const StudentPortal = ({ onBack }) => {
 
       let isFirstPage = true;
 
+      // Loop Dates & Sections (Forcing One Page Per Section)
       Object.keys(processedSchedule).sort().forEach(date => {
         Object.keys(processedSchedule[date]).sort().forEach(section => {
           
@@ -194,34 +193,37 @@ const StudentPortal = ({ onBack }) => {
           
           const pageWidth = doc.internal.pageSize.getWidth();
           
+          // --- 1. EXECUTIVE LETTERHEAD (Sleek Helvetica) ---
+          
           if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 14, 14, 24, 24);
           if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 38, 14, 24, 24);
 
-          // PREMIUM MODERN IDENTITY: Pure Helvetica, clean hierarchy
+          // Center: Titles (Using Helvetica for a premium, clean corporate look)
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(16);
-          doc.setTextColor(15, 23, 42); 
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+          doc.setFontSize(18);
+          doc.setTextColor(15, 23, 42); // Slate 900
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 22, { align: 'center' });
           
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(100, 116, 139); 
-          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
+          doc.setTextColor(100, 116, 139); // Slate 600
+          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 28, { align: 'center' });
 
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(37, 99, 235); 
-          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+          doc.setTextColor(37, 99, 235); // Blue 600
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 33, { align: 'center' });
 
-          // Modern Border Divides
-          doc.setDrawColor(15, 23, 42); 
+          // Premium Double Line Divider
+          doc.setDrawColor(15, 23, 42); // Slate 900
           doc.setLineWidth(0.8);
           doc.line(14, 40, pageWidth - 14, 40);
           
-          doc.setDrawColor(226, 232, 240); 
+          doc.setDrawColor(203, 213, 225); // Slate 300
           doc.setLineWidth(0.2);
           doc.line(14, 41.5, pageWidth - 14, 41.5);
 
+          // --- 2. ISOLATED SECTION HEADER ---
           let currentY = 50;
           
           doc.setFont("helvetica", "bold");
@@ -230,19 +232,20 @@ const StudentPortal = ({ onBack }) => {
           doc.text(`EXAM DATE:`, 14, currentY);
           
           doc.setFont("helvetica", "normal");
-          doc.text(date.toUpperCase(), 40, currentY);
+          doc.text(date.toUpperCase(), 38, currentY);
           currentY += 6;
           
           doc.setFont("helvetica", "bold");
           doc.text(`SECTION:`, 14, currentY);
           
           doc.setFont("helvetica", "normal");
-          doc.text(section.toUpperCase(), 35, currentY);
+          doc.text(section.toUpperCase(), 34, currentY);
           currentY += 10;
 
+          // --- 3. PREMIUM TABLE STRUCTURE (Highly Visible Grid & Locked Widths) ---
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
-            `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`,
+             `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`,
             item.subject_code,
             item.subject_name,
             item.room
@@ -258,13 +261,13 @@ const StudentPortal = ({ onBack }) => {
               fontSize: 9, 
               cellPadding: 6,
               textColor: [30, 41, 59], 
-              lineColor: [203, 213, 225], 
+              lineColor: [203, 213, 225], // Slate 300 (Crisp, clean borders)
               lineWidth: 0.1,
               valign: 'middle'
             },
             headStyles: { 
               font: 'helvetica', 
-              fillColor: [15, 23, 42], 
+              fillColor: [15, 23, 42], // Slate 900
               textColor: [255, 255, 255], 
               fontSize: 8, 
               fontStyle: 'bold', 
@@ -273,18 +276,20 @@ const StudentPortal = ({ onBack }) => {
               lineWidth: 0.1
             },
             columnStyles: {
-              0: { halign: 'center', fontStyle: 'bold', cellWidth: 28 }, // Perfect fit for stacked time
+              0: { halign: 'center', fontStyle: 'bold', cellWidth: 26 }, // Perfect fit for stacked time
               1: { halign: 'center', fontStyle: 'bold', cellWidth: 32 },
-              2: { halign: 'left' },
-              3: { halign: 'center', fontStyle: 'bold', cellWidth: 28, textColor: [37, 99, 235] } // Expanded width so ROOM never wraps
+              2: { halign: 'left' }, // Flex width for subject name
+              3: { halign: 'center', fontStyle: 'bold', cellWidth: 30, textColor: [37, 99, 235] } // Expanded width so ROOM never wraps
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }, 
             margin: { bottom: 30, left: 14, right: 14 },
+            
+            // --- 4. FOOTER INJECTION ---
             didDrawPage: () => {
               const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
               doc.setFont("helvetica", "italic");
               doc.setFontSize(8);
-              doc.setTextColor(148, 163, 184); 
+              doc.setTextColor(148, 163, 184); // Slate 400
               
               doc.setDrawColor(226, 232, 240);
               doc.setLineWidth(0.5);
@@ -342,7 +347,8 @@ const StudentPortal = ({ onBack }) => {
               />
             </div>
 
-            <button type="submit" disabled={isUnlocking || accessCode.length < 5} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/5 disabled:text-slate-600 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 text-xs flex items-center justify-center gap-2 border border-emerald-500/50">
+            {/* NEW WHITE TO GREEN PREMIUM BUTTON */}
+            <button type="submit" disabled={isUnlocking || accessCode.length < 5} className="w-full bg-white hover:bg-emerald-500 disabled:bg-white/5 disabled:text-slate-600 text-emerald-600 hover:text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-95 text-xs flex items-center justify-center gap-2 border border-white hover:border-emerald-500">
               {isUnlocking ? <Loader2 size={20} className="animate-spin" /> : 'Unlock Board'}
             </button>
           </form>
@@ -436,7 +442,7 @@ const StudentPortal = ({ onBack }) => {
 
       <main className="container mx-auto px-4 md:px-8 max-w-6xl -mt-10 md:-mt-16 relative z-30">
         
-        {/* PREMIUM FLOATING TOOLBAR (Natural scrolling, no sticky annoyance) */}
+        {/* PREMIUM FLOATING TOOLBAR */}
         <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col lg:flex-row items-center gap-4 relative z-30 mb-8 mt-6">
            
            <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto shrink-0 shadow-inner">
