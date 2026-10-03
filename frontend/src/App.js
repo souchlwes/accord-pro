@@ -3478,13 +3478,12 @@ const executeRegistration = async () => {
     return true;
   }
   
-  const handleScheduleGenerated = async (newAssignments, _newDates, deptCode) => {
+ const handleScheduleGenerated = async (newAssignments, _newDates, deptCode) => {
     if (!newAssignments?.length) return;
     const targetYear = String(newAssignments[0].year_level);
     try {
       await supabase.from('schedules').delete().eq('dept_code', deptCode).eq('year_level', targetYear);
       
-      // FIX APPLIED HERE: Added university: profile.university to the stamp!
       const formattedData = newAssignments.map(item => ({
         dept_code: deptCode, year_level: String(item.year_level), section: item.section || 'A', subject_code: item.subject_code || 'N/A',
         subject_name: item.subject_name || 'N/A', proctor: item.proctor, room: item.room, exam_date: item.exam_date,
@@ -3493,6 +3492,35 @@ const executeRegistration = async () => {
       }));
       
       await supabase.from('schedules').insert(formattedData);
+
+      // --- NEW: AUTO-BLAST EMAILS TO SUBSCRIBED STUDENTS ---
+      const { data: subs } = await supabase.from('student_subscriptions')
+         .select('email, section')
+         .eq('dept_code', deptCode)
+         .eq('year_level', targetYear);
+
+      if (subs && subs.length > 0) {
+         // Get unique emails to prevent spamming someone who subscribed twice
+         const uniqueEmails = [...new Set(subs.map(s => s.email))];
+         
+         uniqueEmails.forEach(studentEmail => {
+            fetch('/api/notify', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                  emails: studentEmail,
+                  title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
+                  message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
+               })
+            }).catch(e => console.error("Auto-blast failed:", e));
+         });
+         
+         setAppToast({ message: `Schedule saved and alerts sent to ${uniqueEmails.length} students!`, type: "success" });
+      } else {
+         setAppToast({ message: "Schedule generated and saved successfully.", type: "success" });
+      }
+      // ----------------------------------------------------
+
       await sendNotification(null, 'HEAD_ADMIN', null, 'Schedule Generated', `Department ${deptCode} generated a draft for Year ${targetYear}.`, 'info');
       await fetchAllData(false);
     } catch (err) { alert("Failed to save schedule."); }
@@ -4940,32 +4968,59 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
           </span>
         </div>
 
-        {/* PREMIUM DUAL-CODE DISPLAY FOR ADMIN CARDS */}
-        <div className="mt-4 flex flex-wrap gap-3 pt-4 border-t border-slate-100">
-           {/* Staff Code */}
-           <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group cursor-help transition-all hover:bg-blue-50 hover:border-blue-200">
-             <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1 group-hover:text-blue-500 transition-colors">Staff Invite Code</span>
-             <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.invite_code}</span>
-             
-             {/* Tooltip */}
-             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-slate-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-20 text-center font-bold leading-relaxed">
-                Share this code with Proctors. They will use this to create their account and join this specific department.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
-             </div>
-           </div>
+       {/* PREMIUM DUAL-CODE DISPLAY FOR ADMIN CARDS */}
+                                <div className="mt-4 flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                                   
+                                   {/* Staff Code */}
+                                   <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group/staff transition-all hover:bg-blue-50 hover:border-blue-200">
+                                     <div className="flex justify-between items-center mb-1">
+                                       <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover/staff:text-blue-500 transition-colors">Staff Invite Code</span>
+                                       <button 
+                                         onClick={(e) => {
+                                            e.stopPropagation(); 
+                                            navigator.clipboard.writeText(dept.invite_code || '');
+                                            setAppToast({ message: "Staff Code copied!", type: "success" });
+                                         }}
+                                         className="text-slate-400 hover:text-blue-600 bg-white border border-slate-200 p-1 rounded transition-colors z-20 relative"
+                                         title="Copy Staff Code"
+                                       >
+                                         <Plus size={12} className="rotate-45" /> {/* Just a visual icon for copy */}
+                                       </button>
+                                     </div>
+                                     <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.invite_code}</span>
+                                     
+                                     {/* Tooltip (Only shows when hovering this specific div) */}
+                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-slate-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover/staff:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-30 text-center font-bold leading-relaxed">
+                                        Share this code with Proctors to create an account.
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
+                                     </div>
+                                   </div>
 
-           {/* Student Code */}
-           <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group cursor-help transition-all hover:bg-emerald-50 hover:border-emerald-200">
-             <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1 group-hover:text-emerald-600 transition-colors">Student Access PIN</span>
-             <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.student_code || 'TBA'}</span>
-             
-             {/* Tooltip */}
-             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-emerald-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-20 text-center font-bold leading-relaxed">
-                Share this PIN with Students! They enter this on the public portal to view their schedule without creating an account.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-emerald-900"></div>
-             </div>
-           </div>
-        </div>
+                                   {/* Student Code */}
+                                   <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group/student transition-all hover:bg-emerald-50 hover:border-emerald-200">
+                                     <div className="flex justify-between items-center mb-1">
+                                       <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover/student:text-emerald-600 transition-colors">Student PIN</span>
+                                       <button 
+                                         onClick={(e) => {
+                                            e.stopPropagation(); 
+                                            navigator.clipboard.writeText(dept.student_code || '');
+                                            setAppToast({ message: "Student PIN copied!", type: "success" });
+                                         }}
+                                         className="text-slate-400 hover:text-emerald-600 bg-white border border-slate-200 p-1 rounded transition-colors z-20 relative"
+                                         title="Copy Student PIN"
+                                       >
+                                         <Plus size={12} className="rotate-45" />
+                                       </button>
+                                     </div>
+                                     <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.student_code || 'TBA'}</span>
+                                     
+                                     {/* Tooltip (Only shows when hovering this specific div) */}
+                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-emerald-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover/student:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-30 text-center font-bold leading-relaxed">
+                                        Share this PIN with Students for the Public Portal.
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-emerald-900"></div>
+                                     </div>
+                                   </div>
+                                </div>
 
       </div>
     );
