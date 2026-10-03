@@ -3482,7 +3482,7 @@ const executeRegistration = async () => {
     if (!newAssignments?.length) return;
     const targetYear = String(newAssignments[0].year_level);
     
-    // --- NEW: Extract exactly which sections were just generated ---
+    // Extract the full generated section names (e.g., "CS1A", "BSIS1B")
     const generatedSections = [...new Set(newAssignments.map(item => item.section))];
     
     try {
@@ -3497,29 +3497,38 @@ const executeRegistration = async () => {
       
       await supabase.from('schedules').insert(formattedData);
 
-      // --- NEW: STRICTLY FILTER BY YEAR *AND* GENERATED SECTIONS ---
+      // --- NEW: SMART FILTERING LOGIC ---
+      // 1. Fetch all subscribers for this department and year
       const { data: subs } = await supabase.from('student_subscriptions')
          .select('email, section')
          .eq('dept_code', deptCode)
-         .eq('year_level', targetYear)
-         .in('section', generatedSections); // Only hits students whose section is in this draft
+         .eq('year_level', targetYear);
 
       if (subs && subs.length > 0) {
-         const uniqueEmails = [...new Set(subs.map(s => s.email))];
-         
-         uniqueEmails.forEach(studentEmail => {
-            fetch('/api/notify', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({
-                  emails: studentEmail,
-                  title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
-                  message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
-               })
-            }).catch(e => console.error("Auto-blast failed:", e));
-         });
-         
-         setAppToast({ message: `Schedule saved and alerts sent to ${uniqueEmails.length} specific students!`, type: "success" });
+         // 2. Filter students whose subscribed letter (e.g., "A") matches the END of the generated section (e.g., "CS1A")
+         const matchedSubs = subs.filter(sub => 
+            generatedSections.some(genSec => genSec.endsWith(sub.section))
+         );
+
+         if (matchedSubs.length > 0) {
+             const uniqueEmails = [...new Set(matchedSubs.map(s => s.email))];
+             
+             uniqueEmails.forEach(studentEmail => {
+                fetch('/api/notify', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                      emails: studentEmail,
+                      title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
+                      message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
+                   })
+                }).catch(e => console.error("Auto-blast failed:", e));
+             });
+             
+             setAppToast({ message: `Schedule saved and alerts sent to ${uniqueEmails.length} specific students!`, type: "success" });
+         } else {
+             setAppToast({ message: "Schedule saved successfully. No students matched this specific section.", type: "success" });
+         }
       } else {
          setAppToast({ message: "Schedule generated and saved successfully.", type: "success" });
       }
