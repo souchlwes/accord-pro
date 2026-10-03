@@ -86,7 +86,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering, onOpe
               <button
                 onClick={onOpenPortal}
                 disabled={isEntering}
-                className="text-white hover:text-emerald-400 transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.6)]"
+                className="text-white hover:text-emerald-400 transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]"
               >
                 <BookOpen size={36} strokeWidth={1.5} />
               </button>
