@@ -3481,6 +3481,10 @@ const executeRegistration = async () => {
  const handleScheduleGenerated = async (newAssignments, _newDates, deptCode) => {
     if (!newAssignments?.length) return;
     const targetYear = String(newAssignments[0].year_level);
+    
+    // --- NEW: Extract exactly which sections were just generated ---
+    const generatedSections = [...new Set(newAssignments.map(item => item.section))];
+    
     try {
       await supabase.from('schedules').delete().eq('dept_code', deptCode).eq('year_level', targetYear);
       
@@ -3493,14 +3497,14 @@ const executeRegistration = async () => {
       
       await supabase.from('schedules').insert(formattedData);
 
-      // --- NEW: AUTO-BLAST EMAILS TO SUBSCRIBED STUDENTS ---
+      // --- NEW: STRICTLY FILTER BY YEAR *AND* GENERATED SECTIONS ---
       const { data: subs } = await supabase.from('student_subscriptions')
          .select('email, section')
          .eq('dept_code', deptCode)
-         .eq('year_level', targetYear);
+         .eq('year_level', targetYear)
+         .in('section', generatedSections); // Only hits students whose section is in this draft
 
       if (subs && subs.length > 0) {
-         // Get unique emails to prevent spamming someone who subscribed twice
          const uniqueEmails = [...new Set(subs.map(s => s.email))];
          
          uniqueEmails.forEach(studentEmail => {
@@ -3509,13 +3513,13 @@ const executeRegistration = async () => {
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({
                   emails: studentEmail,
-                  title: `Schedule Released: Year ${targetYear} (${deptCode})`,
+                  title: `📅 Schedule Released: Year ${targetYear} (${deptCode})`,
                   message: `Your final exam schedule for Year ${targetYear} has just been published by the ${deptCode} department! Visit the Student Portal and enter your Department PIN to view your room assignments.`
                })
             }).catch(e => console.error("Auto-blast failed:", e));
          });
          
-         setAppToast({ message: `Schedule saved and alerts sent to ${uniqueEmails.length} students!`, type: "success" });
+         setAppToast({ message: `Schedule saved and alerts sent to ${uniqueEmails.length} specific students!`, type: "success" });
       } else {
          setAppToast({ message: "Schedule generated and saved successfully.", type: "success" });
       }
