@@ -140,26 +140,28 @@ const StudentPortal = ({ onBack }) => {
       const uniName = unlockedDept.university || 'University';
       const campusName = unlockedDept.campus_location || 'Main';
 
-      // Secure Image Loader to bypass CORS issues on Canvas
-      const getBase64ImageFromUrl = async (imageUrl) => {
-        if (!imageUrl) return null;
-        try {
-          const res = await fetch(imageUrl, { mode: 'cors' });
-          const blob = await res.blob();
-          return await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-        } catch(e) { 
-          console.warn("Could not load external logo for PDF:", e);
-          return null; 
-        }
+      // Bulletproof Image Loader to bypass CORS issues
+      const getBase64ImageFromUrl = (imageUrl) => {
+        return new Promise((resolve) => {
+          if (!imageUrl) { resolve(null); return; }
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null); 
+          img.src = imageUrl;
+        });
       };
 
-      // Fetch Logos
+      // Fetch Logos (Fallback to default logo if missing or blocked)
       const uniLogoData = await getBase64ImageFromUrl(unlockedDept.university_logo_url) || accordLogo;
-      const deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url);
+      const deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url) || accordLogo;
 
       let isFirstPage = true;
 
@@ -172,47 +174,57 @@ const StudentPortal = ({ onBack }) => {
           
           const pageWidth = doc.internal.pageSize.getWidth();
           
-          // --- 1. PREMIUM LETTERHEAD ---
+          // --- 1. EXECUTIVE LETTERHEAD ---
           // Left: University Crest
-          doc.addImage(uniLogoData, 'PNG', 14, 12, 18, 18);
+          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 15, 22, 22);
           
           // Right: Department Crest
-          if (deptLogoData) {
-            doc.addImage(deptLogoData, 'PNG', pageWidth - 32, 12, 18, 18);
-          }
+          if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 15, 22, 22);
 
           // Center: Titles
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(14);
-          doc.setTextColor(15, 23, 42); // Slate 900
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 18, { align: 'center' });
-          
+          doc.setFont("times", "normal");
           doc.setFontSize(10);
-          doc.setTextColor(37, 99, 235); // Blue 600
-          doc.text(`${deptCode} • ${campusName} Campus`, pageWidth / 2, 24, { align: 'center' });
-
-          doc.setFontSize(9);
           doc.setTextColor(100, 116, 139); // Slate 500
-          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 29, { align: 'center' });
+          doc.text("OFFICIAL SECTION ITINERARY", pageWidth / 2, 18, { align: 'center' });
 
-          // Divider Line
-          doc.setDrawColor(226, 232, 240); // Slate 200
-          doc.setLineWidth(0.5);
-          doc.line(14, 34, pageWidth - 14, 34);
+          // Classic Serif Font for University Name
+          doc.setFont("times", "bold");
+          doc.setFontSize(18);
+          doc.setTextColor(15, 23, 42); // Slate 900
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 26, { align: 'center' });
+          
+          doc.setFont("times", "italic");
+          doc.setFontSize(12);
+          doc.setTextColor(37, 99, 235); // Blue 600
+          doc.text(`${deptName} (${deptCode}) • ${campusName} Campus`, pageWidth / 2, 33, { align: 'center' });
+
+          // Premium Double Line Divider
+          doc.setDrawColor(15, 23, 42); // Slate 900
+          doc.setLineWidth(0.8);
+          doc.line(15, 40, pageWidth - 15, 40);
+          
+          doc.setDrawColor(203, 213, 225); // Slate 300
+          doc.setLineWidth(0.2);
+          doc.line(15, 41.5, pageWidth - 15, 41.5);
 
           // --- 2. ISOLATED SECTION HEADER ---
-          let currentY = 44;
+          let currentY = 52;
           
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(12);
+          doc.setFontSize(11);
           doc.setTextColor(15, 23, 42);
-          doc.text(`DATE: ${date.toUpperCase()}`, 14, currentY);
+          doc.text(`EXAMINATION DATE:`, 15, currentY);
+          
+          doc.setFont("helvetica", "normal");
+          doc.text(date.toUpperCase(), 58, currentY);
           currentY += 6;
           
-          doc.setFontSize(10);
-          doc.setTextColor(71, 85, 105); // Slate 600
-          doc.text(`TARGET CLASS: ${section.toUpperCase()}`, 14, currentY);
-          currentY += 8;
+          doc.setFont("helvetica", "bold");
+          doc.text(`TARGET SECTION:`, 15, currentY);
+          
+          doc.setFont("helvetica", "normal");
+          doc.text(section.toUpperCase(), 52, currentY);
+          currentY += 10;
 
           // --- 3. PREMIUM TABLE STRUCTURE ---
           const items = processedSchedule[date][section];
@@ -227,34 +239,48 @@ const StudentPortal = ({ onBack }) => {
             head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]],
             body: tableRows,
             startY: currentY,
-            theme: 'plain',
+            theme: 'grid',
             styles: { 
               font: 'helvetica', 
-              fontSize: 9, 
-              cellPadding: 6,
-              textColor: [51, 65, 85], // Slate 700
+              fontSize: 10, 
+              cellPadding: 7,
+              textColor: [30, 41, 59], // Slate 800
               lineColor: [226, 232, 240], // Slate 200
               lineWidth: 0.1
             },
             headStyles: { 
               font: 'helvetica', 
-              fillColor: [15, 23, 42], // Slate 900
-              textColor: [255, 255, 255], 
-              fontSize: 8, 
+              fillColor: [241, 245, 249], // Slate 100
+              textColor: [15, 23, 42], // Slate 900
+              fontSize: 9, 
               fontStyle: 'bold', 
-              halign: 'left' 
+              halign: 'center',
+              lineColor: [203, 213, 225], // Slate 300
+              lineWidth: 0.5
             },
-            alternateRowStyles: { fillColor: [248, 250, 252] }, // Slate 50
-            margin: { bottom: 25, left: 14, right: 14 },
+            columnStyles: {
+              0: { halign: 'center', fontStyle: 'bold' },
+              1: { halign: 'center' },
+              2: { halign: 'left' },
+              3: { halign: 'center', fontStyle: 'bold', textColor: [37, 99, 235] } // Blue text for rooms
+            },
+            alternateRowStyles: { fillColor: [250, 250, 250] }, 
+            margin: { bottom: 30, left: 15, right: 15 },
             
             // --- 4. FOOTER INJECTION ---
             didDrawPage: (data) => {
               const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
               doc.setFont("helvetica", "italic");
               doc.setFontSize(8);
-              doc.setTextColor(148, 163, 184);
-              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 14, doc.internal.pageSize.getHeight() - 10);
-              doc.text(`Page ${data.pageNumber}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+              doc.setTextColor(148, 163, 184); // Slate 400
+              
+              // Top border for footer
+              doc.setDrawColor(226, 232, 240);
+              doc.setLineWidth(0.5);
+              doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
+
+              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
+              doc.text(`Page ${data.pageNumber}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
             }
           });
         });
@@ -265,6 +291,7 @@ const StudentPortal = ({ onBack }) => {
       
     } catch (err) {
       alert("PDF Export Failed. Please check your connection.");
+      console.error(err);
     } finally {
       setIsExporting(false);
     }
