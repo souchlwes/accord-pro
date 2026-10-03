@@ -28,12 +28,13 @@ const StudentPortal = ({ onBack }) => {
   const [filterYear, setFilterYear] = useState('ALL');
   const [viewMode, setViewMode] = useState('upcoming');
 
-  // Subscriptions
+  // Subscriptions & Export States
   const [subEmail, setSubEmail] = useState('');
   const [subYear, setSubYear] = useState('');
   const [subSection, setSubSection] = useState('');
   const [subLoading, setSubLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleUnlock = async (e) => {
     e.preventDefault();
@@ -129,71 +130,91 @@ const StudentPortal = ({ onBack }) => {
     return grouped;
   }, [publicSchedule, viewMode, filterYear, searchQuery]);
 
-  // --- PREMIUM PDF EXPORT ENGINE ---
-  const handleExportPDF = () => {
+  // --- PREMIUM EXECUTIVE PDF EXPORT ENGINE ---
+  const handleExportPDF = async () => {
+    setIsExporting(true);
     try {
       const doc = new jsPDF({ orientation: 'portrait' });
-      const deptName = unlockedDept.code || 'Department';
+      const deptName = unlockedDept.name || 'Department';
+      const deptCode = unlockedDept.code || 'DEPT';
+      const uniName = unlockedDept.university || 'University';
+      const campusName = unlockedDept.campus_location || 'Main';
 
-      // 1. PREMIUM LETTERHEAD & FOOTER INJECTION
-      const drawHeaderFooter = (data) => {
-        // Logo & Brand
-        doc.addImage(accordLogo, 'PNG', 14, 12, 10, 10);
-        
-        doc.setFont("helvetica", "bolditalic");
-        doc.setFontSize(20);
-        doc.setTextColor(15, 23, 42); // Slate 900
-        doc.text("ACCORD", 26, 19);
-        
-        const accordWidth = doc.getTextWidth("ACCORD ");
-        doc.setTextColor(37, 99, 235); // Blue 600
-        doc.text("PRO", 26 + accordWidth, 19);
-
-        // Document Title
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(100, 116, 139); // Slate 500
-        doc.text(`OFFICIAL EXAM ITINERARY • ${deptName.toUpperCase()} DEPT`, 14, 28);
-        
-        // Timestamp
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(148, 163, 184); // Slate 400
-        const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        doc.text(`Generated: ${printDate}`, doc.internal.pageSize.getWidth() - 14, 28, { align: 'right' });
-
-        // Divider Line
-        doc.setDrawColor(226, 232, 240); // Slate 200
-        doc.setLineWidth(0.5);
-        doc.line(14, 32, doc.internal.pageSize.getWidth() - 14, 32);
-        
-        // Footer (Page Numbers)
-        const pageCount = doc.internal.getNumberOfPages();
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(8);
-        doc.text(`Page ${data.pageNumber} of ${pageCount}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        doc.text(`Generated securely by Accord Pro System`, 14, doc.internal.pageSize.getHeight() - 10);
+      // Secure Image Loader to bypass CORS issues on Canvas
+      const getBase64ImageFromUrl = async (imageUrl) => {
+        if (!imageUrl) return null;
+        try {
+          const res = await fetch(imageUrl, { mode: 'cors' });
+          const blob = await res.blob();
+          return await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        } catch(e) { 
+          console.warn("Could not load external logo for PDF:", e);
+          return null; 
+        }
       };
 
-      let currentY = 44; // Start below the letterhead
+      // Fetch Logos
+      const uniLogoData = await getBase64ImageFromUrl(unlockedDept.university_logo_url) || accordLogo;
+      const deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url);
 
+      let isFirstPage = true;
+
+      // Loop Dates & Sections (Forcing One Page Per Section)
       Object.keys(processedSchedule).sort().forEach(date => {
-        
-        // Draw the Date as a standalone, elegant header
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.setTextColor(15, 23, 42);
-        
-        // Prevent orphaned headers at the bottom of the page
-        if (currentY > doc.internal.pageSize.getHeight() - 40) {
-          doc.addPage();
-          currentY = 44;
-        }
-        
-        doc.text(date.toUpperCase(), 14, currentY);
-        currentY += 6;
-
         Object.keys(processedSchedule[date]).sort().forEach(section => {
+          
+          if (!isFirstPage) doc.addPage();
+          isFirstPage = false;
+          
+          const pageWidth = doc.internal.pageSize.getWidth();
+          
+          // --- 1. PREMIUM LETTERHEAD ---
+          // Left: University Crest
+          doc.addImage(uniLogoData, 'PNG', 14, 12, 18, 18);
+          
+          // Right: Department Crest
+          if (deptLogoData) {
+            doc.addImage(deptLogoData, 'PNG', pageWidth - 32, 12, 18, 18);
+          }
+
+          // Center: Titles
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(14);
+          doc.setTextColor(15, 23, 42); // Slate 900
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 18, { align: 'center' });
+          
+          doc.setFontSize(10);
+          doc.setTextColor(37, 99, 235); // Blue 600
+          doc.text(`${deptCode} • ${campusName} Campus`, pageWidth / 2, 24, { align: 'center' });
+
+          doc.setFontSize(9);
+          doc.setTextColor(100, 116, 139); // Slate 500
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 29, { align: 'center' });
+
+          // Divider Line
+          doc.setDrawColor(226, 232, 240); // Slate 200
+          doc.setLineWidth(0.5);
+          doc.line(14, 34, pageWidth - 14, 34);
+
+          // --- 2. ISOLATED SECTION HEADER ---
+          let currentY = 44;
+          
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`DATE: ${date.toUpperCase()}`, 14, currentY);
+          currentY += 6;
+          
+          doc.setFontSize(10);
+          doc.setTextColor(71, 85, 105); // Slate 600
+          doc.text(`TARGET CLASS: ${section.toUpperCase()}`, 14, currentY);
+          currentY += 8;
+
+          // --- 3. PREMIUM TABLE STRUCTURE ---
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
             `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
@@ -203,51 +224,49 @@ const StudentPortal = ({ onBack }) => {
           ]);
 
           autoTable(doc, {
-            head: [
-              // Clean Section Sub-Header
-              [{ content: section.toUpperCase(), colSpan: 4, styles: { halign: 'left', fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 9 } }],
-              // Actual Column Headers
-              ["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]
-            ],
+            head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]],
             body: tableRows,
             startY: currentY,
-            theme: 'plain', // Removes default harsh grid
+            theme: 'plain',
             styles: { 
               font: 'helvetica', 
               fontSize: 9, 
-              cellPadding: 5,
+              cellPadding: 6,
               textColor: [51, 65, 85], // Slate 700
               lineColor: [226, 232, 240], // Slate 200
-              lineWidth: 0.1 // Ultra-subtle borders
+              lineWidth: 0.1
             },
             headStyles: { 
               font: 'helvetica', 
               fillColor: [15, 23, 42], // Slate 900
-              textColor: [255, 255, 255], // White
-              fontSize: 8,
-              fontStyle: 'bold',
-              halign: 'left'
+              textColor: [255, 255, 255], 
+              fontSize: 8, 
+              fontStyle: 'bold', 
+              halign: 'left' 
             },
-            alternateRowStyles: {
-              fillColor: [248, 250, 252] // Slate 50 alternating rows
-            },
-            margin: { top: 40, bottom: 25, left: 14, right: 14 },
-            pageBreak: 'auto',
-            didDrawPage: drawHeaderFooter // Injects Header/Footer on every new page created
+            alternateRowStyles: { fillColor: [248, 250, 252] }, // Slate 50
+            margin: { bottom: 25, left: 14, right: 14 },
+            
+            // --- 4. FOOTER INJECTION ---
+            didDrawPage: (data) => {
+              const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              doc.setFont("helvetica", "italic");
+              doc.setFontSize(8);
+              doc.setTextColor(148, 163, 184);
+              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 14, doc.internal.pageSize.getHeight() - 10);
+              doc.text(`Page ${data.pageNumber}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            }
           });
-
-          currentY = doc.lastAutoTable.finalY + 12; // Gap between sections
         });
-        
-        currentY += 8; // Extra gap before the next Date
       });
 
-      // Name the file dynamically based on the active filters
       const fileNameTag = filterYear !== 'ALL' ? `Yr${filterYear}` : 'Master';
-      doc.save(`Accord_${deptName}_${fileNameTag}_Schedule.pdf`);
+      doc.save(`Accord_${deptCode}_${fileNameTag}_Schedule.pdf`);
       
     } catch (err) {
-      alert("PDF Export Failed: " + err.message);
+      alert("PDF Export Failed. Please check your connection.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -405,8 +424,13 @@ const StudentPortal = ({ onBack }) => {
               ))}
            </div>
 
-           <button onClick={handleExportPDF} className="w-full lg:w-auto bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors shrink-0 shadow-md active:scale-95">
-             <DownloadCloud size={14} /> Save PDF
+           <button 
+             onClick={handleExportPDF} 
+             disabled={isExporting}
+             className="w-full lg:w-auto bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 disabled:opacity-75 disabled:hover:bg-slate-900 transition-colors shrink-0 shadow-md active:scale-95"
+           >
+             {isExporting ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
+             {isExporting ? 'Generating...' : 'Save PDF'}
            </button>
         </div>
 
