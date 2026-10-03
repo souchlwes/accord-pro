@@ -1,4 +1,4 @@
-\import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
   BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, DownloadCloud, Layers
@@ -431,7 +431,7 @@ const StudentPortal = ({ onBack }) => {
 
       <main className="container mx-auto px-4 md:px-8 max-w-6xl -mt-10 md:-mt-16 relative z-30">
         
-        {/* PREMIUM FLOATING TOOLBAR */}
+        {/* PREMIUM FLOATING TOOLBAR (Natural scrolling, no sticky annoyance) */}
         <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col lg:flex-row items-center gap-4 relative z-30 mb-8 mt-6">
            
            <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto shrink-0 shadow-inner">
