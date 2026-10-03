@@ -3,7 +3,7 @@ import {
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
   BellRing, CheckCircle2, Lock, ChevronRight, Mail, Users, Loader2, AlertCircle
 } from 'lucide-react';
-import { supabase } from './supabaseClient'; // Connects directly to DB
+import { supabase } from './supabaseClient';
 import accordLogo from './accord.png'; 
 
 const formatTime = (timeStr) => {
@@ -15,26 +15,22 @@ const formatTime = (timeStr) => {
 };
 
 const StudentPortal = ({ onBack }) => {
-  // Authentication & Data States
   const [accessCode, setAccessCode] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState('');
   const [unlockedDept, setUnlockedDept] = useState(null);
   const [publicSchedule, setPublicSchedule] = useState([]);
 
-  // UI Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [filterYear, setFilterYear] = useState('ALL');
   const [viewMode, setViewMode] = useState('upcoming');
 
-  // Subscription States
   const [subEmail, setSubEmail] = useState('');
   const [subYear, setSubYear] = useState('');
   const [subSection, setSubSection] = useState('');
   const [subLoading, setSubLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // --- 1. SECURE DATABASE UNLOCK ENGINE ---
   const handleUnlock = async (e) => {
     e.preventDefault();
     if (!accessCode.trim()) return;
@@ -45,16 +41,15 @@ const StudentPortal = ({ onBack }) => {
     try {
       const code = accessCode.trim().toUpperCase();
       
-      // Step A: Verify the Department Code
+      // Using the dedicated student_code to prevent staff login access
       const { data: deptData, error: deptError } = await supabase
          .from('departments')
          .select('*')
-         .eq('invite_code', code)
+         .eq('student_code', code)
          .maybeSingle();
 
-      if (deptError || !deptData) throw new Error("Invalid Access Code. Please verify with your department.");
+      if (deptError || !deptData) throw new Error("Invalid Access PIN. Please verify with your department.");
 
-      // Step B: Fetch the Locked Public Schedule for this specific department
       const { data: schedData, error: schedError } = await supabase
          .from('schedules')
          .select('*')
@@ -73,14 +68,12 @@ const StudentPortal = ({ onBack }) => {
     }
   };
 
-  // --- 2. LIVE NOTIFICATION SUBSCRIPTION ---
   const handleSubscribe = async (e) => {
     e.preventDefault();
     if (!subEmail || !subYear || !subSection) return;
 
     setSubLoading(true);
     
-    // Silently save the student's email to Supabase for the Auto-Blaster
     const { error } = await supabase.from('student_subscriptions').insert([{
         email: subEmail,
         dept_code: unlockedDept.code,
@@ -103,11 +96,9 @@ const StudentPortal = ({ onBack }) => {
     }
   };
 
-  // --- 3. SMART SEARCH & FILTER ENGINE ---
   const processedSchedule = useMemo(() => {
     let data = [...publicSchedule];
 
-    // Filter A: Upcoming vs History
     const todayStr = new Date().toISOString().split('T')[0];
     const currentTimeStr = new Date().toTimeString().substring(0, 5);
     
@@ -116,12 +107,10 @@ const StudentPortal = ({ onBack }) => {
        return viewMode === 'upcoming' ? !isPast : isPast;
     });
 
-    // Filter B: Year Level Pill Selection
     if (filterYear !== 'ALL') {
        data = data.filter(s => String(s.year_level) === String(filterYear));
     }
 
-    // Filter C: Search Bar (Checks subject, code, section, and room)
     if (searchQuery.trim()) {
        const q = searchQuery.toLowerCase();
        data = data.filter(s => 
@@ -132,7 +121,6 @@ const StudentPortal = ({ onBack }) => {
        );
     }
 
-    // Group the final results by Date for the Timeline UI
     const grouped = {};
     data.forEach(item => {
       if (!grouped[item.exam_date]) grouped[item.exam_date] = [];
@@ -142,7 +130,6 @@ const StudentPortal = ({ onBack }) => {
     return grouped;
   }, [publicSchedule, viewMode, filterYear, searchQuery]);
 
-  // --- UI STATE A: THE LOCK SCREEN ---
   if (!unlockedDept) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative font-sans">
@@ -168,7 +155,7 @@ const StudentPortal = ({ onBack }) => {
                 type="text" 
                 required
                 maxLength="6"
-                placeholder="6-Digit Dept Code" 
+                placeholder="6-Digit Public PIN" 
                 value={accessCode} 
                 onChange={e => setAccessCode(e.target.value)} 
                 className="w-full bg-slate-50 px-4 py-4 pl-12 rounded-2xl font-black text-lg md:text-xl text-center tracking-[0.3em] uppercase border-2 border-transparent focus:border-emerald-500 outline-none transition-all"
@@ -184,11 +171,8 @@ const StudentPortal = ({ onBack }) => {
     );
   }
 
-  // --- UI STATE B: THE UNLOCKED MASTER BOARD ---
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative">
-      
-      {/* Premium Header */}
       <nav className="bg-slate-900 px-4 md:px-8 py-4 md:py-6 flex flex-wrap items-center justify-between sticky top-0 z-50 shadow-2xl gap-4">
         <div className="flex items-center gap-3 md:gap-4">
           <img src={unlockedDept.logo_url || accordLogo} alt="Crest" className="w-10 h-10 md:w-12 md:h-12 object-contain bg-white/10 p-1.5 rounded-xl border border-white/5" />
@@ -207,7 +191,6 @@ const StudentPortal = ({ onBack }) => {
 
       <main className="container mx-auto px-4 md:px-6 max-w-6xl mt-6 md:mt-10 space-y-6 md:space-y-8">
         
-        {/* --- PREMIUM NOTIFY ME SUBSCRIPTION BOX --- */}
         <div className="bg-blue-600 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border border-blue-500">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
           
@@ -252,16 +235,11 @@ const StudentPortal = ({ onBack }) => {
           </div>
         </div>
 
-        {/* --- SMART TOOLBAR (NO DROPDOWNS) --- */}
         <div className="bg-white p-4 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row items-center gap-4 sticky top-[80px] md:top-[100px] z-40">
-           
-           {/* Status Toggle */}
            <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-auto shrink-0">
               <button onClick={() => setViewMode('upcoming')} className={`flex-1 px-5 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${viewMode === 'upcoming' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Upcoming</button>
               <button onClick={() => setViewMode('history')} className={`flex-1 px-5 py-3 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all ${viewMode === 'history' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
            </div>
-
-           {/* Search Bar */}
            <div className="relative w-full lg:flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
@@ -272,8 +250,6 @@ const StudentPortal = ({ onBack }) => {
                 className="w-full bg-slate-50 p-3.5 md:p-4 pl-11 rounded-2xl font-black text-[10px] md:text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all"
               />
            </div>
-
-           {/* Horizontal Year Level Pills */}
            <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-auto overflow-x-auto custom-scrollbar shrink-0">
               <button onClick={() => setFilterYear('ALL')} className={`px-4 py-3 md:py-3.5 text-[9px] md:text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${filterYear === 'ALL' ? 'bg-white shadow text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>All Yrs</button>
               {[1, 2, 3, 4, 5].map(y => (
@@ -282,7 +258,6 @@ const StudentPortal = ({ onBack }) => {
            </div>
         </div>
 
-        {/* --- SCHEDULE GRID RENDERER --- */}
         {Object.keys(processedSchedule).length > 0 ? (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-500 pt-4">
             {Object.keys(processedSchedule).sort().map(date => (
@@ -290,15 +265,12 @@ const StudentPortal = ({ onBack }) => {
                 <div className="absolute -left-[18px] top-0 w-8 h-8 bg-slate-900 rounded-full flex items-center justify-center shadow-lg border-4 border-slate-50">
                   <Calendar size={12} className="text-white"/>
                 </div>
-                
                 <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter uppercase mb-6 pt-1">{date}</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {processedSchedule[date].map((s, idx) => (
                     <div key={idx} className="bg-white p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
-                      {/* Accent strip */}
                       <div className="absolute left-0 top-0 bottom-0 w-2 bg-blue-500 opacity-30 group-hover:opacity-100 transition-opacity"></div>
-                      
                       <div>
                         <div className="flex justify-between items-start mb-3">
                            <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
@@ -308,7 +280,6 @@ const StudentPortal = ({ onBack }) => {
                         </div>
                         <h4 className="text-sm md:text-base font-bold text-slate-900 leading-snug mb-5">{s.subject_name}</h4>
                       </div>
-                      
                       <div className="grid grid-cols-2 gap-3 border-t border-slate-50 pt-4 mt-auto">
                         <div className="flex flex-col bg-slate-50 p-2.5 rounded-xl">
                           <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-1"><Clock size={10}/> Time</span>
@@ -334,7 +305,6 @@ const StudentPortal = ({ onBack }) => {
             </p>
           </div>
         )}
-
       </main>
     </div>
   );
