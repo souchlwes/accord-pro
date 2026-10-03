@@ -81,14 +81,14 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering, onOpe
 
           <div className="flex flex-row items-center justify-center gap-6 sm:gap-10 md:gap-14 w-full pointer-events-auto">
             
-            {/* NEW: Student Portal Button */}
+            {/* NEW: Student Portal Button (White to Green) */}
             <div className="relative group">
               <button
                 onClick={onOpenPortal}
                 disabled={isEntering}
-                className="text-emerald-400 hover:text-white transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.6)]"
+                className="bg-white hover:bg-emerald-500 text-emerald-600 hover:text-white p-3 rounded-full transition-all duration-300 hover:scale-110 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)] border border-white hover:border-emerald-500"
               >
-                <BookOpen size={36} strokeWidth={1.5} />
+                <BookOpen size={24} strokeWidth={2} />
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                 <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Student Portal</span>
