@@ -84,6 +84,18 @@ const StudentPortal = ({ onBack }) => {
     setSubLoading(false);
     
     if (!error) {
+        // --- NEW: INSTANT CONFIRMATION EMAIL ---
+        fetch('/api/notify', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+              emails: subEmail,
+              title: `Alerts Active: ${unlockedDept.code} Department`,
+              message: `You are successfully subscribed to live schedule updates for Year ${subYear} - Section ${subSection.trim().toUpperCase()}. We will email you the exact moment your room assignments are published or changed.`
+           })
+        }).catch(e => console.error("Confirmation email failed:", e));
+        // ----------------------------------------
+
         setIsSubscribed(true);
         setTimeout(() => { 
           setIsSubscribed(false); 
