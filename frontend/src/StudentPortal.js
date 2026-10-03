@@ -3,7 +3,8 @@ import {
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
   BellRing, CheckCircle2, Layers, ChevronRight, Mail 
 } from 'lucide-react';
-import accordLogo from '../accord.png'; // Adjust path to your logo if needed
+import accordLogo from './accord.png';
+
 
 const formatTime = (timeStr) => {
   if (!timeStr) return "";
