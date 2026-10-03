@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+\import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
   BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, DownloadCloud, Layers
@@ -159,9 +159,18 @@ const StudentPortal = ({ onBack }) => {
         });
       };
 
-      // Fetch Logos: If no dept logo exists, it stays null (NO duplicate Accord Logo)
-      const uniLogoData = await getBase64ImageFromUrl(unlockedDept.university_logo_url) || accordLogo;
-      const deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url) || accordLogo;
+      // Smart Logo Logic: Prevents Duplicate Logos
+      let uniLogoData = await getBase64ImageFromUrl(unlockedDept.university_logo_url);
+      let deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url);
+
+      if (!uniLogoData && !deptLogoData) {
+        uniLogoData = accordLogo; // Fallback to Accord only once on the left
+      } else if (uniLogoData && deptLogoData && unlockedDept.university_logo_url === unlockedDept.logo_url) {
+        deptLogoData = null; // Prevent showing the same image twice if urls match
+      } else if (!uniLogoData && deptLogoData) {
+        uniLogoData = deptLogoData; // If only dept exists, make it the primary left logo
+        deptLogoData = null;
+      }
 
       let isFirstPage = true;
 
@@ -174,60 +183,56 @@ const StudentPortal = ({ onBack }) => {
           
           const pageWidth = doc.internal.pageSize.getWidth();
           
-          // --- 1. EXECUTIVE LETTERHEAD ---
-          // Left: University Crest
-          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 12, 22, 22);
+          // --- 1. EXECUTIVE LETTERHEAD (Sleek Helvetica) ---
           
-          // Right: Department Crest (Only prints if you actually uploaded one)
-          if (deptLogoData) {
-            doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 12, 22, 22);
-          }
+          if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 14, 14, 24, 24);
+          if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 38, 14, 24, 24);
 
-          // Center: Titles (Using Times font for a premium academic look)
-          doc.setFont("times", "bold");
-          doc.setFontSize(22);
+          // Center: Titles (Using Helvetica for a premium, clean corporate look)
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(18);
           doc.setTextColor(15, 23, 42); // Slate 900
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 22, { align: 'center' });
           
-          doc.setFont("times", "normal");
-          doc.setFontSize(11);
-          doc.setTextColor(71, 85, 105); // Slate 600
-          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
-
-          doc.setFont("times", "italic");
+          doc.setFont("helvetica", "normal");
           doc.setFontSize(10);
+          doc.setTextColor(71, 85, 105); // Slate 600
+          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 28, { align: 'center' });
+
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(9);
           doc.setTextColor(37, 99, 235); // Blue 600
-          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 33, { align: 'center' });
 
           // Premium Double Line Divider
           doc.setDrawColor(15, 23, 42); // Slate 900
           doc.setLineWidth(0.8);
-          doc.line(15, 36, pageWidth - 15, 36);
+          doc.line(14, 40, pageWidth - 14, 40);
           
-          doc.setDrawColor(148, 163, 184); // Slate 400
+          doc.setDrawColor(203, 213, 225); // Slate 300
           doc.setLineWidth(0.2);
-          doc.line(15, 37.5, pageWidth - 15, 37.5);
+          doc.line(14, 41.5, pageWidth - 14, 41.5);
 
           // --- 2. ISOLATED SECTION HEADER ---
-          let currentY = 46;
+          let currentY = 50;
           
-          doc.setFont("times", "bold");
-          doc.setFontSize(11);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
           doc.setTextColor(15, 23, 42);
-          doc.text(`EXAMINATION DATE:`, 15, currentY);
+          doc.text(`EXAMINATION DATE:`, 14, currentY);
           
-          doc.setFont("times", "normal");
-          doc.text(date.toUpperCase(), 62, currentY);
+          doc.setFont("helvetica", "normal");
+          doc.text(date.toUpperCase(), 52, currentY);
           currentY += 6;
           
-          doc.setFont("times", "bold");
-          doc.text(`TARGET SECTION:`, 15, currentY);
+          doc.setFont("helvetica", "bold");
+          doc.text(`TARGET SECTION:`, 14, currentY);
           
-          doc.setFont("times", "normal");
-          doc.text(section.toUpperCase(), 55, currentY);
+          doc.setFont("helvetica", "normal");
+          doc.text(section.toUpperCase(), 47, currentY);
           currentY += 10;
 
-          // --- 3. PREMIUM TABLE STRUCTURE (Highly Visible Grid) ---
+          // --- 3. PREMIUM TABLE STRUCTURE (Highly Visible Grid & Locked Widths) ---
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
             `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
@@ -240,49 +245,48 @@ const StudentPortal = ({ onBack }) => {
             head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]],
             body: tableRows,
             startY: currentY,
-            theme: 'grid', // Restored the grid
+            theme: 'grid', 
             styles: { 
-              font: 'times', 
-              fontSize: 10, 
-              cellPadding: 7,
-              textColor: [30, 41, 59], // Slate 800
-              lineColor: [100, 116, 139], // Slate 500 (Much darker, visible lines)
-              lineWidth: 0.2
+              font: 'helvetica', 
+              fontSize: 9, 
+              cellPadding: 6,
+              textColor: [30, 41, 59], 
+              lineColor: [203, 213, 225], // Slate 300 (Crisp, clean borders)
+              lineWidth: 0.1,
+              valign: 'middle'
             },
             headStyles: { 
-              font: 'times', 
+              font: 'helvetica', 
               fillColor: [15, 23, 42], // Slate 900
               textColor: [255, 255, 255], 
-              fontSize: 10, 
+              fontSize: 9, 
               fontStyle: 'bold', 
               halign: 'center',
               lineColor: [15, 23, 42],
-              lineWidth: 0.2
+              lineWidth: 0.1
             },
             columnStyles: {
-              0: { halign: 'center', fontStyle: 'bold' },
-              1: { halign: 'center' },
-              2: { halign: 'left' },
-              3: { halign: 'center', fontStyle: 'bold' } 
+              0: { halign: 'center', fontStyle: 'bold', cellWidth: 42 }, // LOCKED WIDTH to prevent time wrapping
+              1: { halign: 'center', cellWidth: 32 },
+              2: { halign: 'left' }, // Flex width for subject name
+              3: { halign: 'center', fontStyle: 'bold', cellWidth: 25, textColor: [37, 99, 235] } 
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }, 
-            margin: { bottom: 30, left: 15, right: 15 },
+            margin: { bottom: 30, left: 14, right: 14 },
             
             // --- 4. FOOTER INJECTION ---
             didDrawPage: () => {
               const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-              doc.setFont("times", "italic");
-              doc.setFontSize(9);
-              doc.setTextColor(100, 116, 139); // Slate 500
+              doc.setFont("helvetica", "italic");
+              doc.setFontSize(8);
+              doc.setTextColor(148, 163, 184); // Slate 400
               
-              // Top border for footer
-              doc.setDrawColor(203, 213, 225);
+              doc.setDrawColor(226, 232, 240);
               doc.setLineWidth(0.5);
-              doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
+              doc.line(14, doc.internal.pageSize.getHeight() - 15, pageWidth - 14, doc.internal.pageSize.getHeight() - 15);
 
-              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
-              // Global page number fix!
-              doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+              doc.text(`Generated securely by Accord Pro System: ${printDate}`, 14, doc.internal.pageSize.getHeight() - 10);
+              doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
             }
           });
         });
@@ -329,7 +333,7 @@ const StudentPortal = ({ onBack }) => {
                 placeholder="6-Digit PIN" 
                 value={accessCode} 
                 onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-black/40 text-white px-6 py-5 pl-14 rounded-2xl font-black text-xl text-center tracking-[0.4em] uppercase border border-white/10 focus:border-emerald-500 outline-none transition-all shadow-inner placeholder:text-slate-600 placeholder:tracking-normal placeholder:font-bold"
+                className="w-full bg-black/40 text-white px-6 py-5 pl-14 rounded-2xl font-mono font-medium text-3xl text-center tracking-[0.3em] uppercase border border-white/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner placeholder:text-slate-500 placeholder:tracking-normal placeholder:font-sans placeholder:text-base"
               />
             </div>
 
@@ -427,7 +431,7 @@ const StudentPortal = ({ onBack }) => {
 
       <main className="container mx-auto px-4 md:px-8 max-w-6xl -mt-10 md:-mt-16 relative z-30">
         
-        {/* PREMIUM FLOATING TOOLBAR (Natural scrolling, no sticky annoyance) */}
+        {/* PREMIUM FLOATING TOOLBAR */}
         <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col lg:flex-row items-center gap-4 relative z-30 mb-8 mt-6">
            
            <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto shrink-0 shadow-inner">
