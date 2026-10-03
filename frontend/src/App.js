@@ -3630,7 +3630,9 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
         return;
     }
 
+   // Generates TWO separate codes: one for Staff, one for Students
    const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+   const studentCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
    const { error } = await supabase.from('departments').insert([{ 
       name, 
@@ -3639,8 +3641,9 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
       university: profile.university,
       subjects: {}, 
       rooms: [],
-      invite_code: generatedCode
-    }]); 
+      invite_code: generatedCode,
+      student_code: studentCode
+    }]);
     
     if (error) {
       if (error.code === '23505') {
@@ -4879,87 +4882,98 @@ const [deptModal, setDeptModal] = useState({ isOpen: false, step: 1, name: '', c
 
                         </div>
 
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {depts.map(dept => {
-                            // --- LIVE COVERAGE CALCULATION ---
-                            const deptSchedule = globalSchedule.filter(s => s.dept_code === dept.code);
-                            const totalSlots = deptSchedule.length;
-                            const filledSlots = deptSchedule.filter(s => s.proctor && s.proctor !== 'TBA').length;
-                            const fillPercentage = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  {depts.map(dept => {
+    // --- LIVE COVERAGE CALCULATION ---
+    const deptSchedule = globalSchedule.filter(s => s.dept_code === dept.code);
+    const totalSlots = deptSchedule.length;
+    const filledSlots = deptSchedule.filter(s => s.proctor && s.proctor !== 'TBA').length;
+    const fillPercentage = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
 
-                            return (
-                              <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/80 hover:border-blue-500 hover:-translate-y-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer group flex flex-col relative overflow-hidden">
-                                
-                                {/* Bottom Progress Bar */}
-                                <div className="absolute bottom-0 left-0 h-1.5 bg-slate-100 w-full">
-                                    <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
-                                  </div>
+    return (
+      <div key={dept.id} onClick={() => setActiveDeptId(dept.id)} className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/80 hover:border-blue-500 hover:-translate-y-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer group flex flex-col relative overflow-hidden">
+        
+        {/* Bottom Progress Bar */}
+        <div className="absolute bottom-0 left-0 h-1.5 bg-slate-100 w-full">
+            <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${fillPercentage}%` }}></div>
+          </div>
 
-                                {/* CLEAN, RESPONSIVE CARD HEADER */}
-                                  <div className="flex justify-between items-start mb-6 gap-4">
-                                    
-                                    {/* LEFT: CREST & TITLES */}
-                                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                                       <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 shrink-0 w-12 h-12 md:w-14 md:h-14" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
-                                           {dept.logo_url ? (
-                                               <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-md transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
-                                           ) : (
-                                               <div className="w-full h-full bg-slate-50 rounded-2xl flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border-0 shadow-sm"><Layers size={24} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
-                                           )}
-                                           {(isHeadAdmin || isDeptAdmin) && (
-                                             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit</div>
-                                           )}
-                                       </div>
+        {/* CLEAN, RESPONSIVE CARD HEADER */}
+          <div className="flex justify-between items-start mb-6 gap-4">
+            
+            {/* LEFT: CREST & TITLES */}
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+               <div className="relative group/deptcrest cursor-pointer bg-transparent border-0 shrink-0 w-12 h-12 md:w-14 md:h-14" onClick={(e) => { e.stopPropagation(); (isHeadAdmin || isDeptAdmin) && setLogoModal({ isOpen: true, type: 'department', targetId: dept.id, currentLogo: dept.logo_url, newLogoBase64: null, newLogoType: null, zoom: 1 }); }}>
+                   {dept.logo_url ? (
+                       <img src={dept.logo_url} className="w-full h-full block object-contain bg-transparent border-none drop-shadow-md transition-transform group-hover/deptcrest:scale-105" alt={`${dept.code} Crest`} />
+                   ) : (
+                       <div className="w-full h-full bg-slate-50 rounded-2xl flex items-center justify-center group-hover/deptcrest:bg-blue-50 transition-colors border-0 shadow-sm"><Layers size={24} className="text-slate-400 group-hover/deptcrest:text-blue-500"/></div>
+                   )}
+                   {(isHeadAdmin || isDeptAdmin) && (
+                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded opacity-0 group-hover/deptcrest:opacity-100 transition-opacity shadow-sm whitespace-nowrap z-50">Edit</div>
+                   )}
+               </div>
 
-                                       <div className="flex-1 min-w-0">
-                                         <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors truncate">{dept.code}</h3>
-                                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 line-clamp-2 leading-snug" title={dept.name}>{dept.name}</p>
-                                       </div>
-                                    </div>
+               <div className="flex-1 min-w-0">
+                 <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 group-hover:text-blue-600 transition-colors truncate">{dept.code}</h3>
+                 <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 line-clamp-2 leading-snug" title={dept.name}>{dept.name}</p>
+               </div>
+            </div>
+          </div>
+          
+        <div className="flex gap-4 mt-auto mb-4">
+          <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+            <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
+            <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
+          </div>
+          <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
+            <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
+            <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
+          </div>
+        </div>
 
-                                    {/* RIGHT: INVITE CODE */}
-                                    <div className="text-right shrink-0">
-                                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Invite Code</span>
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation(); 
-                                          navigator.clipboard.writeText(dept.invite_code || '');
-                                          setAppToast({ message: `Copied ${dept.invite_code} to clipboard!`, type: "success" });
-                                        }}
-                                        className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-black tracking-widest border border-slate-200 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300 transition-all shadow-sm active:scale-95"
-                                        title="Copy to clipboard"
-                                      >
-                                        {dept.invite_code || 'N/A'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                  
-                                <div className="flex gap-4 mt-auto mb-4">
-                                  <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
-                                    <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Proctors</span>
-                                    <span className="text-xl font-black text-slate-800">{allProfiles.filter(p => p.assigned_dept === dept.code && p.role === 'PROCTOR').length}</span>
-                                  </div>
-                                  <div className="bg-slate-50/80 px-4 py-3 rounded-2xl flex-1 text-center border border-slate-100">
-                                    <span className="block text-[9px] font-black text-slate-400 uppercase mb-1">Rooms</span>
-                                    <span className="text-xl font-black text-slate-800">{dept.rooms?.length || 0}</span>
-                                  </div>
-                                </div>
+        {/* Live Coverage Stats */}
+        <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-100">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Schedule Coverage</span>
+          <span className={`text-[10px] font-black uppercase ${fillPercentage === 100 ? 'text-emerald-500' : fillPercentage === 0 ? 'text-slate-400' : 'text-blue-600'}`}>
+            {fillPercentage}% Filled
+          </span>
+        </div>
 
-                                {/* Live Coverage Stats */}
-                                <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-100">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Schedule Coverage</span>
-                                  <span className={`text-[10px] font-black uppercase ${fillPercentage === 100 ? 'text-emerald-500' : fillPercentage === 0 ? 'text-slate-400' : 'text-blue-600'}`}>
-                                    {fillPercentage}% Filled
-                                  </span>
-                                </div>
+        {/* PREMIUM DUAL-CODE DISPLAY FOR ADMIN CARDS */}
+        <div className="mt-4 flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+           {/* Staff Code */}
+           <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group cursor-help transition-all hover:bg-blue-50 hover:border-blue-200">
+             <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1 group-hover:text-blue-500 transition-colors">Staff Invite Code</span>
+             <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.invite_code}</span>
+             
+             {/* Tooltip */}
+             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-slate-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-20 text-center font-bold leading-relaxed">
+                Share this code with Proctors. They will use this to create their account and join this specific department.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
+             </div>
+           </div>
 
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+           {/* Student Code */}
+           <div className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl relative group cursor-help transition-all hover:bg-emerald-50 hover:border-emerald-200">
+             <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1 group-hover:text-emerald-600 transition-colors">Student Access PIN</span>
+             <span className="text-sm md:text-base font-black tracking-[0.2em] text-slate-800">{dept.student_code || 'TBA'}</span>
+             
+             {/* Tooltip */}
+             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-emerald-900 text-white text-[10px] p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-xl z-20 text-center font-bold leading-relaxed">
+                Share this PIN with Students! They enter this on the public portal to view their schedule without creating an account.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-emerald-900"></div>
+             </div>
+           </div>
+        </div>
+
+      </div>
+    );
+  })}
+</div>
+</div>
+))}
+</div>
                
                ) : (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
