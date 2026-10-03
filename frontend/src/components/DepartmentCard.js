@@ -1132,7 +1132,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
     validateAndApplyChange(updated, `Reordered subjects in section ${block.section}.`);
   };
 
-  const executeExport = async () => {
+ const executeExport = async () => {
     try {
       if (!localSchedule || localSchedule.length === 0) {
         alert("ERROR: No schedule data found to export!"); 
@@ -1165,7 +1165,9 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
       });
 
        if (exportConfig.format === 'pdf') {
-        const doc = new jsPDF({ orientation: 'landscape' });
+        
+        // 1. SET TO PORTRAIT MODE
+        const doc = new jsPDF({ orientation: 'portrait' }); 
         const titleText = `${deptName || 'Department'} Schedule: ${titleSuffix.replace(/_/g, ' ')}`;
         
         const getBase64ImageFromUrl = (imageUrl) => {
@@ -1200,17 +1202,18 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
         let isFirstPage = true;
 
+        // 2. GROUP BY DATE -> SECTION (Matches Student Portal)
         const groupedData = {};
         sorted.forEach(item => {
           const sec = item.section || "N/A";
           const date = item.exam_date || "N/A";
-          if (!groupedData[sec]) groupedData[sec] = {};
-          if (!groupedData[sec][date]) groupedData[sec][date] = [];
-          groupedData[sec][date].push(item);
+          if (!groupedData[date]) groupedData[date] = {};
+          if (!groupedData[date][sec]) groupedData[date][sec] = [];
+          groupedData[date][sec].push(item);
         });
 
-        Object.keys(groupedData).sort().forEach(section => {
-          Object.keys(groupedData[section]).sort().forEach(date => {
+        Object.keys(groupedData).sort().forEach(date => {
+          Object.keys(groupedData[date]).sort().forEach(section => {
             
             if (!isFirstPage) doc.addPage();
             isFirstPage = false;
@@ -1220,18 +1223,19 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 15, 12, 22, 22);
             if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 37, 12, 22, 22);
 
+            // 3. APPLY PREMIUM 'TIMES' FONT EVERYWHERE
             doc.setFont("times", "bold");
-            doc.setFontSize(22);
+            doc.setFontSize(20);
             doc.setTextColor(15, 23, 42); 
             doc.text((dept.university || "UNIVERSITY").toUpperCase(), pageWidth / 2, 20, { align: 'center' });
             
             doc.setFont("times", "normal");
-            doc.setFontSize(11);
+            doc.setFontSize(10);
             doc.setTextColor(71, 85, 105); 
             doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${(dept.campus_location || 'MAIN').toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
 
             doc.setFont("times", "italic");
-            doc.setFontSize(10);
+            doc.setFontSize(9);
             doc.setTextColor(37, 99, 235); 
             doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
 
@@ -1239,59 +1243,60 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             doc.setLineWidth(0.8);
             doc.line(15, 36, pageWidth - 15, 36);
             
-            doc.setDrawColor(148, 163, 184); 
+            doc.setDrawColor(203, 213, 225); 
             doc.setLineWidth(0.2);
             doc.line(15, 37.5, pageWidth - 15, 37.5);
 
             let currentY = 46;
             
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(11);
+            doc.setFont("times", "bold");
+            doc.setFontSize(10);
             doc.setTextColor(15, 23, 42);
             doc.text(`EXAMINATION DATE:`, 15, currentY);
             
-            doc.setFont("helvetica", "normal");
-            doc.text(date.toUpperCase(), 62, currentY);
+            doc.setFont("times", "normal");
+            doc.text(date.toUpperCase(), 55, currentY);
             currentY += 6;
             
-            doc.setFont("helvetica", "bold");
+            doc.setFont("times", "bold");
             doc.text(`TARGET SECTION:`, 15, currentY);
             
-            doc.setFont("helvetica", "normal");
-            doc.text(section.toUpperCase(), 52, currentY);
+            doc.setFont("times", "normal");
+            const sampleItem = groupedData[date][section][0];
+            doc.text(`YR ${sampleItem.year_level || ''} - SEC ${section.toUpperCase()}`, 48, currentY);
             currentY += 10;
 
-            const items = groupedData[section][date];
+            const items = groupedData[date][section];
             const tableRows = items.map(item => [
               `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
-              item.year_level || "N/A",
-              `${item.subject_code || ""} - ${item.subject_name || ""}`,
+              item.subject_code || "N/A",
+              item.subject_name || "N/A",
               item.room || "N/A",
               item.proctor || "TBA"
             ]);
 
             autoTable(doc, { 
-              head: [["TIME BLOCK", "YEAR", "SUBJECT DESCRIPTION", "ROOM", "PROCTOR"]],
+              head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM", "PROCTOR"]],
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
-              styles: { font: 'helvetica', fontSize: 10, cellPadding: 7, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, valign: 'middle' }, 
-              headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
+              styles: { font: 'times', fontSize: 9, cellPadding: 6, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, valign: 'middle' }, 
+              headStyles: { font: 'times', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
               columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 42 },
-                1: { halign: 'center', cellWidth: 20 },
+                0: { halign: 'center', fontStyle: 'bold', cellWidth: 36 },
+                1: { halign: 'center', cellWidth: 26 },
                 2: { halign: 'left' },
-                3: { halign: 'center', fontStyle: 'bold', cellWidth: 25, textColor: [37, 99, 235] },
-                4: { halign: 'center', cellWidth: 45 }
+                3: { halign: 'center', fontStyle: 'bold', cellWidth: 20, textColor: [37, 99, 235] },
+                4: { halign: 'center', cellWidth: 35 }
               },
               alternateRowStyles: { fillColor: [248, 250, 252] },
               margin: { bottom: 30, left: 15, right: 15 },
               didDrawPage: () => {
                 const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                doc.setFont("helvetica", "italic");
-                doc.setFontSize(8);
+                doc.setFont("times", "italic");
+                doc.setFontSize(9);
                 doc.setTextColor(148, 163, 184); 
-                doc.setDrawColor(226, 232, 240);
+                doc.setDrawColor(203, 213, 225);
                 doc.setLineWidth(0.5);
                 doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
                 doc.text(`Generated securely by Accord Pro System: ${printDate}`, 15, doc.internal.pageSize.getHeight() - 10);
