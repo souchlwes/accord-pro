@@ -164,17 +164,16 @@ const StudentPortal = ({ onBack }) => {
       let deptLogoData = await getBase64ImageFromUrl(unlockedDept.logo_url);
 
       if (!uniLogoData && !deptLogoData) {
-        uniLogoData = accordLogo; // Fallback to Accord only once on the left
+        uniLogoData = accordLogo; 
       } else if (uniLogoData && deptLogoData && unlockedDept.university_logo_url === unlockedDept.logo_url) {
-        deptLogoData = null; // Prevent showing the same image twice if urls match
+        deptLogoData = null; 
       } else if (!uniLogoData && deptLogoData) {
-        uniLogoData = deptLogoData; // If only dept exists, make it the primary left logo
+        uniLogoData = deptLogoData; 
         deptLogoData = null;
       }
 
       let isFirstPage = true;
 
-      // Loop Dates & Sections (Forcing One Page Per Section)
       Object.keys(processedSchedule).sort().forEach(date => {
         Object.keys(processedSchedule[date]).sort().forEach(section => {
           
@@ -183,66 +182,62 @@ const StudentPortal = ({ onBack }) => {
           
           const pageWidth = doc.internal.pageSize.getWidth();
           
-          // --- 1. EXECUTIVE LETTERHEAD (Sleek Helvetica) ---
-          
           if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 14, 14, 24, 24);
           if (deptLogoData) doc.addImage(deptLogoData, 'PNG', pageWidth - 38, 14, 24, 24);
 
-          // Center: Titles (Using Helvetica for a premium, clean corporate look)
+          // PREMIUM MODERN IDENTITY: Pure Helvetica, clean hierarchy
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(18);
-          doc.setTextColor(15, 23, 42); // Slate 900
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 22, { align: 'center' });
+          doc.setFontSize(16);
+          doc.setTextColor(15, 23, 42); 
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
           
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(71, 85, 105); // Slate 600
-          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 28, { align: 'center' });
-
-          doc.setFont("helvetica", "italic");
+          doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(37, 99, 235); // Blue 600
-          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 33, { align: 'center' });
+          doc.setTextColor(100, 116, 139); 
+          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
 
-          // Premium Double Line Divider
-          doc.setDrawColor(15, 23, 42); // Slate 900
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(37, 99, 235); 
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+
+          // Modern Border Divides
+          doc.setDrawColor(15, 23, 42); 
           doc.setLineWidth(0.8);
           doc.line(14, 40, pageWidth - 14, 40);
           
-          doc.setDrawColor(203, 213, 225); // Slate 300
+          doc.setDrawColor(226, 232, 240); 
           doc.setLineWidth(0.2);
           doc.line(14, 41.5, pageWidth - 14, 41.5);
 
-          // --- 2. ISOLATED SECTION HEADER ---
           let currentY = 50;
           
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
           doc.setTextColor(15, 23, 42);
-          doc.text(`EXAMINATION DATE:`, 14, currentY);
+          doc.text(`EXAM DATE:`, 14, currentY);
           
           doc.setFont("helvetica", "normal");
-          doc.text(date.toUpperCase(), 52, currentY);
+          doc.text(date.toUpperCase(), 40, currentY);
           currentY += 6;
           
           doc.setFont("helvetica", "bold");
-          doc.text(`TARGET SECTION:`, 14, currentY);
+          doc.text(`SECTION:`, 14, currentY);
           
           doc.setFont("helvetica", "normal");
-          doc.text(section.toUpperCase(), 47, currentY);
+          doc.text(section.toUpperCase(), 35, currentY);
           currentY += 10;
 
-          // --- 3. PREMIUM TABLE STRUCTURE (Highly Visible Grid & Locked Widths) ---
           const items = processedSchedule[date][section];
           const tableRows = items.map(item => [
-            `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
+            `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`,
             item.subject_code,
             item.subject_name,
             item.room
           ]);
 
           autoTable(doc, {
-            head: [["TIME BLOCK", "COURSE CODE", "SUBJECT DESCRIPTION", "ROOM"]],
+            head: [["TIME", "CODE", "SUBJECT", "ROOM"]],
             body: tableRows,
             startY: currentY,
             theme: 'grid', 
@@ -251,35 +246,33 @@ const StudentPortal = ({ onBack }) => {
               fontSize: 9, 
               cellPadding: 6,
               textColor: [30, 41, 59], 
-              lineColor: [203, 213, 225], // Slate 300 (Crisp, clean borders)
+              lineColor: [203, 213, 225], 
               lineWidth: 0.1,
               valign: 'middle'
             },
             headStyles: { 
               font: 'helvetica', 
-              fillColor: [15, 23, 42], // Slate 900
+              fillColor: [15, 23, 42], 
               textColor: [255, 255, 255], 
-              fontSize: 9, 
+              fontSize: 8, 
               fontStyle: 'bold', 
               halign: 'center',
               lineColor: [15, 23, 42],
               lineWidth: 0.1
             },
             columnStyles: {
-              0: { halign: 'center', fontStyle: 'bold', cellWidth: 42 }, // LOCKED WIDTH to prevent time wrapping
-              1: { halign: 'center', cellWidth: 32 },
-              2: { halign: 'left' }, // Flex width for subject name
-              3: { halign: 'center', fontStyle: 'bold', cellWidth: 25, textColor: [37, 99, 235] } 
+              0: { halign: 'center', fontStyle: 'bold', cellWidth: 28 }, // Perfect fit for stacked time
+              1: { halign: 'center', fontStyle: 'bold', cellWidth: 32 },
+              2: { halign: 'left' },
+              3: { halign: 'center', fontStyle: 'bold', cellWidth: 28, textColor: [37, 99, 235] } // Expanded width so ROOM never wraps
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }, 
             margin: { bottom: 30, left: 14, right: 14 },
-            
-            // --- 4. FOOTER INJECTION ---
             didDrawPage: () => {
               const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
               doc.setFont("helvetica", "italic");
               doc.setFontSize(8);
-              doc.setTextColor(148, 163, 184); // Slate 400
+              doc.setTextColor(148, 163, 184); 
               
               doc.setDrawColor(226, 232, 240);
               doc.setLineWidth(0.5);
