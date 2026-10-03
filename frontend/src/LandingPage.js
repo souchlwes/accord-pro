@@ -2,7 +2,7 @@ import React, { useState, Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, OrbitControls, Center, PerspectiveCamera, Sparkles, Html, Float } from '@react-three/drei';
 import { 
-  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal, Image as ImageIcon
+  HelpCircle, ArrowRight, ShieldCheck, CalendarCheck2, Users, X, Loader2, MessageCircle, Send, ChevronRight, Terminal, Image as ImageIcon, BookOpen
 } from 'lucide-react';
 import * as THREE from 'three';
 import Groq from 'groq-sdk';
@@ -60,7 +60,7 @@ function SpatialTooltip({ position, title, description, icon: Icon, delay = 0 })
 }
 
 // Immersive UI
-function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
+function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering, onOpenPortal }) {
   return (
     <Float speed={1.2} rotationIntensity={0.02} floatIntensity={0.05} floatingRange={[-0.01, 0.01]}>
       <Html transform position={[0, 1.6, 3.85]} rotation={[0, Math.PI, 0]} distanceFactor={4} zIndexRange={[100, 0]}>
@@ -79,8 +79,22 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
             Secure Access Portal
           </p>
 
-          <div className="flex flex-row items-center justify-center gap-10 md:gap-14 w-full pointer-events-auto">
+          <div className="flex flex-row items-center justify-center gap-6 sm:gap-10 md:gap-14 w-full pointer-events-auto">
             
+            {/* NEW: Student Portal Button */}
+            <div className="relative group">
+              <button
+                onClick={onOpenPortal}
+                disabled={isEntering}
+                className="text-emerald-400 hover:text-white transition-all duration-300 hover:scale-125 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.6)]"
+              >
+                <BookOpen size={36} strokeWidth={1.5} />
+              </button>
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Student Portal</span>
+              </div>
+            </div>
+
             <div className="relative group">
               <button
                 onClick={onEnter}
@@ -90,7 +104,7 @@ function BoardUI({ onEnter, onAbout, onChatToggle, isChatOpen, isEntering }) {
                 {isEntering ? <Loader2 size={36} className="animate-spin text-blue-500" /> : <Terminal size={36} strokeWidth={1.5} />}
               </button>
               <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Launch Platform</span>
+                <span className="bg-slate-900/90 border border-white/10 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">Staff Login</span>
               </div>
             </div>
 
@@ -166,7 +180,7 @@ function ClassroomModel() {
   return <primitive object={scene} scale={7.5} rotation={[0, -Math.PI / 2, 0]} position={[0, -1.5, 0]} />;
 }
 
-export default function LandingPage({ onAuthenticate }) {
+  export default function LandingPage({ onAuthenticate, onOpenPortal }) {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
   
@@ -342,12 +356,14 @@ export default function LandingPage({ onAuthenticate }) {
             
             <group>
               <Center><ClassroomModel /></Center>
-              <BoardUI 
+              
+             <BoardUI 
                 onEnter={handleEnterClassroom} 
                 onAbout={() => setIsAboutOpen(true)} 
                 onChatToggle={() => setIsChatOpen(!isChatOpen)}
                 isChatOpen={isChatOpen}
                 isEntering={isEntering} 
+                onOpenPortal={onOpenPortal}
               />
               
               {!isEntering && !isAboutOpen && (
