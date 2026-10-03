@@ -3544,7 +3544,6 @@ const executeRegistration = async () => {
         return;
       }
 
-      // Portrait Mode
       const doc = new jsPDF({ orientation: 'portrait' }); 
       
       const getBase64ImageFromUrl = (imageUrl) => {
@@ -3569,7 +3568,6 @@ const executeRegistration = async () => {
 
       let isFirstPage = true;
       
-      // GROUP BY DATE -> DEPT -> SECTION
       const groupedData = {};
       const sorted = [...globalSchedule].sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0) || (a.start_time || "").localeCompare(b.start_time || ""));
 
@@ -3594,7 +3592,6 @@ const executeRegistration = async () => {
             
             if (uniLogoData) doc.addImage(uniLogoData, 'PNG', 14, 12, 18, 18);
 
-            // MODERN CORPORATE DESIGN: Pure Helvetica, clean hierarchy
             doc.setFont("helvetica", "bold");
             doc.setFontSize(16);
             doc.setTextColor(15, 23, 42); 
@@ -3626,7 +3623,7 @@ const executeRegistration = async () => {
             doc.text(`EXAM DATE:`, 14, currentY);
             
             doc.setFont("helvetica", "normal");
-            doc.text(date.toUpperCase(), 40, currentY);
+            doc.text(date.toUpperCase(), 38, currentY);
             currentY += 6;
 
             doc.setFont("helvetica", "bold");
@@ -3639,7 +3636,7 @@ const executeRegistration = async () => {
 
             const items = groupedData[date][dept][section];
             const tableRows = items.map(item => [
-              `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`,
+              `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`, // Stacked time
               item.subject_code || "N/A",
               item.subject_name || "N/A",
               item.room || "N/A",
@@ -3647,7 +3644,6 @@ const executeRegistration = async () => {
             ]);
 
             autoTable(doc, { 
-              // Shorter Headers to prevent any line wrapping
               head: [["TIME", "CODE", "SUBJECT", "ROOM", "PROCTOR"]],
               body: tableRows, 
               startY: currentY, 
@@ -3655,10 +3651,10 @@ const executeRegistration = async () => {
               styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: [51, 65, 85], lineColor: [226, 232, 240], lineWidth: 0.1, valign: 'middle' }, 
               headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
               columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 32 },
-                1: { halign: 'center', cellWidth: 22 },
+                0: { halign: 'center', fontStyle: 'bold', cellWidth: 26 }, // Narrower stacked time
+                1: { halign: 'center', cellWidth: 24 },
                 2: { halign: 'left' },
-                3: { halign: 'center', fontStyle: 'bold', cellWidth: 18, textColor: [37, 99, 235] },
+                3: { halign: 'center', fontStyle: 'bold', cellWidth: 22, textColor: [37, 99, 235] }, // Wider Room
                 4: { halign: 'center', cellWidth: 38 }
               },
               alternateRowStyles: { fillColor: [248, 250, 252] },
