@@ -1641,21 +1641,22 @@ return (
       </div>
       
       {!readOnly && (
-        <div className="bg-slate-50 rounded-3xl p-4 md:p-6 border-2 border-slate-100 mb-8 flex flex-col md:flex-row gap-4 items-end">
-         <div className="w-full md:flex-1">
+        <div className="bg-slate-50 rounded-[2rem] p-5 md:p-6 border-2 border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="w-full">
             <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Date</label>
-            <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+            <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
           </div>
-          <div className="w-full md:flex-1">
+          <div className="w-full">
             <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Start Time</label>
-            <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+            <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
           </div>
-          <div className="w-full md:flex-1">
+          <div className="w-full">
             <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">End Time</label>
-            <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-4 rounded-2xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500" />
+            <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
           </div>
-          <button onClick={handleSubmit} className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg hover:bg-blue-500 transition-all active:scale-95 w-full md:w-auto flex justify-center">
-            <Plus size={20} />
+          <button onClick={handleSubmit} className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-500 transition-all active:scale-95 w-full flex justify-center items-center gap-2 h-[46px]">
+            <Plus size={18} />
+            <span className="md:hidden text-[10px] font-black uppercase tracking-widest">Add Log</span>
           </button>
         </div>
       )}
