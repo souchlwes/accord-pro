@@ -248,18 +248,16 @@ const StudentPortal = ({ onBack }) => {
           </button>
         </nav>
 
-        {/* Hero Content with BORDERLESS EMBEDDED CREST & FILTER */}
+        {/* Hero Content with FLAT WHITE EMBEDDED CREST */}
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-12 relative z-20">
           
           <div className="flex flex-col md:flex-row items-center gap-8 md:gap-10 text-center md:text-left">
-            {/* Embedded Logo with custom CSS drop-shadow for dark-mode visibility */}
             <div className="relative shrink-0 flex items-center justify-center">
-               <div className="absolute inset-0 bg-white/10 blur-[40px] rounded-full mix-blend-screen"></div>
+               <div className="absolute inset-0 bg-white/5 blur-[30px] rounded-full mix-blend-screen"></div>
                <img 
                  src={unlockedDept.logo_url || accordLogo} 
                  alt="Dept Crest" 
-                 style={{ filter: 'drop-shadow(0px 0px 15px rgba(255,255,255,0.4))' }}
-                 className="w-24 h-24 md:w-32 md:h-32 object-contain relative z-10" 
+                 className="w-24 h-24 md:w-32 md:h-32 object-contain relative z-10 brightness-0 invert opacity-90 drop-shadow-[0_10px_20px_rgba(255,255,255,0.2)]" 
                />
             </div>
             <div>
