@@ -1615,76 +1615,87 @@ const AvailabilityLogBook = ({ profile, globalAvailability, onAdd, onBulkAdd, on
   };
 
 return (
-    <div className={`rounded-3xl md:rounded-[3rem] p-6 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-4 border-blue-500 bg-blue-100 scale-105 z-10 relative shadow-blue-300' : 'bg-white border-2 border-slate-100'}`}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+    <div className={`rounded-[1.5rem] md:rounded-[3rem] p-4 md:p-8 shadow-xl transition-all duration-700 ${isHighlighted ? 'border-4 border-blue-500 bg-blue-100 scale-105 z-10 relative shadow-blue-300' : 'bg-white border border-slate-100'}`}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-5">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <h2 className="text-[10px] md:text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
             <List size={16} className="text-blue-600"/> {readOnly ? 'Logged Availability' : 'Availability Log Book'}
           </h2>
-          <div className="flex bg-slate-100/50 border border-slate-200 p-1 rounded-lg">
+          <div className="flex bg-slate-100/50 border border-slate-200 p-1 rounded-lg ml-auto md:ml-0">
               <button onClick={() => setLogView('upcoming')} className={`px-3 py-1 text-[8px] font-black uppercase rounded transition-all ${logView === 'upcoming' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Active</button>
               <button onClick={() => setLogView('history')} className={`px-3 py-1 text-[8px] font-black uppercase rounded transition-all ${logView === 'history' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
           </div>
         </div>
         
         {!readOnly && logView === 'upcoming' && (
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-4 py-2.5 rounded-xl hover:bg-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-emerald-200">
-              <Download size={14}/> Excel Template
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto">
+            <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none text-[8px] md:text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-2.5 rounded-xl hover:bg-emerald-100 transition-all border border-emerald-200 flex items-center justify-center gap-1.5">
+              <Download size={12}/> Excel Template
             </button>
             <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-            <button onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-4 py-2.5 rounded-xl hover:bg-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-blue-200 shadow-sm">
-              <Upload size={14}/> Bulk Upload
+            <button onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none text-[8px] md:text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-3 py-2.5 rounded-xl hover:bg-blue-100 transition-all border border-blue-200 shadow-sm flex items-center justify-center gap-1.5">
+              <Upload size={12}/> Bulk Upload
             </button>
           </div>
         )}
       </div>
       
+      {/* --- REBUILT MOBILE-FRIENDLY FORM GRID --- */}
       {!readOnly && (
-        <div className="bg-slate-50 rounded-[2rem] p-5 md:p-6 border-2 border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div className="w-full">
-            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Date</label>
-            <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
+        <div className="bg-slate-50/50 rounded-2xl p-3 md:p-5 border border-slate-100 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+            
+            <div className="col-span-2 md:col-span-1">
+              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Date</label>
+              <input type="date" min={todayString} value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+            </div>
+            
+            {/* These two sit side-by-side on mobile! */}
+            <div className="col-span-1">
+              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">Start Time</label>
+              <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+            </div>
+            <div className="col-span-1">
+              <label className="text-[9px] font-black uppercase text-slate-400 ml-1 mb-1 block">End Time</label>
+              <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-3 rounded-xl font-black text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all shadow-sm" />
+            </div>
+
+            <div className="col-span-2 md:col-span-1 mt-1 md:mt-0">
+              <button onClick={handleSubmit} className="bg-blue-600 text-white p-3 rounded-xl shadow-md hover:bg-blue-500 transition-all active:scale-95 w-full flex justify-center items-center gap-2 h-[42px]">
+                <Plus size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Add Log</span>
+              </button>
+            </div>
+            
           </div>
-          <div className="w-full">
-            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">Start Time</label>
-            <input type="time" value={start} onChange={e=>setStart(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
-          </div>
-          <div className="w-full">
-            <label className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1 block">End Time</label>
-            <input type="time" value={end} onChange={e=>setEnd(e.target.value)} className="w-full bg-white p-3.5 rounded-2xl font-black text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all" />
-          </div>
-          <button onClick={handleSubmit} className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-500 transition-all active:scale-95 w-full flex justify-center items-center gap-2 h-[46px]">
-            <Plus size={18} />
-            <span className="md:hidden text-[10px] font-black uppercase tracking-widest">Add Log</span>
-          </button>
         </div>
       )}
 
-     <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+     <div className="space-y-2 md:space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
         {displayedAvails.length === 0 ? (
-           <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-3xl">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{logView === 'history' ? 'No Past Records' : 'No Active Availability'}</p>
+           <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+             <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{logView === 'history' ? 'No Past Records' : 'No Active Availability'}</p>
            </div>
         ) : displayedAvails.map(avail => (
-          <div key={avail.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm group">
-            <div className="flex items-center gap-4">
-              <div className="bg-blue-50 text-blue-600 p-3 rounded-xl"><Calendar size={18} /></div>
+          <div key={avail.id} className="flex justify-between items-center bg-white p-3 md:p-4 rounded-xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-50 text-blue-600 p-2 md:p-2.5 rounded-lg"><Calendar size={14} className="md:w-4 md:h-4" /></div>
               <div>
-                <p className="font-black text-sm text-slate-900">{avail.exam_date}</p>
-                <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={10}/> {formatTime(avail.start_time)} - {formatTime(avail.end_time)}</p>
+                <p className="font-black text-[11px] md:text-xs text-slate-900">{avail.exam_date}</p>
+                <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5"><Clock size={10}/> {formatTime(avail.start_time)} - {formatTime(avail.end_time)}</p>
               </div>
             </div>
             {!readOnly && (
-             <button onClick={() => onDelete(avail.id)} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
-  <Trash2 size={16} />
-</button>
+             <button onClick={() => onDelete(avail.id)} className="p-2 md:p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all border border-transparent hover:border-rose-100">
+              <Trash2 size={14} />
+             </button>
             )}
           </div>
         ))}
       </div>
     </div>
   );
+
 };
 
 // --- 3. PROCTOR DASHBOARD ---
