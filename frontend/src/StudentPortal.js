@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
-  BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, Sparkles, DownloadCloud, Layers, ChevronRight
+  BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, Sparkles, DownloadCloud, Layers
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import jsPDF from 'jspdf';
@@ -190,7 +190,7 @@ const StudentPortal = ({ onBack }) => {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative font-sans overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full bg-blue-600/10 blur-[120px] pointer-events-none"></div>
-        <button onClick={onBack} className="absolute top-6 left-6 md:top-10 md:left-10 text-slate-400 hover:text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors z-50 bg-white/5 hover:bg-white/10 px-5 py-3.5 rounded-2xl border border-white/5 shadow-sm backdrop-blur-md">
+        <button onClick={onBack} className="absolute top-6 left-6 md:top-10 md:left-10 text-slate-400 hover:text-white flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors z-50 bg-white/5 hover:bg-white/10 px-5 py-3.5 rounded-[1rem] border border-white/5 shadow-sm backdrop-blur-md">
           <ArrowLeft size={16} /> Back to Auth
         </button>
 
@@ -248,17 +248,18 @@ const StudentPortal = ({ onBack }) => {
           </button>
         </nav>
 
-        {/* Hero Content with BORDERLESS EMBEDDED CREST */}
+        {/* Hero Content with BORDERLESS EMBEDDED CREST & FILTER */}
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-12 relative z-20">
           
           <div className="flex flex-col md:flex-row items-center gap-8 md:gap-10 text-center md:text-left">
-            {/* The Borderless Embedded Crest */}
-            <div className="relative shrink-0">
-               <div className="absolute inset-0 bg-blue-500/30 blur-[40px] rounded-full mix-blend-screen"></div>
+            {/* Embedded Logo with custom CSS drop-shadow for dark-mode visibility */}
+            <div className="relative shrink-0 flex items-center justify-center">
+               <div className="absolute inset-0 bg-white/10 blur-[40px] rounded-full mix-blend-screen"></div>
                <img 
                  src={unlockedDept.logo_url || accordLogo} 
                  alt="Dept Crest" 
-                 className="w-24 h-24 md:w-32 md:h-32 object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)] relative z-10" 
+                 style={{ filter: 'drop-shadow(0px 0px 15px rgba(255,255,255,0.4))' }}
+                 className="w-24 h-24 md:w-32 md:h-32 object-contain relative z-10" 
                />
             </div>
             <div>
@@ -314,82 +315,82 @@ const StudentPortal = ({ onBack }) => {
 
       <main className="container mx-auto px-4 md:px-8 max-w-6xl -mt-10 md:-mt-16 relative z-30">
         
-        {/* PREMIUM FLOATING TOOLBAR */}
-        <div className="bg-white/90 backdrop-blur-xl p-4 md:p-5 rounded-[2rem] md:rounded-[2.5rem] shadow-xl border border-slate-200 flex flex-col lg:flex-row items-center gap-4 sticky top-[20px] z-40">
+        {/* PREMIUM FLOATING TOOLBAR (Natural scrolling, no sticky annoyance) */}
+        <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col lg:flex-row items-center gap-4 relative z-30 mb-8 mt-6">
            
-           <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full lg:w-auto shrink-0 border border-slate-200/50 shadow-inner">
-              <button onClick={() => setViewMode('upcoming')} className={`flex-1 px-6 py-3.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${viewMode === 'upcoming' ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Upcoming</button>
-              <button onClick={() => setViewMode('history')} className={`flex-1 px-6 py-3.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${viewMode === 'history' ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
+           <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto shrink-0 shadow-inner">
+              <button onClick={() => setViewMode('upcoming')} className={`flex-1 px-5 py-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${viewMode === 'upcoming' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Upcoming</button>
+              <button onClick={() => setViewMode('history')} className={`flex-1 px-5 py-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${viewMode === 'history' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
            </div>
            
            <div className="relative w-full lg:flex-1">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
                 type="text" 
                 placeholder="Search subject or room..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 p-4 pl-12 rounded-2xl font-bold text-xs border-2 border-slate-100 outline-none focus:border-blue-500 transition-all text-slate-900"
+                className="w-full bg-slate-50 p-3 pl-11 rounded-xl font-bold text-xs border border-slate-200 outline-none focus:border-blue-500 transition-all text-slate-900"
               />
            </div>
            
-           <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full lg:w-auto overflow-x-auto custom-scrollbar shrink-0 border border-slate-200/50 shadow-inner">
-              <button onClick={() => setFilterYear('ALL')} className={`px-5 py-3.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${filterYear === 'ALL' ? 'bg-white shadow-md text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>All Yrs</button>
+           <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto overflow-x-auto custom-scrollbar shrink-0 shadow-inner">
+              <button onClick={() => setFilterYear('ALL')} className={`px-4 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${filterYear === 'ALL' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>All Yrs</button>
               {[1, 2, 3, 4, 5].map(y => (
-                <button key={y} onClick={() => setFilterYear(String(y))} className={`px-5 py-3.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${String(filterYear) === String(y) ? 'bg-white shadow-md text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Yr {y}</button>
+                <button key={y} onClick={() => setFilterYear(String(y))} className={`px-4 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${String(filterYear) === String(y) ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>Yr {y}</button>
               ))}
            </div>
 
-           <button onClick={handleExportPDF} className="w-full lg:w-auto bg-slate-900 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors shrink-0 shadow-lg active:scale-95">
-             <DownloadCloud size={16} /> Save PDF
+           <button onClick={handleExportPDF} className="w-full lg:w-auto bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors shrink-0 shadow-md active:scale-95">
+             <DownloadCloud size={14} /> Save PDF
            </button>
         </div>
 
-        {/* --- GROUPED TIMELINE RENDERER --- */}
+        {/* --- GROUPED TIMELINE RENDERER (Compact & Premium) --- */}
         {Object.keys(processedSchedule).length > 0 ? (
-          <div className="space-y-16 pt-10">
+          <div className="space-y-12 pt-2">
             {Object.keys(processedSchedule).sort().map(date => (
-              <div key={date} className="relative pl-6 md:pl-10 border-l-[6px] border-slate-200">
+              <div key={date} className="relative pl-6 md:pl-10 border-l-[4px] border-slate-200">
                 
                 {/* Date Anchor */}
-                <div className="absolute -left-[27px] top-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center shadow-xl border-4 border-slate-50">
-                  <Calendar size={18} className="text-white"/>
+                <div className="absolute -left-[20px] top-0 w-9 h-9 bg-slate-900 rounded-full flex items-center justify-center shadow-lg border-4 border-slate-50">
+                  <Calendar size={14} className="text-white"/>
                 </div>
-                <h3 className="text-2xl md:text-4xl font-black tracking-tighter text-slate-900 mb-8 pt-1 uppercase">{date}</h3>
+                <h3 className="text-2xl md:text-3xl font-black tracking-tighter text-slate-900 mb-8 pt-0.5 uppercase">{date}</h3>
                 
                 {/* SECTION GROUPS WITHIN DATE */}
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {Object.keys(processedSchedule[date]).sort().map(sectionTitle => (
-                    <div key={sectionTitle} className="bg-white p-6 md:p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-xl shadow-slate-200/50">
+                    <div key={sectionTitle} className="bg-white p-5 md:p-6 rounded-[2rem] border border-slate-200 shadow-sm">
                       
                       {/* Section Header */}
-                      <div className="flex items-center gap-4 mb-8 pb-6 border-b-2 border-slate-50">
-                         <div className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
-                           <Layers size={20} />
+                      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                         <div className="bg-slate-900 text-white p-2.5 rounded-xl shadow-md">
+                           <Layers size={16} />
                          </div>
-                         <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900">{sectionTitle}</h4>
+                         <h4 className="text-lg font-black uppercase tracking-tight text-slate-900">{sectionTitle}</h4>
                       </div>
 
-                      {/* Cards for this Section */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Compact Cards for this Section */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {processedSchedule[date][sectionTitle].map((s, idx) => (
-                          <div key={idx} className="bg-slate-50 p-6 md:p-8 rounded-[2rem] border-2 border-slate-100 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all group flex flex-col justify-between relative overflow-hidden">
-                            <div className="absolute left-0 top-0 bottom-0 w-2 bg-blue-500 opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                          <div key={idx} className="bg-slate-50 p-4 md:p-5 rounded-[1.5rem] border border-slate-100 hover:border-blue-300 hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden">
+                            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500 opacity-20 group-hover:opacity-100 transition-opacity"></div>
 
                             <div>
-                              <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em] bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 inline-block mb-4 shadow-sm">{s.subject_code}</span>
-                              <h5 className="text-lg font-bold text-slate-900 leading-snug mb-8">{s.subject_name}</h5>
+                              <span className="text-[9px] font-black uppercase text-blue-600 tracking-[0.2em] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 inline-block mb-3 shadow-sm">{s.subject_code}</span>
+                              <h5 className="text-sm font-bold text-slate-900 leading-snug mb-5 line-clamp-2">{s.subject_name}</h5>
                             </div>
                             
-                            <div className="flex items-center gap-4 border-t-2 border-slate-200/60 pt-5 mt-auto">
-                              <div className="flex-1 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Time Block</span>
-                                <span className="text-xs font-bold text-slate-800">{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
+                            <div className="flex items-center gap-2 border-t border-slate-200/60 pt-3 mt-auto">
+                              <div className="flex-1 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">Time block</span>
+                                <span className="text-[10px] font-bold text-slate-800">{formatTime(s.start_time)} - {formatTime(s.end_time)}</span>
                               </div>
-                              <div className="flex-1 bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm relative overflow-hidden">
-                                <Home size={40} className="absolute -right-2 -bottom-2 text-blue-200/50 pointer-events-none"/>
-                                <span className="text-[9px] font-black uppercase tracking-widest text-blue-500 block mb-1 relative z-10">Room</span>
-                                <span className="text-sm font-black text-blue-900 relative z-10">{s.room}</span>
+                              <div className="flex-1 bg-blue-50 p-2.5 rounded-xl border border-blue-100 shadow-sm relative overflow-hidden">
+                                <Home size={24} className="absolute -right-2 -bottom-2 text-blue-200/50 pointer-events-none"/>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-blue-500 block mb-0.5 relative z-10">Room</span>
+                                <span className="text-[10px] font-bold text-blue-900 relative z-10">{s.room}</span>
                               </div>
                             </div>
                             
@@ -403,9 +404,9 @@ const StudentPortal = ({ onBack }) => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-24 bg-white rounded-[3rem] border-4 border-dashed border-slate-200 shadow-sm mt-8">
-            <BookOpen size={64} className="mx-auto text-slate-300 mb-6"/>
-            <p className="text-3xl font-black uppercase text-slate-800 tracking-tighter mb-2">No Schedule Found</p>
+          <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-200 shadow-sm mt-8">
+            <BookOpen size={48} className="mx-auto text-slate-300 mb-4"/>
+            <p className="text-2xl font-black uppercase text-slate-800 tracking-tighter mb-2">No Schedule Found</p>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest max-w-sm mx-auto leading-relaxed">
               Adjust your filters or subscribe above to be notified instantly when it drops.
             </p>
