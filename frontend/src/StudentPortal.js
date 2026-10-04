@@ -330,7 +330,7 @@ const StudentPortal = ({ onBack }) => {
             )}
             
             <div className="relative mb-8">
-              <Lock size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Lock size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
                 required
@@ -338,7 +338,7 @@ const StudentPortal = ({ onBack }) => {
                 placeholder="6-Digit PIN" 
                 value={accessCode} 
                 onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-black/40 text-white px-6 py-5 pl-14 rounded-2xl font-bold text-xl md:text-2xl text-center tracking-[0.4em] uppercase border-2 border-white/10 focus:border-blue-500 outline-none transition-all shadow-inner placeholder:text-slate-500 placeholder:tracking-normal"
+                className="w-full bg-slate-50 px-5 py-4 pl-12 md:p-5 md:pl-14 rounded-xl md:rounded-2xl font-bold text-xl md:text-2xl text-center tracking-[0.4em] uppercase border-2 border-slate-100 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 placeholder:font-medium text-slate-900 shadow-inner placeholder:tracking-normal"
               />
             </div>
 
