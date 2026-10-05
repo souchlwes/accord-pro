@@ -372,20 +372,29 @@ const StudentPortal = ({ onBack }) => {
               </div>
             )}
             
-            <div className="flex justify-center gap-2 md:gap-3 mb-8" onPaste={handlePinPaste}>
+           <div className="flex items-center justify-center gap-2 md:gap-3 mb-10" onPaste={handlePinPaste}>
               {[0, 1, 2, 3, 4, 5].map((index) => (
-                <input
-                  key={index}
-                  ref={el => inputRefs.current[index] = el}
-                  type="text"
-                  maxLength={1}
-                  value={accessCode[index] || ''}
-                  onChange={e => handlePinChange(index, e.target.value)}
-                  onKeyDown={e => handlePinKeyDown(index, e)}
-                  className="w-10 h-14 md:w-12 md:h-16 bg-slate-50 border-2 border-slate-100 rounded-xl text-center text-xl md:text-2xl font-black text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all shadow-inner uppercase"
-                />
+                <React.Fragment key={index}>
+                  <input
+                    ref={el => inputRefs.current[index] = el}
+                    type="text"
+                    maxLength={1}
+                    value={accessCode[index] || ''}
+                    onChange={e => handlePinChange(index, e.target.value)}
+                    onKeyDown={e => handlePinKeyDown(index, e)}
+                    className={`w-11 h-14 md:w-14 md:h-16 rounded-xl md:rounded-2xl text-center text-2xl md:text-3xl font-black outline-none transition-all duration-200 uppercase caret-emerald-500 ${
+                      accessCode[index] && accessCode[index] !== ' '
+                        ? 'bg-white border-2 border-emerald-400 text-slate-900 shadow-[0_4px_20px_rgba(52,211,153,0.2)] scale-[1.05]'
+                        : 'bg-slate-50 border-2 border-slate-100 text-slate-900 shadow-inner focus:border-emerald-400 focus:bg-white focus:shadow-sm focus:scale-[1.02]'
+                    }`}
+                  />
+                  {/* Subtle dash separator between the 3rd and 4th boxes */}
+                  {index === 2 && (
+                    <div className="w-2 md:w-3 h-1 rounded-full bg-slate-200/50 mx-0.5 md:mx-1"></div>
+                  )}
+                </React.Fragment>
               ))}
-            </div>
+            </div> 
 
             <button type="submit" disabled={isUnlocking || accessCode.length < 5} className="w-full bg-white hover:bg-emerald-500 disabled:bg-white/5 disabled:text-slate-600 text-emerald-600 hover:text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-95 text-xs flex items-center justify-center gap-2 border border-white hover:border-emerald-500">
               {isUnlocking ? <Loader2 size={20} className="animate-spin" /> : 'Unlock Board'}
