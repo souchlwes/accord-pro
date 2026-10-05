@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Clock, Home, BookOpen, 
   BellRing, CheckCircle2, Lock, Mail, Loader2, AlertCircle, DownloadCloud, Layers
@@ -35,6 +35,51 @@ const StudentPortal = ({ onBack }) => {
   const [subLoading, setSubLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // --- PREMIUM 6-BOX PIN LOGIC ---
+  const inputRefs = useRef([]);
+
+  const handlePinChange = (index, value) => {
+    const char = value.slice(-1).toUpperCase();
+    let newPin = accessCode.padEnd(6, ' ').split('');
+    newPin[index] = char || ' ';
+    const finalPin = newPin.join('').trimEnd();
+    setAccessCode(finalPin);
+
+    // Auto-advance to next box
+    if (char && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePinKeyDown = (index, e) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      let newPin = accessCode.padEnd(6, ' ').split('');
+      
+      if (!newPin[index] || newPin[index] === ' ') {
+        // If current box is empty, jump back and delete
+        if (index > 0) {
+          newPin[index - 1] = ' ';
+          inputRefs.current[index - 1]?.focus();
+        }
+      } else {
+        // Delete current box
+        newPin[index] = ' ';
+      }
+      setAccessCode(newPin.join('').trimEnd());
+    }
+  };
+
+  const handlePinPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/[^a-zA-Z0-9]/g, '').substring(0, 6).toUpperCase();
+    setAccessCode(pasted);
+    
+    // Jump focus to the end of the pasted string
+    const focusIndex = Math.min(pasted.length, 5);
+    inputRefs.current[focusIndex]?.focus();
+  };
 
   const handleUnlock = async (e) => {
     e.preventDefault();
@@ -84,7 +129,6 @@ const StudentPortal = ({ onBack }) => {
     setSubLoading(false);
     
     if (!error) {
-        // --- NEW: INSTANT CONFIRMATION EMAIL ---
         fetch('/api/notify', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
@@ -94,7 +138,6 @@ const StudentPortal = ({ onBack }) => {
               message: `You are successfully subscribed to live schedule updates for Year ${subYear} - Section ${subSection.trim().toUpperCase()}. We will email you the exact moment your room assignments are published or changed.`
            })
         }).catch(e => console.error("Confirmation email failed:", e));
-        // ----------------------------------------
 
         setIsSubscribed(true);
         setTimeout(() => { 
@@ -199,26 +242,26 @@ const StudentPortal = ({ onBack }) => {
 
           // PREMIUM MODERN IDENTITY: Pure Helvetica, clean hierarchy
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(16);
-          doc.setTextColor(15, 23, 42); 
-          doc.text(uniName.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+          doc.setFontSize(18);
+          doc.setTextColor(15, 23, 42); // Slate 900
+          doc.text(uniName.toUpperCase(), pageWidth / 2, 22, { align: 'center' });
           
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(100, 116, 139); 
-          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 26, { align: 'center' });
+          doc.setTextColor(100, 116, 139); // Slate 600
+          doc.text(`${deptName.toUpperCase()} (${deptCode}) • ${campusName.toUpperCase()} CAMPUS`, pageWidth / 2, 28, { align: 'center' });
 
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(37, 99, 235); 
-          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 31, { align: 'center' });
+          doc.setTextColor(37, 99, 235); // Blue 600
+          doc.text(`OFFICIAL SECTION ITINERARY`, pageWidth / 2, 33, { align: 'center' });
 
           // Modern Border Divides
-          doc.setDrawColor(15, 23, 42); 
+          doc.setDrawColor(15, 23, 42); // Slate 900
           doc.setLineWidth(0.8);
           doc.line(14, 40, pageWidth - 14, 40);
           
-          doc.setDrawColor(226, 232, 240); 
+          doc.setDrawColor(203, 213, 225); // Slate 300
           doc.setLineWidth(0.2);
           doc.line(14, 41.5, pageWidth - 14, 41.5);
 
@@ -273,10 +316,10 @@ const StudentPortal = ({ onBack }) => {
               lineWidth: 0.1
             },
             columnStyles: {
-              0: { halign: 'center', fontStyle: 'bold', cellWidth: 28 }, // Perfect fit for stacked time
+              0: { halign: 'center', fontStyle: 'bold', cellWidth: 28 }, 
               1: { halign: 'center', fontStyle: 'bold', cellWidth: 32 },
               2: { halign: 'left' },
-              3: { halign: 'center', fontStyle: 'bold', cellWidth: 28, textColor: [37, 99, 235] } // Expanded width so ROOM never wraps
+              3: { halign: 'center', fontStyle: 'bold', cellWidth: 28, textColor: [37, 99, 235] } 
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }, 
             margin: { bottom: 30, left: 14, right: 14 },
@@ -329,20 +372,22 @@ const StudentPortal = ({ onBack }) => {
               </div>
             )}
             
-           <div className="relative mb-8 group">
-              <Lock size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-              <input 
-                type="text" 
-                required
-                maxLength="6"
-                placeholder="Enter 6-Digit PIN" 
-                value={accessCode} 
-                onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-slate-50 hover:bg-white px-5 py-4 pl-12 md:p-5 md:pl-12 rounded-2xl font-black text-sm md:text-base tracking-[0.3em] uppercase border-2 border-slate-100 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-bold placeholder:text-xs text-slate-900 shadow-inner"
-              />
+            <div className="flex justify-center gap-2 md:gap-3 mb-8" onPaste={handlePinPaste}>
+              {[0, 1, 2, 3, 4, 5].map((index) => (
+                <input
+                  key={index}
+                  ref={el => inputRefs.current[index] = el}
+                  type="text"
+                  maxLength={1}
+                  value={accessCode[index] || ''}
+                  onChange={e => handlePinChange(index, e.target.value)}
+                  onKeyDown={e => handlePinKeyDown(index, e)}
+                  className="w-10 h-14 md:w-12 md:h-16 bg-slate-50 border-2 border-slate-100 rounded-xl text-center text-xl md:text-2xl font-black text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all shadow-inner uppercase"
+                />
+              ))}
             </div>
 
-            <button type="submit" disabled={isUnlocking || accessCode.length < 5} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/5 disabled:text-slate-600 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 text-xs flex items-center justify-center gap-2 border border-emerald-500/50">
+            <button type="submit" disabled={isUnlocking || accessCode.length < 5} className="w-full bg-white hover:bg-emerald-500 disabled:bg-white/5 disabled:text-slate-600 text-emerald-600 hover:text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-95 text-xs flex items-center justify-center gap-2 border border-white hover:border-emerald-500">
               {isUnlocking ? <Loader2 size={20} className="animate-spin" /> : 'Unlock Board'}
             </button>
           </form>
