@@ -178,6 +178,7 @@ role,
 
   const [proctorSearchTerm, setProctorSearchTerm] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // NEW: Strict Anti-Spam Lock
   const [tempProfs, setTempProfs] = useState([{ name: '', sections: '' }]);
   // Destructure from the 'dept' prop directly for logic
   // Destructure with safety nets to prevent crashes on empty databases
@@ -576,361 +577,352 @@ role,
   };
 
   
-  const handleGenerateClick = async () => {
+ const handleGenerateClick = async () => {
+    // 1. STRICT LOCK: Prevent double-click spam
+    if (isGenerating) return; 
+    setIsGenerating(true);
     setGenerationErrors([]);
-    const errors = [];
-    const warningLogs = [];
-    const yearSubs = subjects[selectedYear] || [];
+    
+    try {
+      const errors = [];
+      const warningLogs = [];
+      const yearSubs = subjects[selectedYear] || [];
 
-    if (yearSubs.length === 0) errors.push({ 
-      issue: "No Subjects", 
-      resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
-    });
-    if (examDays === 0 || sectionCount === 0) errors.push({ 
-      issue: "Configuration Error", 
-      resolution: "Set Total Exam Days and Total Sections to at least 1." 
-    });
-    if (examDates.some(d => !d)) errors.push({ 
-      issue: "Timeline Incomplete", 
-      resolution: "Please assign a specific date to every exam day in the list." 
-    });
+      if (yearSubs.length === 0) errors.push({ 
+        issue: "No Subjects", 
+        resolution: `Add subjects for Year ${selectedYear} in the 'Subjects' tab first.` 
+      });
+      if (examDays === 0 || sectionCount === 0) errors.push({ 
+        issue: "Configuration Error", 
+        resolution: "Set Total Exam Days and Total Sections to at least 1." 
+      });
+      if (examDates.some(d => !d)) errors.push({ 
+        issue: "Timeline Incomplete", 
+        resolution: "Please assign a specific date to every exam day in the list." 
+      });
 
-    if (errors.length > 0) {
-      setGenerationErrors(errors);
-      showToast("Generation Halted: Setup incomplete.", "error");
-      return;
-    }
+      if (errors.length > 0) {
+        setGenerationErrors(errors);
+        showToast("Generation Halted: Setup incomplete.", "error");
+        return; // The 'finally' block below will automatically unlock the button
+      }
 
-    const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
-    const dailySubs = Array.from({ length: examDays }, () => []);
-    shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
+      const shuffled = [...yearSubs].sort(() => Math.random() - 0.5);
+      const dailySubs = Array.from({ length: examDays }, () => []);
+      shuffled.forEach((s, i) => dailySubs[i % examDays].push(s));
 
-    const finalGeneratedData = [];
-    let generationFailed = false; 
+      const finalGeneratedData = [];
+      let generationFailed = false; 
 
-for (let d = 0; d < examDays; d++) {
-  await new Promise(resolve => setTimeout(resolve, 0));
-      if (generationFailed) break; 
+      for (let d = 0; d < examDays; d++) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (generationFailed) break; 
 
-      const dayDate = examDates[d];
-      const daySubjects = dailySubs[d];
-      if (daySubjects.length === 0) continue;
+        const dayDate = examDates[d];
+        const daySubjects = dailySubs[d];
+        if (daySubjects.length === 0) continue;
 
-      const duration = daySubjects.length;
-      const endTime = addHours(startTime, duration);
+        const duration = daySubjects.length;
+        const endTime = addHours(startTime, duration);
 
-      const isRoomFree = (rNum) => !globalSchedule.some(gs => 
-        gs.room === rNum && 
-        gs.exam_date === dayDate && 
-        (startTime < gs.end_time && endTime > gs.start_time)
-      );
+        const isRoomFree = (rNum) => !globalSchedule.some(gs => 
+          gs.room === rNum && 
+          gs.exam_date === dayDate && 
+          (startTime < gs.end_time && endTime > gs.start_time)
+        );
 
-      const localRooms = rooms.filter(r => isRoomFree(r.number));
-      const otherRooms = globalRoomPool.filter(r => !rooms.find(dr => dr.number === r.number) && isRoomFree(r.number));
-      const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
-      let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
+        const localRooms = rooms.filter(r => isRoomFree(r.number));
+        const otherRooms = globalRoomPool.filter(r => !rooms.find(dr => dr.number === r.number) && isRoomFree(r.number));
+        const uniqueOtherRooms = otherRooms.filter((v, i, a) => a.findIndex(t => (t.number === v.number)) === i);
+        let availableRooms = roomSource === "Department" ? [...localRooms, ...uniqueOtherRooms] : [...uniqueOtherRooms, ...localRooms];
 
-      const primaryPool = proctorSource === "Department" ? activeDeptProctors : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
-      const fallbackPool = proctorSource === "Department" ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors;
+        const primaryPool = proctorSource === "Department" ? activeDeptProctors : globalProctorPool.filter(p => p.assigned_dept !== deptCode);
+        const fallbackPool = proctorSource === "Department" ? globalProctorPool.filter(p => p.assigned_dept !== deptCode) : activeDeptProctors;
 
-      for (let s = 0; s < sectionCount; s++) {
-        const sectionLetter = String.fromCharCode(65 + s);
-        const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
+        for (let s = 0; s < sectionCount; s++) {
+          const sectionLetter = String.fromCharCode(65 + s);
+          const sectionID = `${deptCode}${selectedYear}${sectionLetter}`;
 
-        // --- REUSABLE POOL EVALUATOR ---
-        const evaluatePool = (pool, enforceRules = true) => {
-          let available = [];
-          let tConflicts = [];
-          let aConflicts = [];
-          let dConflicts = [];
+          // --- REUSABLE POOL EVALUATOR ---
+          const evaluatePool = (pool, enforceRules = true) => {
+            let available = [];
+            let tConflicts = [];
+            let aConflicts = [];
+            let dConflicts = [];
 
-          pool.forEach(p => {
-            const pArr = normalizeNameToArray(p.full_name || p.name);
-            
-           // 1. Check Conflict of Interest (SMART PREFIX MATCHING - ENTIRE CURRICULUM)
-            const isTeacher = yearSubs.some(sub => {
-                const profList = parseSubjectProfs(sub.prof);
-                return profList.some(profObj => {
-                    const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
-                    const nameMatch = checkNameMatch(profObj.name, p.full_name || p.name);
-                    return appliesToThisSection && nameMatch;
-                });
-            });
-
-            if (enforceRules && isTeacher) {
-              tConflicts.push(p.full_name || p.name);
-              return; 
-            }
-
-            // 2. Check Diversity Rule
-            const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
-               assign.proctor === (p.full_name || p.name) && assign.section === sectionID
-            );
-
-            if (enforceRules && hasProctoredThisSectionBefore) {
-               dConflicts.push(p.full_name || p.name);
-               return; 
-            }
-
-          // 3. Check Logged Availability
-            const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
-            const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
-              assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
-            );
-
-            const hasValidLog = pLogs.some(log => {
-              const safeLogStart = log.start_time.substring(0, 5);
-              const safeLogEnd = log.end_time.substring(0, 5);
-              const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
-
-              const isBurnt = pAssignments.some(assign => {
-                const assignStart = assign.start_time.substring(0, 5);
-                const assignEnd = assign.end_time.substring(0, 5);
-                // FIXED: Now checks if the EXAM block overlaps, not the log!
-                return startTime < assignEnd && endTime > assignStart; 
+            pool.forEach(p => {
+              const pArr = normalizeNameToArray(p.full_name || p.name);
+              
+             // 1. Check Conflict of Interest
+              const isTeacher = yearSubs.some(sub => {
+                  const profList = parseSubjectProfs(sub.prof);
+                  return profList.some(profObj => {
+                      const appliesToThisSection = profObj.sections.length === 0 || profObj.sections.includes(sectionLetter);
+                      const nameMatch = checkNameMatch(profObj.name, p.full_name || p.name);
+                      return appliesToThisSection && nameMatch;
+                  });
               });
 
-              return coversExam && !isBurnt;
-            });
+              if (enforceRules && isTeacher) {
+                tConflicts.push(p.full_name || p.name);
+                return; 
+              }
 
-            if (hasValidLog) available.push(p);
-            else aConflicts.push(p.full_name || p.name);
-          });
+              // 2. Check Diversity Rule
+              const hasProctoredThisSectionBefore = finalGeneratedData.some(assign => 
+                 assign.proctor === (p.full_name || p.name) && assign.section === sectionID
+              );
 
-          return { available, tConflicts, aConflicts, dConflicts };
-        };
+              if (enforceRules && hasProctoredThisSectionBefore) {
+                 dConflicts.push(p.full_name || p.name);
+                 return; 
+              }
 
-        let evalResult = evaluatePool(primaryPool, true);
+              // 3. Check Logged Availability
+              const pLogs = globalAvailability.filter(a => a.proctor_id === p.id && a.exam_date === dayDate);
+              const pAssignments = [...globalSchedule, ...finalGeneratedData].filter(assign => 
+                assign.proctor === (p.full_name || p.name) && assign.exam_date === dayDate
+              );
 
-     // --- INTERACTIVE PROCTOR FALLBACK & EMERGENCY OVERRIDE ---
-        if (evalResult.available.length === 0) {
-           const fallbackResult = evaluatePool(fallbackPool, true);
-           const hasFallback = fallbackResult.available.length > 0;
-           
-           const desperatePrimary = evaluatePool(primaryPool, false);
-           const desperateFallback = evaluatePool(fallbackPool, false);
-           const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
-           
-           const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
-           const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
+              const hasValidLog = pLogs.some(log => {
+                const safeLogStart = log.start_time.substring(0, 5);
+                const safeLogEnd = log.end_time.substring(0, 5);
+                const coversExam = startTime >= safeLogStart && endTime <= safeLogEnd;
 
-        // PAUSE AND ASK ADMIN (Passing the Live Draft!)
-           const userChoice = await new Promise((resolve) => {
-              setProctorWarningModal({
-                 isOpen: true,
-                 resolve: resolve,
-                 sectionID: sectionID,
-                 dayIndex: d + 1,
-                 dayDate: dayDate,
-                 startTime: startTime,
-                 endTime: endTime,
-                 source: proctorSource,
-                 fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
-                 hasFallback: hasFallback,
-                 teachers: availableTeachers,
-                 currentDraft: finalGeneratedData // <-- This is the magic key!
-              });
-           });
-
-           if (!userChoice || userChoice.type === 'halt') {
-              generationFailed = true;
-              errors.push({ issue: `Proctor Shortage Halted (Day ${d+1})`, resolution: `Generation aborted because no proctors were assigned for Section ${sectionID}.` });
-           } else if (userChoice.type === 'fallback') {
-              evalResult = fallbackResult;
-              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} pulled a proctor from the ${proctorSource === 'Department' ? 'Global' : 'Internal'} pool.`);
-           } else if (userChoice.type === 'teacher') {
-              evalResult.available = [userChoice.proctor];
-              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} forced a Subject Teacher conflict (${userChoice.proctor.full_name || userChoice.proctor.name}).`);
-           } else if (userChoice.type === 'manual') {
-              evalResult.available = [{ full_name: userChoice.name, name: userChoice.name }];
-              warningLogs.push(`Section ${sectionLetter} on Day ${d+1} assigned to manual/guest proctor: ${userChoice.name}.`);
-           }
-        }  
-
-// --- ULTIMATE: CHRONOLOGICAL, MULTI-FIT & GLOBAL BORROWING ENGINE ---
-        localRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
-        uniqueOtherRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
-
-        let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
-        const getRoomCap = (r) => parseInt(String(r?.capacity || '0').split('-').pop().trim()) || 0;
-
-        // NEW: Strictly define the allowed auto-assignment pool based on the toggle!
-        let allowedAutoRooms = roomSource === "Department" 
-           ? localRooms 
-           : [...localRooms, ...uniqueOtherRooms].sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
-
-        // Find valid rooms that safely fit the headcount within the allowed pool
-        let validAutoRooms = allowedAutoRooms.filter(r => getRoomCap(r) >= targetHeadcount);
-        
-        let finalSelectedRoom = null;
-
-        if (allowedAutoRooms.length > 0 && (validAutoRooms.includes(allowedAutoRooms[0]) || targetHeadcount === 0)) {
-            // Perfect chronological fit within the strictly chosen source pool!
-            finalSelectedRoom = allowedAutoRooms[0];
-            
-            // Remove from both arrays to prevent double booking
-            const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom.number);
-            if (lIdx >= 0) localRooms.splice(lIdx, 1);
-            const gIdx = uniqueOtherRooms.findIndex(r => r.number === finalSelectedRoom.number);
-            if (gIdx >= 0) uniqueOtherRooms.splice(gIdx, 1);
-
-        } else if (localRooms.length === 0 && uniqueOtherRooms.length === 0) {
-            errors.push({ issue: `Room Shortage (Day ${d+1})`, resolution: `No available rooms anywhere in the university for Section ${sectionID}.` });
-            generationFailed = true;
-        } else {
-            // CONFLICT DETECTED: The toggle's auto-sequence doesn't fit, or the pool ran out. 
-            // We pop the Pause Modal and give you full control.
-
-            let nextChronologicalRoom = localRooms[0] || uniqueOtherRooms[0]; 
-            let nextChronologicalCap = getRoomCap(nextChronologicalRoom);
-
-            let validInternalRooms = localRooms.filter(r => getRoomCap(r) >= targetHeadcount);
-            let validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) >= targetHeadcount);
-
-            // Desperate fallback for the modal: if no room perfectly fits, find the absolute largest available
-            if (validInternalRooms.length === 0 && localRooms.length > 0) {
-                let maxCap = Math.max(...localRooms.map(r => getRoomCap(r)));
-                validInternalRooms = localRooms.filter(r => getRoomCap(r) === maxCap);
-            }
-            if (validGlobalRooms.length === 0 && uniqueOtherRooms.length > 0) {
-                let maxCap = Math.max(...uniqueOtherRooms.map(r => getRoomCap(r)));
-                validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) === maxCap);
-            }
-
-            // --- PAUSE ALGORITHM & ASK ADMIN ---
-            const userChoice = await new Promise((resolve) => {
-                setRoomWarningModal({
-                    isOpen: true,
-                    resolve: resolve,
-                    sectionID: sectionID,
-                    dayIndex: d + 1,
-                    dayDate: dayDate,
-                    startTime: startTime,
-                    endTime: endTime,
-                    targetHeadcount: targetHeadcount,
-                    nextRoom: nextChronologicalRoom,
-                    nextCap: nextChronologicalCap,
-                    internalFits: validInternalRooms,
-                    globalFits: validGlobalRooms
+                const isBurnt = pAssignments.some(assign => {
+                  const assignStart = assign.start_time.substring(0, 5);
+                  const assignEnd = assign.end_time.substring(0, 5);
+                  return startTime < assignEnd && endTime > assignStart; 
                 });
+
+                return coversExam && !isBurnt;
+              });
+
+              if (hasValidLog) available.push(p);
+              else aConflicts.push(p.full_name || p.name);
             });
 
-            if (!userChoice || userChoice.type === 'halt') {
+            return { available, tConflicts, aConflicts, dConflicts };
+          };
+
+          let evalResult = evaluatePool(primaryPool, true);
+
+          // --- INTERACTIVE PROCTOR FALLBACK ---
+          if (evalResult.available.length === 0) {
+             const fallbackResult = evaluatePool(fallbackPool, true);
+             const hasFallback = fallbackResult.available.length > 0;
+             
+             const desperatePrimary = evaluatePool(primaryPool, false);
+             const desperateFallback = evaluatePool(fallbackPool, false);
+             const allDesperate = [...desperatePrimary.available, ...desperateFallback.available];
+             
+             const combinedTConflicts = [...evalResult.tConflicts, ...fallbackResult.tConflicts];
+             const availableTeachers = allDesperate.filter(p => combinedTConflicts.includes(p.full_name || p.name));
+
+             const userChoice = await new Promise((resolve) => {
+                setProctorWarningModal({
+                   isOpen: true,
+                   resolve: resolve,
+                   sectionID: sectionID,
+                   dayIndex: d + 1,
+                   dayDate: dayDate,
+                   startTime: startTime,
+                   endTime: endTime,
+                   source: proctorSource,
+                   fallbackPoolName: proctorSource === 'Department' ? 'Global Pool' : 'Internal Department',
+                   hasFallback: hasFallback,
+                   teachers: availableTeachers,
+                   currentDraft: finalGeneratedData
+                });
+             });
+
+             if (!userChoice || userChoice.type === 'halt') {
                 generationFailed = true;
-                errors.push({ issue: `Capacity Halted (Day ${d+1})`, resolution: `Generation aborted due to strict capacity constraints for Section ${sectionID} (${targetHeadcount} students).` });
-            } else if (userChoice.type === 'force') {
-                // Force the sequence!
-                const rNum = nextChronologicalRoom.number;
-                const lIdx = localRooms.findIndex(r => r.number === rNum);
-                if (lIdx >= 0) {
-                    finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
-                } else {
-                    const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
-                    finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
-                }
-                warningLogs.push(`Section ${sectionLetter} forced into Room ${finalSelectedRoom.number} (${nextChronologicalCap} cap) despite having ${targetHeadcount} students.`);
-            } else if (userChoice.type === 'select') {
-                const rNum = userChoice.room.number;
-                const lIdx = localRooms.findIndex(r => r.number === rNum);
-                if (lIdx >= 0) {
-                    finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
-                    warningLogs.push(`Section ${sectionLetter} skipped to Internal Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
-                } else {
-                    const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
-                    finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
-                    warningLogs.push(`Section ${sectionLetter} borrowed Global Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
-                }
-            } else if (userChoice.type === 'manual') {
-                finalSelectedRoom = { number: userChoice.room, capacity: 'N/A', type: 'Manual/Temporary' };
-                warningLogs.push(`Section ${sectionLetter} manually assigned to temporary Room: ${userChoice.room}.`);
-            }
-        }
+                errors.push({ issue: `Proctor Shortage Halted (Day ${d+1})`, resolution: `Generation aborted because no proctors were assigned for Section ${sectionID}.` });
+             } else if (userChoice.type === 'fallback') {
+                evalResult = fallbackResult;
+                warningLogs.push(`Section ${sectionLetter} on Day ${d+1} pulled a proctor from the ${proctorSource === 'Department' ? 'Global' : 'Internal'} pool.`);
+             } else if (userChoice.type === 'teacher') {
+                evalResult.available = [userChoice.proctor];
+                warningLogs.push(`Section ${sectionLetter} on Day ${d+1} forced a Subject Teacher conflict (${userChoice.proctor.full_name || userChoice.proctor.name}).`);
+             } else if (userChoice.type === 'manual') {
+                evalResult.available = [{ full_name: userChoice.name, name: userChoice.name }];
+                warningLogs.push(`Section ${sectionLetter} on Day ${d+1} assigned to manual/guest proctor: ${userChoice.name}.`);
+             }
+          }  
 
-        if (generationFailed) break;
+          localRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+          uniqueOtherRooms.sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
 
-        if (evalResult.available.length === 0 && !generationFailed) {
-          let issueTitle = `Proctor Shortage (Day ${d+1})`;
-          let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
+          let targetHeadcount = parseInt(sectionSizes[sectionLetter]) || 0;
+          const getRoomCap = (r) => parseInt(String(r?.capacity || '0').split('-').pop().trim()) || 0;
 
-          if (evalResult.tConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.dConflicts.length === 0) {
-            issueTitle = `Conflict of Interest (Day ${d+1})`;
-            resolutionText = `The only available proctors (${evalResult.tConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
-          } else if (evalResult.dConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.tConflicts.length === 0) {
-            issueTitle = `Section Rotation Rule (Day ${d+1})`;
-            resolutionText = `Available proctors (${evalResult.dConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
-          } else if (evalResult.tConflicts.length > 0 || evalResult.dConflicts.length > 0) {
-            issueTitle = `Resource Blocked (Day ${d+1})`;
-            resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
+          let allowedAutoRooms = roomSource === "Department" 
+             ? localRooms 
+             : [...localRooms, ...uniqueOtherRooms].sort((a, b) => a.number.localeCompare(b.number, undefined, {numeric: true}));
+
+          let validAutoRooms = allowedAutoRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+          let finalSelectedRoom = null;
+
+          if (allowedAutoRooms.length > 0 && (validAutoRooms.includes(allowedAutoRooms[0]) || targetHeadcount === 0)) {
+              finalSelectedRoom = allowedAutoRooms[0];
+              const lIdx = localRooms.findIndex(r => r.number === finalSelectedRoom.number);
+              if (lIdx >= 0) localRooms.splice(lIdx, 1);
+              const gIdx = uniqueOtherRooms.findIndex(r => r.number === finalSelectedRoom.number);
+              if (gIdx >= 0) uniqueOtherRooms.splice(gIdx, 1);
+
+          } else if (localRooms.length === 0 && uniqueOtherRooms.length === 0) {
+              errors.push({ issue: `Room Shortage (Day ${d+1})`, resolution: `No available rooms anywhere in the university for Section ${sectionID}.` });
+              generationFailed = true;
           } else {
-            resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+              let nextChronologicalRoom = localRooms[0] || uniqueOtherRooms[0]; 
+              let nextChronologicalCap = getRoomCap(nextChronologicalRoom);
+
+              let validInternalRooms = localRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+              let validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) >= targetHeadcount);
+
+              if (validInternalRooms.length === 0 && localRooms.length > 0) {
+                  let maxCap = Math.max(...localRooms.map(r => getRoomCap(r)));
+                  validInternalRooms = localRooms.filter(r => getRoomCap(r) === maxCap);
+              }
+              if (validGlobalRooms.length === 0 && uniqueOtherRooms.length > 0) {
+                  let maxCap = Math.max(...uniqueOtherRooms.map(r => getRoomCap(r)));
+                  validGlobalRooms = uniqueOtherRooms.filter(r => getRoomCap(r) === maxCap);
+              }
+
+              const userChoice = await new Promise((resolve) => {
+                  setRoomWarningModal({
+                      isOpen: true,
+                      resolve: resolve,
+                      sectionID: sectionID,
+                      dayIndex: d + 1,
+                      dayDate: dayDate,
+                      startTime: startTime,
+                      endTime: endTime,
+                      targetHeadcount: targetHeadcount,
+                      nextRoom: nextChronologicalRoom,
+                      nextCap: nextChronologicalCap,
+                      internalFits: validInternalRooms,
+                      globalFits: validGlobalRooms
+                  });
+              });
+
+              if (!userChoice || userChoice.type === 'halt') {
+                  generationFailed = true;
+                  errors.push({ issue: `Capacity Halted (Day ${d+1})`, resolution: `Generation aborted due to strict capacity constraints for Section ${sectionID} (${targetHeadcount} students).` });
+              } else if (userChoice.type === 'force') {
+                  const rNum = nextChronologicalRoom.number;
+                  const lIdx = localRooms.findIndex(r => r.number === rNum);
+                  if (lIdx >= 0) {
+                      finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
+                  } else {
+                      const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
+                      finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
+                  }
+                  warningLogs.push(`Section ${sectionLetter} forced into Room ${finalSelectedRoom.number} (${nextChronologicalCap} cap) despite having ${targetHeadcount} students.`);
+              } else if (userChoice.type === 'select') {
+                  const rNum = userChoice.room.number;
+                  const lIdx = localRooms.findIndex(r => r.number === rNum);
+                  if (lIdx >= 0) {
+                      finalSelectedRoom = localRooms.splice(lIdx, 1)[0];
+                      warningLogs.push(`Section ${sectionLetter} skipped to Internal Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
+                  } else {
+                      const gIdx = uniqueOtherRooms.findIndex(r => r.number === rNum);
+                      finalSelectedRoom = uniqueOtherRooms.splice(gIdx, 1)[0];
+                      warningLogs.push(`Section ${sectionLetter} borrowed Global Room ${finalSelectedRoom.number} (${getRoomCap(finalSelectedRoom)} cap).`);
+                  }
+              } else if (userChoice.type === 'manual') {
+                  finalSelectedRoom = { number: userChoice.room, capacity: 'N/A', type: 'Manual/Temporary' };
+                  warningLogs.push(`Section ${sectionLetter} manually assigned to temporary Room: ${userChoice.room}.`);
+              }
           }
 
-          errors.push({ issue: issueTitle, resolution: resolutionText });
-          generationFailed = true;
-        }
+          if (generationFailed) break;
 
-      if (!generationFailed) {
-          // --- NEW: EQUAL WORKLOAD DISTRIBUTION ALGORITHM ---
-          // Sorts the available proctors so the person with the LEAST assignments gets picked first!
-          evalResult.available.sort((a, b) => {
-             const aName = a.full_name || a.name;
-             const bName = b.full_name || b.name;
-             const aCount = finalGeneratedData.filter(s => s.proctor === aName).length;
-             const bCount = finalGeneratedData.filter(s => s.proctor === bName).length;
-             return aCount - bCount; 
-          });
+          if (evalResult.available.length === 0 && !generationFailed) {
+            let issueTitle = `Proctor Shortage (Day ${d+1})`;
+            let resolutionText = `No proctors available for Section ${sectionID} on ${dayDate}.`;
 
-const selectedRoom = finalSelectedRoom;
-          const selectedProctor = evalResult.available.shift();
+            if (evalResult.tConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.dConflicts.length === 0) {
+              issueTitle = `Conflict of Interest (Day ${d+1})`;
+              resolutionText = `The only available proctors (${evalResult.tConflicts.join(', ')}) are teaching subjects in this section block. Please assign external proctors.`;
+            } else if (evalResult.dConflicts.length > 0 && evalResult.aConflicts.length === 0 && evalResult.tConflicts.length === 0) {
+              issueTitle = `Section Rotation Rule (Day ${d+1})`;
+              resolutionText = `Available proctors (${evalResult.dConflicts.join(', ')}) have already guarded Section ${sectionID} on a previous day. Add more proctors to allow rotation.`;
+            } else if (evalResult.tConflicts.length > 0 || evalResult.dConflicts.length > 0) {
+              issueTitle = `Resource Blocked (Day ${d+1})`;
+              resolutionText = `Some proctors were excluded due to Conflict of Interest or the Section Rotation rule. The rest lacked logged hours. Add more proctors.`;
+            } else {
+              resolutionText = `All assigned proctors either lack logged availability for this timeframe or are already assigned to another room.`;
+            }
 
-          daySubjects.forEach((sub, idx) => {
-            finalGeneratedData.push({
-              subject_code: sub.code,
-              subject_name: sub.name,
-              section: sectionID,
-              year_level: selectedYear,
-              dept_code: deptCode,
-              exam_date: dayDate,
-              start_time: addHours(startTime, idx),
-              end_time: addHours(startTime, idx + 1),
-              room: selectedRoom.number,
-              proctor: selectedProctor.full_name || selectedProctor.name,
-              original_proctor: selectedProctor.full_name || selectedProctor.name,
-              original_room: selectedRoom.number,
-              original_subject_code: sub.code,
-              status: 'ACTIVE',
-              flagged: false,
-              flagNote: '',
-              isManualProctor: false
+            errors.push({ issue: issueTitle, resolution: resolutionText });
+            generationFailed = true;
+          }
+
+          if (!generationFailed) {
+            evalResult.available.sort((a, b) => {
+               const aName = a.full_name || a.name;
+               const bName = b.full_name || b.name;
+               const aCount = finalGeneratedData.filter(s => s.proctor === aName).length;
+               const bCount = finalGeneratedData.filter(s => s.proctor === bName).length;
+               return aCount - bCount; 
             });
-          });
-        } else {
-          break; 
+
+            const selectedRoom = finalSelectedRoom;
+            const selectedProctor = evalResult.available.shift();
+
+            daySubjects.forEach((sub, idx) => {
+              finalGeneratedData.push({
+                subject_code: sub.code,
+                subject_name: sub.name,
+                section: sectionID,
+                year_level: selectedYear,
+                dept_code: deptCode,
+                exam_date: dayDate,
+                start_time: addHours(startTime, idx),
+                end_time: addHours(startTime, idx + 1),
+                room: selectedRoom.number,
+                proctor: selectedProctor.full_name || selectedProctor.name,
+                original_proctor: selectedProctor.full_name || selectedProctor.name,
+                original_room: selectedRoom.number,
+                original_subject_code: sub.code,
+                status: 'ACTIVE',
+                flagged: false,
+                flagNote: '',
+                isManualProctor: false
+              });
+            });
+          } else {
+            break; 
+          }
         }
       }
-    }
-  
 
-   if (errors.length > 0) {
-      setGenerationErrors(errors);
-      showToast("Generation Blocked: Resource conflicts found.", "error");
-      return; 
-    }
+      if (errors.length > 0) {
+        setGenerationErrors(errors);
+        showToast("Generation Blocked: Resource conflicts found.", "error");
+        return; 
+      }
 
-    // --- NEW: Instantly push the draft to Supabase so items receive valid IDs ---
-    if (onGenerate) {
-       onGenerate(finalGeneratedData, examDates);
-    }
+      if (onGenerate) {
+         onGenerate(finalGeneratedData, examDates);
+      }
 
-    setLocalSchedule(finalGeneratedData);
-    if (warningLogs.length > 0) {
-       setAuditLog([...warningLogs.map(w => `[SYSTEM WARNING] ${w}`), "Automated Generation Completed."]);
-       showToast("Schedule Generated with Sequence Warnings!", "error");
-    } else {
-       setAuditLog(["Automated Generation Completed."]);
-       showToast("Schedule Generated Successfully!");
+      setLocalSchedule(finalGeneratedData);
+      if (warningLogs.length > 0) {
+         setAuditLog([...warningLogs.map(w => `[SYSTEM WARNING] ${w}`), "Automated Generation Completed."]);
+         showToast("Schedule Generated with Sequence Warnings!", "error");
+      } else {
+         setAuditLog(["Automated Generation Completed."]);
+         showToast("Schedule Generated Successfully!");
+      }
+      setActiveTab("preview");
+
+    } finally {
+      // 2. RELEASE THE LOCK: Always re-enable the button, even if an error crashes the logic above
+      setIsGenerating(false);
     }
-    setActiveTab("preview");
   };
 
 
@@ -1139,7 +1131,20 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
         return;
       }
       
-      let filtered = [...localSchedule];
+      // --- NEW: FILTER OUT HISTORY AUTOMATICALLY ---
+      const todayStr = new Date().toISOString().split('T')[0];
+      const currentTimeStr = new Date().toTimeString().substring(0, 5);
+      
+      let filtered = localSchedule.filter(s => {
+         const isPast = s.exam_date < todayStr || (s.exam_date === todayStr && s.end_time < currentTimeStr);
+         return !isPast; // Strips out completed sessions
+      });
+
+      if (filtered.length === 0) {
+         showToast("No upcoming schedules available to export.", "error");
+         return;
+      }
+
       let titleSuffix = "Master";
 
       if (exportConfig.type === 'YEAR') {
@@ -1240,7 +1245,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
             doc.setLineWidth(0.6);
             doc.line(14, 32, pageWidth - 14, 32);
             
-            doc.setDrawColor(203, 213, 225); 
+            doc.setDrawColor(226, 232, 240); 
             doc.setLineWidth(0.2);
             doc.line(14, 33, pageWidth - 14, 33);
 
@@ -1265,7 +1270,7 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
 
             const items = groupedData[date][section];
             const tableRows = items.map(item => [
-              `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`, // Stacked time
+              `${formatTime(item.start_time)}\n${formatTime(item.end_time)}`, 
               item.subject_code || "N/A",
               item.subject_name || "N/A",
               item.room || "N/A",
@@ -1277,23 +1282,23 @@ const handleProctorSwitch = (newProctorName, scope = 'session') => {
               body: tableRows, 
               startY: currentY, 
               theme: 'grid', 
-              styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, valign: 'middle' }, 
+              styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, textColor: [51, 65, 85], lineColor: [226, 232, 240], lineWidth: 0.1, valign: 'middle' }, 
               headStyles: { font: 'helvetica', fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', halign: 'center', lineColor: [15, 23, 42], lineWidth: 0.1 },
               columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 26 }, // Narrower stacked time
+                0: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
                 1: { halign: 'center', cellWidth: 24 },
                 2: { halign: 'left' },
-                3: { halign: 'center', fontStyle: 'bold', cellWidth: 22, textColor: [37, 99, 235] }, // Wider Room
+                3: { halign: 'center', fontStyle: 'bold', cellWidth: 22, textColor: [37, 99, 235] },
                 4: { halign: 'center', cellWidth: 38 }
               },
               alternateRowStyles: { fillColor: [248, 250, 252] },
-              margin: { bottom: 30, left: 14, right: 14 },
+              margin: { bottom: 25, left: 14, right: 14 },
               didDrawPage: () => {
                 const printDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 doc.setFont("helvetica", "italic");
                 doc.setFontSize(7);
                 doc.setTextColor(148, 163, 184); 
-                doc.setDrawColor(203, 213, 225);
+                doc.setDrawColor(226, 232, 240);
                 doc.setLineWidth(0.5);
                 doc.line(14, doc.internal.pageSize.getHeight() - 12, pageWidth - 14, doc.internal.pageSize.getHeight() - 12);
                 doc.text(`Generated securely by Accord Pro System: ${printDate}`, 14, doc.internal.pageSize.getHeight() - 8);
@@ -1980,8 +1985,16 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
                       </button>
                     </div>
                   </div>
-                  <button onClick={handleGenerateClick} className="w-full bg-blue-600 py-10 rounded-[3rem] font-black uppercase tracking-[0.4em] text-xl shadow-lg hover:bg-blue-500 hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-4 group">
-                    <Play size={32} fill="currentColor" className="group-hover:scale-110 transition-transform"/> Start Calculation
+                 <button 
+                    onClick={handleGenerateClick} 
+                    disabled={isGenerating} 
+                    className="w-full bg-blue-600 py-10 rounded-[3rem] font-black uppercase tracking-[0.4em] text-xl shadow-lg hover:bg-blue-500 hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-4 group disabled:opacity-80 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                  >
+                    {isGenerating ? (
+                      <><Loader2 size={32} className="animate-spin" /> CALCULATING...</>
+                    ) : (
+                      <><Play size={32} fill="currentColor" className="group-hover:scale-110 transition-transform"/> Start Calculation</>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2271,13 +2284,13 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
       </div>
 
       {/* --- MODALS --- */}
-      {/* EXPORT CONFIG MODAL */}
+      {/* EXPORT CONFIG MODAL WITH PREMIUM PILL SELECTORS */}
       {exportConfig.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white w-full max-w-md p-10 rounded-[3.5rem] shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white w-full max-w-md p-8 md:p-10 rounded-[3.5rem] shadow-2xl animate-in zoom-in-95">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3">
                   <Download size={24} className={exportConfig.format === 'pdf' ? 'text-rose-500' : 'text-emerald-500'} />
                   Export {exportConfig.format.toUpperCase()}
                 </h3>
@@ -2287,43 +2300,55 @@ className="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 
             </div>
 
             <div className="space-y-4 mb-8">
-              <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50">
+              <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
                 <input type="radio" name="exportScope" checked={exportConfig.type === 'ALL'} onChange={() => setExportConfig({ ...exportConfig, type: 'ALL', targetValue: '' })} className="w-4 h-4 accent-blue-600"/>
                 <span className="text-xs font-black uppercase text-slate-700">Whole Department (All)</span>
               </label>
 
-              <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50">
-                <input type="radio" name="exportScope" checked={exportConfig.type === 'YEAR'} onChange={() => setExportConfig({ ...exportConfig, type: 'YEAR', targetValue: [...new Set(localSchedule.map(s => s.year_level))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
-                <span className="text-xs font-black uppercase text-slate-700">By Year Level</span>
-              </label>
-              {exportConfig.type === 'YEAR' && (
-                <select className="w-full p-4 ml-8 w-[calc(100%-2rem)] bg-slate-50 rounded-xl text-xs font-bold outline-none" value={exportConfig.targetValue} onChange={e => setExportConfig({ ...exportConfig, targetValue: e.target.value })}>
-                  {[...new Set(localSchedule.map(s => s.year_level))].sort().map(y => <option key={y} value={y}>Year Level {y}</option>)}
-                </select>
-              )}
+              <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="radio" name="exportScope" checked={exportConfig.type === 'YEAR'} onChange={() => setExportConfig({ ...exportConfig, type: 'YEAR', targetValue: [...new Set(localSchedule.map(s => s.year_level))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
+                    <span className="text-xs font-black uppercase text-slate-700">By Year Level</span>
+                  </label>
+                  {exportConfig.type === 'YEAR' && (
+                    <div className="flex bg-slate-50 p-1.5 rounded-2xl ml-8 w-[calc(100%-2rem)] overflow-x-auto custom-scrollbar border-2 border-slate-100 gap-1 animate-in slide-in-from-top-2">
+                      {[...new Set(localSchedule.map(s => s.year_level))].sort().map(y => (
+                        <button key={y} onClick={() => setExportConfig({ ...exportConfig, targetValue: y })} className={`flex-1 px-4 py-2.5 text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${String(exportConfig.targetValue) === String(y) ? 'bg-white shadow-sm text-blue-600 border border-slate-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>Yr {y}</button>
+                      ))}
+                    </div>
+                  )}
+              </div>
 
-              <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50">
-                <input type="radio" name="exportScope" checked={exportConfig.type === 'DATE'} onChange={() => setExportConfig({ ...exportConfig, type: 'DATE', targetValue: [...new Set(localSchedule.map(s => s.exam_date))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
-                <span className="text-xs font-black uppercase text-slate-700">By Exam Day</span>
-              </label>
-              {exportConfig.type === 'DATE' && (
-                <select className="w-full p-4 ml-8 w-[calc(100%-2rem)] bg-slate-50 rounded-xl text-xs font-bold outline-none" value={exportConfig.targetValue} onChange={e => setExportConfig({ ...exportConfig, targetValue: e.target.value })}>
-                  {[...new Set(localSchedule.map(s => s.exam_date))].sort().map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              )}
+              <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="radio" name="exportScope" checked={exportConfig.type === 'DATE'} onChange={() => setExportConfig({ ...exportConfig, type: 'DATE', targetValue: [...new Set(localSchedule.map(s => s.exam_date))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
+                    <span className="text-xs font-black uppercase text-slate-700">By Exam Day</span>
+                  </label>
+                  {exportConfig.type === 'DATE' && (
+                    <div className="flex bg-slate-50 p-1.5 rounded-2xl ml-8 w-[calc(100%-2rem)] overflow-x-auto custom-scrollbar border-2 border-slate-100 gap-1 animate-in slide-in-from-top-2">
+                      {[...new Set(localSchedule.map(s => s.exam_date))].sort().map(d => (
+                        <button key={d} onClick={() => setExportConfig({ ...exportConfig, targetValue: d })} className={`px-4 py-2.5 text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${exportConfig.targetValue === d ? 'bg-white shadow-sm text-blue-600 border border-slate-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>{d}</button>
+                      ))}
+                    </div>
+                  )}
+              </div>
 
-              <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50">
-                <input type="radio" name="exportScope" checked={exportConfig.type === 'SECTION'} onChange={() => setExportConfig({ ...exportConfig, type: 'SECTION', targetValue: [...new Set(localSchedule.map(s => s.section))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
-                <span className="text-xs font-black uppercase text-slate-700">By Section Block</span>
-              </label>
-              {exportConfig.type === 'SECTION' && (
-                <select className="w-full p-4 ml-8 w-[calc(100%-2rem)] bg-slate-50 rounded-xl text-xs font-bold outline-none" value={exportConfig.targetValue} onChange={e => setExportConfig({ ...exportConfig, targetValue: e.target.value })}>
-                  {[...new Set(localSchedule.map(s => s.section))].sort().map(sec => <option key={sec} value={sec}>Section {sec}</option>)}
-                </select>
-              )}
+              <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 p-4 border-2 border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="radio" name="exportScope" checked={exportConfig.type === 'SECTION'} onChange={() => setExportConfig({ ...exportConfig, type: 'SECTION', targetValue: [...new Set(localSchedule.map(s => s.section))][0] || '' })} className="w-4 h-4 accent-blue-600"/>
+                    <span className="text-xs font-black uppercase text-slate-700">By Section Block</span>
+                  </label>
+                  {exportConfig.type === 'SECTION' && (
+                    <div className="flex bg-slate-50 p-1.5 rounded-2xl ml-8 w-[calc(100%-2rem)] overflow-x-auto custom-scrollbar border-2 border-slate-100 gap-1 animate-in slide-in-from-top-2">
+                      {[...new Set(localSchedule.map(s => s.section))].sort().map(sec => (
+                        <button key={sec} onClick={() => setExportConfig({ ...exportConfig, targetValue: sec })} className={`px-4 py-2.5 text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${exportConfig.targetValue === sec ? 'bg-white shadow-sm text-blue-600 border border-slate-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}>Sec {sec}</button>
+                      ))}
+                    </div>
+                  )}
+              </div>
             </div>
 
-            <button onClick={executeExport} className={`w-full py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-white shadow-xl hover:-translate-y-1 transition-all ${exportConfig.format === 'pdf' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
+            <button onClick={executeExport} className={`w-full py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-white shadow-xl hover:-translate-y-1 transition-all active:scale-95 ${exportConfig.format === 'pdf' ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/30' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30'}`}>
               Generate Document
             </button>
           </div>
